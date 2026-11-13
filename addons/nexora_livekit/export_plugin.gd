@@ -52,3 +52,23 @@ func _get_android_dependencies(_platform: EditorExportPlatform, _debug: bool) ->
 
 func _get_android_dependencies_maven_repos(_platform: EditorExportPlatform, _debug: bool) -> PackedStringArray:
 	return MAVEN_REPOS
+
+
+# LiveKit's AAR declares permissions for camera + screen-share (foreground service). NEXORA is voice-only and
+# never starts a foreground service, so strip them (and notifications) from the merged manifest. The mic
+# (RECORD_AUDIO) is requested only when the user joins voice (src/net/voice.gd); nothing is requested at launch.
+const REMOVED_PERMISSIONS: PackedStringArray = [
+	"android.permission.CAMERA",
+	"android.permission.FOREGROUND_SERVICE",
+	"android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION",
+	"android.permission.FOREGROUND_SERVICE_MICROPHONE",
+	"android.permission.POST_NOTIFICATIONS",
+	"android.permission.SYSTEM_ALERT_WINDOW",
+]
+
+
+func _get_android_manifest_element_contents(_platform: EditorExportPlatform, _debug: bool) -> String:
+	var s := ""
+	for perm in REMOVED_PERMISSIONS:
+		s += '    <uses-permission android:name="%s" tools:node="remove" />\n' % perm
+	return s

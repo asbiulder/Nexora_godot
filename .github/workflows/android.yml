@@ -192,6 +192,9 @@ jobs:
             "$bt/aapt2" dump xmltree --file AndroidManifest.xml "$a" | grep -E -i "debuggable|testOnly|extractNativeLibs|minSdk|targetSdk|uses-permission|meta-data" -A1 | grep -v "^--" | head -60
             "$bt/apksigner" verify --print-certs -v "$a" | grep -E "Verified|Signer #1 certificate (DN|SHA-256)|v[1-4] scheme" || exit 1
             if "$bt/aapt2" dump xmltree --file AndroidManifest.xml "$a" | grep -E -q "debuggable.*=(true|0xffffffff)|testOnly.*=(true|0xffffffff)"; then echo "::error::$a is debuggable or testOnly"; exit 1; fi
+            echo "--- permissions:"; "$bt/aapt2" dump permissions "$a" || true
+            echo "--- services/receivers:"; "$bt/aapt2" dump xmltree --file AndroidManifest.xml "$a" | grep -E -A2 "E: (service|receiver)" | grep -E "E: |name" || true
+            if "$bt/aapt2" dump permissions "$a" | grep -E -q "CAMERA|FOREGROUND_SERVICE|POST_NOTIFICATIONS|SYSTEM_ALERT_WINDOW"; then echo "::error::$a still declares camera/foreground-service/notification permissions"; exit 1; fi
           done
           echo "=== AAB"; unzip -l build/NEXORA.aab | grep -E "/lib/" | awk '{print $1, $4}'
           jarsigner -verify build/NEXORA.aab | tail -2 || true

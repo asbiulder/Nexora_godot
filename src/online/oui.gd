@@ -1395,8 +1395,8 @@ static func pick_and_upload(bucket: String, size: int, square: bool, cb: Callabl
 	if not DisplayServer.has_feature(DisplayServer.FEATURE_NATIVE_DIALOG_FILE):
 		cb.call({"ok": false, "error": "", "cancelled": true, "unsupported": true})
 		return
-	if OS.get_name() == "Android":
-		OS.request_permissions()
+	# No runtime permission needed: the Android picker (SAF) grants access to the chosen file.
+	# (OS.request_permissions() here used to prompt for every dangerous permission: mic, Bluetooth...)
 	var on_pick := func(status: bool, paths: PackedStringArray, _fi: int) -> void:
 		if not status or paths.is_empty():
 			cb.call({"ok": false, "error": "", "cancelled": true})
