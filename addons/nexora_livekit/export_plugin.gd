@@ -81,3 +81,11 @@ func _get_android_manifest_element_contents(_platform: EditorExportPlatform, _de
 	for perm in REMOVED_PERMISSIONS:
 		s += '    <uses-permission android:name="%s" tools:node="remove" />\n' % perm
 	return s
+
+
+# androidx.profileinstaller (pulled in by LiveKit/androidx) adds ProfileInstallReceiver guarded by
+# android:permission="android.permission.DUMP" (adb/Play baseline-profile tooling only). Some OEM installers
+# (Xiaomi MIUI/HyperOS) flag packages that mention DUMP, so drop the receiver from the merged manifest;
+# the app does not need it (profiles still install via Play / ART on first runs).
+func _get_android_manifest_application_element_contents(_platform: EditorExportPlatform, _debug: bool) -> String:
+	return '        <receiver android:name="androidx.profileinstaller.ProfileInstallReceiver" tools:node="remove" />\n'
