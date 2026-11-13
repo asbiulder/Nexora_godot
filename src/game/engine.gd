@@ -1,9 +1,10 @@
 class_name NxEngine
 extends RefCounted
 ## NEXORA physics engine.
-## DEFAULT model "nx8": line-by-line port of the NX8 build's www/js/game.js simulation (sim/walls/post/hit/fire/loop):
-##   PR 42, ball drag 610K·min(1,sp/480K)+0.035·sp with spin curve, ball wall e 0.72→0.42, piece wall e 0.82,
-##   ball-only posts (r+5, kp 1.7), ball/piece e 0.74-0.12·…, 14 sub-steps max, idle 0.25 s, goal pause 1.8 s.
+## DEFAULT model "nx8": structure ported from the NX8 build's www/js/game.js (sim/walls/post/hit/fire/loop), with the
+##   Nov 2026 real-physics pass: linear drag->speed shots (SHOT_MAX), exact aim (no scatter), Coulomb+viscous friction,
+##   speed caps (DISC_VMAX/BALL_VMAX), plain elastic contacts (e disc-disc .8, disc-ball .9, walls .7), disc 2.5x ball mass,
+##   reduced ball spin. Sizes from the reference screenshot (disc 0.128, ball 0.058 of pitch width).
 ## cfg.model = "v4": the previous line-by-line port of src/game/engine.ts (reference only).
 ## Fixed 240 Hz sub-stepping, impulse-based circle collisions with positional correction,
 ## rolling 3D ball rotation, render interpolation (prev -> current).
@@ -15,10 +16,10 @@ extends RefCounted
 
 const D := preload("res://src/core/data.gd")
 const K := 1.27
-const PR := 49.6           # piece radius (20% smaller than the previous 62 — user: too big vs the reference; nx8 ref is 42)
+const PR := 49.0           # piece radius: reference screenshot disc diameter = 0.128 x pitch width (767 px -> 98 px)
 const PR_V4 := 49.0
 const POST_R8 := 5.0
-const BR := 24.8           # ball radius (20% smaller than the previous 31; nx8 ref is 25.5)
+const BR := 22.0           # ball radius: reference ball diameter = 0.058 x pitch width (767 px -> 44 px)
 const BR8 := 25.5
 const RC := 70.0
 const LMAX := 210.0
@@ -47,10 +48,25 @@ const LAUNCH_MIN := 0.6     # fraction of travel speed at the instant of the str
 const ROLL_VIS := 0.35
 const SPIN_VIS := 0.25
 # --- Godot feel (nx8 model) ---
-const PM := 5.5             # disc mass (lighter: so the ball can shove discs instead of merely bouncing off them)
-const BM := 3.0             # ball mass (heavier: carries momentum into disc collisions — user asked for ball weight)
-const SHOT_V0 := 280.0      # shot speed at zero power (K-units)
-const SHOT_V1 := 1320.0     # extra shot speed at full power (nx8 1085 -> stronger max shots)
+const PM := 5.0             # disc mass (2.5x the ball)
+const BM := 2.0             # ball mass
+# --- real-physics feel (nx8 model, Nov 2026): all speeds in px/s, no K scaling ---
+const SHOT_MAX := 1350.0    # disc launch speed at full drag (LMAX); scales LINEARLY with drag length
+const DISC_VMAX := 1450.0   # hard cap on any disc speed (also after collisions) so motion stays readable on a phone
+const BALL_VMAX := 1700.0   # hard cap on ball speed (~28 px per 60 Hz frame)
+const DISC_FA := 360.0      # disc rolling friction: constant deceleration (px/s^2) ...
+const DISC_FC := 1.0        # ... plus speed-proportional drag (1/s)
+const BALL_FA := 300.0      # ball rolling friction: constant deceleration (px/s^2) ...
+const BALL_FC := 0.9        # ... plus speed-proportional drag (1/s)
+const V_STOP := 14.0        # below this speed a body comes to rest
+const E_DD := 0.8           # restitution disc-disc
+const E_DB := 0.9           # restitution disc-ball
+const E_WALL := 0.7         # restitution walls / goal frame (ball and discs)
+const SPIN_HIT := 0.12      # ball side-spin picked up from an off-centre contact (was 0.42)
+const SPIN_MAX := 12.0      # ball spin clamp (was 34)
+const SPIN_CURVE := 0.012   # how much side-spin bends the ball path (was 0.034)
+const SPIN_DECAY := 2.6     # 1/s spin decay while rolling (was 1.25)
+const ROLL_K := 0.6         # visual roll rate vs true rolling (less dizzy ball)
 const CORNER_NUDGE := 70.0  # px/s push out of a sharp corner for a body resting against both walls
 
 const GOAL_COLS := [Color("#ffd23a"), Color("#ffffff"), Color("#3bd0ff"), Color("#ff4a7a"), Color("#7bff5a")]
@@ -244,19 +260,22 @@ func fire(b: NxBody, dx: float, dy: float, l: float, human := false) -> void:
 	var p := minf(l, LMAX) / LMAX
 	var team := b.team
 	last_power = p
-	var v := ((260 + 1085 * pow(p, 0.8)) if v4 else (SHOT_V0 + SHOT_V1 * pow(p, 0.85))) * K * 1.32
+	var v := ((260 + 1085 * pow(p, 0.8)) * K * 1.32) if v4 else (SHOT_MAX * p)
 	if c_stats != null: v *= power_mul(float(stats_of(team).power))
 	elif c_vip[team]: v *= 1.16
+	if not v4: v = minf(v, DISC_VMAX)
 	var ux := dx / l
 	var uy := dy / l
-	if human and c_stats != null:
+	# nx8: the shot goes exactly along the aim arrow (no random deviation); v4 reference keeps its scatter
+	if v4 and human and c_stats != null:
 		var dev := aim_dev_deg(float(stats_of(team).accuracy)) * PI / 180.0
 		if dev > 0:
 			var a := atan2(uy, ux) + (rng.randf() + rng.randf() - 1) * dev
 			ux = cos(a); uy = sin(a)
 	var vx := ux * v
 	var vy := uy * v
-	b.tvx = vx * 1.02; b.tvy = vy * 1.02; b.ramp = 0.06; b.vx = vx * 0.5; b.vy = vy * 0.5; b.boost = 0.22
+	if v4: b.tvx = vx * 1.02; b.tvy = vy * 1.02; b.ramp = 0.06; b.vx = vx * 0.5; b.vy = vy * 0.5; b.boost = 0.22
+	else: b.vx = vx; b.vy = vy; b.ramp = 0.0; b.boost = 0.0; b.tvx = 0.0; b.tvy = 0.0
 	if not v4 and b.team != turn: turn = b.team
 	phase = "move"; idle = 0.0; shots += 1; drag = null
 	if v4: cam = maxf(cam, 0.18)   # nx8/Godot: no camera kick on shots (crisp, no shake)
@@ -266,8 +285,7 @@ func fire(b: NxBody, dx: float, dy: float, l: float, human := false) -> void:
 # ---------- simulation ----------
 func _eN(bl: bool, vn: float) -> float:
 	if not v4:
-		# nx8: ball .72 at low normal speed -> .42 by ~1000K; pieces .82
-		return (0.72 - 0.30 * minf(1.0, maxf(0.0, (vn - 270 * K) / (730 * K)))) if bl else 0.82
+		return E_WALL
 	if bl: return minf(0.64 - 0.24 * clampf((vn - 270 * K) / (730 * K), 0, 1), WALL_VOUT * K / maxf(1, vn))
 	return minf(0.72, WALL_VOUT * 1.4 * K / maxf(1, vn))
 
@@ -284,12 +302,12 @@ func _walls(b: NxBody) -> void:
 		b.x = Fl + r
 		if b.vx < 0:
 			if bl and vs > 200: events.append({"t": "wall", "power": vs / 1800})
-			b.vx *= -_eN(bl, -b.vx); b.spin += b.vy / r * 0.03
+			b.vx *= -_eN(bl, -b.vx); b.spin += b.vy / r * (0.03 if v4 else 0.008)
 	if b.x + r > Fr:
 		b.x = Fr - r
 		if b.vx > 0:
 			if bl and vs > 200: events.append({"t": "wall", "power": vs / 1800})
-			b.vx *= -_eN(bl, b.vx); b.spin -= b.vy / r * 0.03
+			b.vx *= -_eN(bl, b.vx); b.spin -= b.vy / r * (0.03 if v4 else 0.008)
 	for g: Goal in goals:
 		var dp := g.d * (b.y - g.y)
 		if dp <= -r: continue
@@ -316,7 +334,7 @@ func _walls(b: NxBody) -> void:
 			if bl and vs > 200 and g.d * b.vy > 0: events.append({"t": "wall", "power": vs / 1800})
 			b.y = g.y - g.d * r
 			if g.d * b.vy > 0: b.vy = -g.d * absf(b.vy) * _eN(bl, absf(b.vy))
-			b.spin += g.d * b.vx / r * 0.03
+			b.spin += g.d * b.vx / r * (0.03 if v4 else 0.008)
 	if not v4:
 		_corner_nudge(b)
 		return
@@ -442,6 +460,55 @@ func _hit(a: NxBody, b: NxBody) -> void:
 		if a != ball: a.spin = clampf(a.spin - tv / a.r * 0.12, -18, 18)
 		if b != ball: b.spin = clampf(b.spin - tv / b.r * 0.12, -18, 18)
 
+## nx8 contact (Nov 2026 real-physics pass): plain mass-weighted elastic impulse between two circles.
+## disc-disc e = E_DD, disc-ball e = E_DB, masses PM / BM; no damping hacks, so a hard-struck ball shoves
+## discs apart (splits a gap) instead of bouncing off them as if they were walls.
+func _cap(b: NxBody) -> void:
+	var cap := BALL_VMAX if b == ball else DISC_VMAX
+	var s2 := b.vx * b.vx + b.vy * b.vy
+	if s2 > cap * cap:
+		var k := cap / sqrt(s2)
+		b.vx *= k; b.vy *= k
+
+func _hit8(a: NxBody, b: NxBody) -> void:
+	var dx := b.x - a.x
+	var dy := b.y - a.y
+	var d := sqrt(dx * dx + dy * dy)
+	var m := a.r + b.r
+	if d >= m: return
+	if d < 1e-4: dx = 1.0; dy = 0.0; d = 1.0
+	var nx := dx / d
+	var ny := dy / d
+	var sm := a.im + b.im
+	var isB := a == ball or b == ball
+	var wa := a.im / sm
+	var wb := b.im / sm
+	var pen := maxf(m - d - 0.2, 0) * 0.9
+	a.x -= nx * pen * wa; a.y -= ny * pen * wa; b.x += nx * pen * wb; b.y += ny * pen * wb
+	var vn := (b.vx - a.vx) * nx + (b.vy - a.vy) * ny
+	if vn >= 0: return
+	var e := (E_DB if isB else E_DD) if vn < -25.0 else 0.0
+	var j := -(1 + e) * vn / sm
+	a.vx -= j * nx * a.im; a.vy -= j * ny * a.im; b.vx += j * nx * b.im; b.vy += j * ny * b.im
+	_cap(a); _cap(b)
+	if vn < -150:
+		events.append({"t": "hit", "ball": isB, "power": -vn / 1900})
+		if not isB and vn < -520:
+			var q := minf(1, -vn / 1900.0)
+			a.sq = maxf(a.sq, q); b.sq = maxf(b.sq, q)
+	var tv := -ny * (b.vx - a.vx) + nx * (b.vy - a.vy)
+	if isB:
+		ball.spin += (1.0 if ball == b else -1.0) * tv / ball.r * SPIN_HIT
+		ball.spin = clampf(ball.spin, -SPIN_MAX, SPIN_MAX)
+		var pw := minf(1, -vn / 2100.0)
+		if pw > 0.2:
+			var o := a if ball == b else b
+			ball.sq = maxf(ball.sq, pw * 0.6); o.sq = maxf(o.sq, pw * 0.5)
+			if pw > 0.45:
+				burst((a.x + b.x) / 2, (a.y + b.y) / 2, int(roundf(4 + pw * 8)), 200 + pw * 260, HIT_COLS, 0.3, 2)
+	if a != ball: a.spin = clampf(a.spin - tv / a.r * 0.05, -10, 10)
+	if b != ball: b.spin = clampf(b.spin - tv / b.r * 0.05, -10, 10)
+
 func _rotate(b: NxBody, wx: float, wy: float, wz: float, dt: float) -> void:
 	var w := sqrt(wx * wx + wy * wy + wz * wz)
 	var th := w * dt
@@ -490,7 +557,7 @@ func _post8(b: NxBody, px: float, py: float) -> void:
 	var vn := b.vx * nx + b.vy * ny
 	b.x = px + nx * m; b.y = py + ny * m
 	if vn < 0:
-		var kp := (1.7 - 0.16 * minf(1, -vn / (2000 * K))) if b == ball else 1.7
+		var kp := 1.0 + E_WALL
 		b.vx -= kp * vn * nx; b.vy -= kp * vn * ny
 		if b == ball:
 			events.append({"t": "post", "power": -vn / 1800})
@@ -511,34 +578,32 @@ func _sim8(dt: float) -> void:
 		var sp := sqrt(b.vx * b.vx + b.vy * b.vy)
 		var bl := b == ball
 		if sp > 0:
-			if bl:
-				var fr := 610 * K * minf(1, sp / (480 * K)) + sp * 0.035
-				var ns := sp - fr * dt
-				if ns < 12 * K: b.vx = 0.0; b.vy = 0.0
-				else:
-					var m := maxf(-34, minf(34, b.spin)) * 0.034 * dt
-					var cs := cos(m)
-					var sn := sin(m)
+			# rolling friction: constant deceleration + speed-proportional drag, then a hard readability cap
+			var fa := BALL_FA if bl else DISC_FA
+			var fc := BALL_FC if bl else DISC_FC
+			var ns := sp - (fa + fc * sp) * dt
+			if ns < V_STOP: b.vx = 0.0; b.vy = 0.0
+			else:
+				ns = minf(ns, BALL_VMAX if bl else DISC_VMAX)
+				var k2 := ns / sp
+				if bl and b.spin != 0.0:
+					# a little side-spin bends the path (kept small: user wants less spin)
+					var mrot := b.spin * SPIN_CURVE * dt
+					var cs := cos(mrot)
+					var sn := sin(mrot)
 					var vx := b.vx * cs - b.vy * sn
 					var vy := b.vx * sn + b.vy * cs
-					var k2 := minf(ns, 2500 * K) / sp
 					b.vx = vx * k2; b.vy = vy * k2
-			else:
-				var fb := 0.35 if b.boost > 0 else 1.0
-				if b.boost > 0: b.boost -= dt
-				var ns2 := sp - (PF1 * K * minf(1, sp / (PV0 * K)) + sp * PF2) * fb * dt
-				if ns2 < 14 * K: b.vx = 0.0; b.vy = 0.0
 				else:
-					var k3 := minf(ns2, 2800 * K) / sp
-					b.vx *= k3; b.vy *= k3
+					b.vx *= k2; b.vy *= k2
 		if bl:
 			var sp2 := sqrt(b.vx * b.vx + b.vy * b.vy)
-			b.spin *= 1 - (1.25 if sp2 > 0 else 3.2) * dt
+			b.spin *= 1 - (SPIN_DECAY if sp2 > 0 else 5.0) * dt
 			if absf(b.spin) < 0.02: b.spin = 0.0
 			b.sq *= 1 - 9 * dt
-			# true rolling: |w| = speed / radius about the axis perpendicular to the motion; side spin about the vertical
-			var roll := 1.0 / b.r
-			var wz := b.spin * 0.8
+			# visual rolling (reduced vs true rolling so the ball face reads calmer); small side spin about the vertical
+			var roll := ROLL_K / b.r
+			var wz := b.spin * 0.4
 			if sp2 > 0 or wz != 0: _rotate(b, -b.vy * roll, b.vx * roll, wz, dt)
 			b.ang += b.spin * dt
 		else:
@@ -555,7 +620,7 @@ func _sim8(dt: float) -> void:
 				if ddx >= mm or ddx <= -mm: continue
 				var ddy := bc.y - ba.y
 				if ddy >= mm or ddy <= -mm: continue
-				_hit(ba, bc)
+				_hit8(ba, bc)
 	if ball:
 		for g: Goal in goals:
 			_post8(ball, g.x1, g.y); _post8(ball, g.x2, g.y)
@@ -740,7 +805,7 @@ func tick_fx(dt: float) -> void:
 	var k := 0
 	for i in trail.size():
 		var p: Vector3 = trail[i]
-		p.z -= dt * 3.2
+		p.z -= dt * (3.2 if v4 else 4.0)
 		if p.z > 0: trail[k] = p; k += 1
 	trail.resize(k)
 	if trail.size() > 40:

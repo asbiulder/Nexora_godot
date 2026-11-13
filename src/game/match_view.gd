@@ -375,16 +375,20 @@ func _process(delta: float) -> void:
 	var al := e.alpha()
 	var n := e.bodies.size()
 	if pos.size() != n: pos.resize(n)
-	# temporal smoothing: blend the rendered position toward the interpolated physics target, so
-	# fast/spiky motion reads softer instead of jumping (user: movements feel too sharp)
-	var smk := clampf(delta * 18.0, 0.08, 1.0)
+	# every frame each body is drawn at its physics position interpolated between the last two fixed 240 Hz
+	# sub-steps (engine.alpha), so motion is continuous with no skipping. No extra lerp-smoothing: that made the
+	# ball lag tens of px behind its real position and then appear to jump at contacts. (Speeds are capped in the
+	# engine instead, so motion stays easy to follow.) Online overrides (host snapshots) get a light blend.
+	var smk := clampf(delta * 30.0, 0.2, 1.0)
 	var ov: Array = override if override is Array else []
 	for i in n:
 		var b: NxBody = e.bodies[i]
 		var tgt: Vector2
-		if i < ov.size() and ov[i] is Vector2: tgt = ov[i]
+		var is_ov := i < ov.size() and ov[i] is Vector2
+		if is_ov: tgt = ov[i]
 		else: tgt = Vector2(b.px + (b.x - b.px) * al + b.vox, b.py + (b.y - b.py) * al + b.voy)
-		pos[i] = tgt if pos[i] == Vector2.ZERO else pos[i].lerp(tgt, smk)
+		if pos[i] == Vector2.ZERO or not is_ov or pos[i].distance_squared_to(tgt) > 250.0 * 250.0: pos[i] = tgt
+		else: pos[i] = pos[i].lerp(tgt, smk)
 	if not hq and e.parts.size() > 40: e.parts.resize(40)
 	var k := W / 415.0
 	var shk := Vector2.ZERO
@@ -459,11 +463,22 @@ func _shadow(c: Layer, x: float, y: float, r: float, a: float) -> void:
 
 func _draw_shadows(c: Layer) -> void:
 	var n := e.bodies.size()
+	var lf := -1.0 if flipped else 1.0
 	for i in n:
 		var b: NxBody = e.bodies[i]
 		var p := pos[i]
-		if b == e.ball: _shadow(c, p.x, p.y, b.r * (1 + b.sq * 0.08), 0.6)
-		else: _shadow(c, p.x, p.y, b.r * (1 + b.sq * 0.07), 0.5)
+		if b == e.ball:
+			_shadow(c, p.x, p.y, b.r * (1 + b.sq * 0.08), 0.6)
+			# tight contact shadow right under the ball
+			var rb := b.r * 0.95
+			c.draw_texture_rect(tex_shadow, Rect2(p.x - rb, p.y + lf * b.r * 0.35 - rb * 0.7, 2 * rb, 1.4 * rb), false, Color(1, 1, 1, 0.55))
+		else:
+			var r := b.r * (1 + b.sq * 0.07)
+			_shadow(c, p.x, p.y, r, 0.5)
+			# soft contact shadow hugging the disc's base (just under its side band)
+			var rc := r * 1.12
+			var th := maxf(3.0, r * 0.13)
+			c.draw_texture_rect(tex_shadow, Rect2(p.x - rc, p.y + lf * th * 1.6 - rc, 2 * rc, 2 * rc), false, Color(1, 1, 1, 0.7))
 
 func _active(b: NxBody) -> bool:
 	var aim_team := e.turn if e.phase == "aim" else -1
@@ -498,9 +513,15 @@ func _draw_discs(c: Layer) -> void:
 		var dark := e.phase == "aim" and b.team != e.turn
 		var tex: Texture2D = tex_team[b.team]
 		var mod := Color(0.8, 0.8, 0.82, 1) if dark else Color.WHITE
-		# pseudo-3D side wall: a second disc hanging below the face gives the disc visible thickness
-		var th := maxf(2.0, r * 0.12)
-		c.draw_circle(p + Vector2(0, th), r, TEAM_GLOW[b.team].darkened(0.66).lerp(Color(0.02, 0.05, 0.12, 1), 0.35))
+		# pseudo-3D thickness: a darker side band hanging a few px below the face (screen-down, also when flipped)
+		var lf := -1.0 if flipped else 1.0
+		var th := maxf(3.0, r * 0.13)
+		var down := Vector2(0, th * lf)
+		var side: Color = TEAM_GLOW[b.team].darkened(0.62).lerp(Color(0.02, 0.04, 0.10, 1), 0.4)
+		c.draw_circle(p + down, r, side.darkened(0.35))
+		c.draw_circle(p + down * 0.5, r, side)
+		# thin bright lip where the side band meets the face
+		c.draw_arc(p + down * 0.5, r - 0.5, (0.12 if lf > 0 else PI + 0.12), (PI - 0.12 if lf > 0 else TAU - 0.12), 24, Color(side.lightened(0.35), 0.55), 1.2, true)
 		if tex:
 			c.draw_set_transform(p, b.ang, Vector2.ONE)
 			c.draw_texture_rect(tex, Rect2(-r, -r, 2 * r, 2 * r), false, mod)
@@ -513,6 +534,10 @@ func _draw_discs(c: Layer) -> void:
 			c.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 		else:
 			c.draw_texture_rect(tex_gloss, Rect2(p.x - r, p.y - r, 2 * r, 2 * r), false)
+		# bright rim highlight on the upper-left edge of the face (light from top-left on screen)
+		var a0 := PI * 1.05 if lf > 0 else PI * 0.05
+		c.draw_arc(p, r - 1.2, a0, a0 + PI * 0.6, 28, Color(1, 1, 1, 0.55), 2.2, true)
+		c.draw_arc(p, r - 0.6, 0.0, TAU, 48, Color(1, 1, 1, 0.16), 1.0, true)
 	# (the breathing active ring is drawn in the additive light layer, see _draw_lights)
 
 func _strip(c: Layer, pts: Array, head: Vector2, width: float, col: Color, amul: float) -> void:
