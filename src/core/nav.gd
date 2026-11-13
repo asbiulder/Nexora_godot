@@ -555,6 +555,7 @@ func toast(text: String, kind := "info") -> void:
 	p.add_theme_stylebox_override("panel", sb)
 	var h := Kit.hbox(16, true)
 	h.alignment = BoxContainer.ALIGNMENT_CENTER
+	h.mouse_filter = Control.MOUSE_FILTER_IGNORE   # toast never swallows taps
 	h.add_child(Kit.img(UD.ui2("c_bell") if kind == "err" else (UD.ui2("x_star") if kind == "ok" else UD.ui2("c_mega")), 68))
 	var l := Kit.label(text, 36, NX.TEXT, true)
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART

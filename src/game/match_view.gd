@@ -55,6 +55,7 @@ var _aim_on := false
 var _aim_ux := 0.0
 var _aim_uy := -1.0
 var _aim_p := 0.0
+const AIM_MAX_K := 2.2   # max drawn aim-arrow length beyond the disc rim, in disc radii (at full power)
 
 # nodes
 var bg: Layer
@@ -777,13 +778,15 @@ func _draw_aim(c: Layer) -> void:
 	var i := e.bodies.find(b)
 	var p := pos[i] if i >= 0 else Vector2(b.x, b.y)
 	var r := b.r
-	var d0 := r + 10.0
-	var want := 120.0 + pw * 300.0
+	var d0 := r + 4.0
+	# medium-radius arrow (user: was far too long): length beyond the rim grows LINEARLY with power up to
+	# AIM_MAX_K x disc radius (~108 px at full drag); power mapping itself (LMAX) is unchanged
+	var want := AIM_MAX_K * r * maxf(pw, 0.2) - (d0 - r)
 	var room := _ray_room(p, u, _vis_rect(10.0 / maxf(0.01, s))) - d0
-	var T := clampf(minf(want, room), 46.0, want)
+	var T := clampf(minf(want, room), minf(30.0, want), want)
 	var sc := clampf(T / want, 0.55, 1.0) if room < want else 1.0
-	var hw := r * (0.86 + 0.22 * pw) * sc         # head width
-	var hl := hw * 1.08                          # head length
+	var hw := r * (0.62 + 0.3 * pw) * sc          # head width
+	var hl := minf(hw * 1.08, T * 0.62)          # head length (never longer than ~60% of the arrow)
 	var sw := hw * 0.64                          # shaft / dash width
 	var al := 0.55 + 0.45 * pw
 	var rest := maxf(0.0, T - hl)
@@ -825,8 +828,8 @@ func _draw_aim(c: Layer) -> void:
 	# accuracy preview dots beyond the tip, only where they stay on screen
 	var steps := maxi(2, int(roundf((3 + pw * 4) * (NxEngine.aim_preview(float(e.stats_of(b.team).accuracy)) if e.c_stats != null else 1.0))))
 	for kk in range(1, steps + 1):
-		var d := xt + 10 + kk * 20
-		if d > room + d0: break
+		var d := xt + 8 + kk * 12
+		if d > room + d0 or d > xt + r * 0.7: break
 		var f := 1.0 - float(kk) / (steps + 1)
 		c.draw_circle(p + u * d, 2.0 + 2.0 * f, Color(ARW_TIP.r, ARW_TIP.g, ARW_TIP.b, 0.55 * f * al), true, -1.0, true)
 

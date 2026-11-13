@@ -164,6 +164,7 @@ static func coach(text: String, mood: String = "idea") -> void:
 	var w := vp.x - OUI.px(48)
 	pc.custom_minimum_size.x = w
 	pc.position = Vector2(OUI.px(24), OUI.px(108) + OUI.top_inset() if scene == "match" else vp.y - OUI.px(150))
+	_ignore_input(pc)   # full-width strip near the bottom: must never swallow taps meant for the screen below
 	_coach_layer.add_child(pc)
 	pc.modulate.a = 0.0
 	var tw := pc.create_tween()
@@ -171,6 +172,13 @@ static func coach(text: String, mood: String = "idea") -> void:
 	tw.tween_interval(3.4)
 	tw.tween_property(pc, "modulate:a", 0.0, 0.2)
 	tw.tween_callback(pc.queue_free)
+
+
+static func _ignore_input(n: Node) -> void:
+	if n is Control:
+		(n as Control).mouse_filter = Control.MOUSE_FILTER_IGNORE
+	for c in n.get_children():
+		_ignore_input(c)
 
 
 # ---------------------------------------------------------------- live social / challenge events
@@ -464,10 +472,19 @@ class OracleBubble extends Control:
 						say(str(r.get("text", "")), str(r.get("mood", "content")), r.get("actions", [])), OUI.CYAN, 0, 34))
 			v.add_child(fl)
 		speech.add_child(v)
+		# the bubble is decoration over the menu (up to 70% wide, near the bottom): only its buttons take input,
+		# everything else lets taps through to the grid/list below (user: lower shop/team items did not respond)
+		_passthru(speech)
 		add_child(speech)
 		hide_t = minf(14.0, 4.5 + text.length() * 0.055)
 		_place_speech.call_deferred()
 		OUI.fade_in(speech, 0.18)
+
+	func _passthru(n: Node) -> void:
+		if n is Control and not (n is BaseButton):
+			(n as Control).mouse_filter = Control.MOUSE_FILTER_IGNORE
+		for c in n.get_children():
+			_passthru(c)
 
 	func _place_speech() -> void:
 		if speech == null or not is_instance_valid(speech):
