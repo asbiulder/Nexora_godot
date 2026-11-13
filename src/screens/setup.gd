@@ -29,6 +29,15 @@ func _ready() -> void:
 	var col: Color = mode["color"]
 	var p := UD.p()
 	var me := UD.team_by_id(str(p.get("team", "club0")))
+	# v2 pre-match: the neon stadium glows faintly behind the setup sheet
+	var stad := TextureRect.new()
+	stad.texture = UD.art("bg/stadium")
+	stad.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	stad.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	stad.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	stad.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	stad.modulate = Color(1, 1, 1, 0.32)
+	add_child(stad)
 	var sl := Kit.scroll_list(20)
 	var sc: ScrollContainer = sl[0]
 	sc.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)

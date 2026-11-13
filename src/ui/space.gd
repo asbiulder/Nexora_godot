@@ -12,6 +12,16 @@ const NEB := {
 	"hub": "res://assets/g/ui2/home_bg.jpg",
 	"stadium": "res://assets/g/menu/bg_stadium.webp",
 	"holo": "res://assets/g/menu/bg_holo.webp",
+	# NEXORA v2 menu art (assets/ui/bg): one space backdrop per screen family
+	"m_home": "res://assets/ui/bg/home.webp",
+	"m_mode": "res://assets/ui/bg/mode.webp",
+	"m_shop": "res://assets/ui/bg/shop.webp",
+	"m_social": "res://assets/ui/bg/social.webp",
+	"m_rank": "res://assets/ui/bg/rank.webp",
+	"m_team": "res://assets/ui/bg/team.webp",
+	"m_settings": "res://assets/ui/bg/settings.webp",
+	"m_oracle": "res://assets/ui/bg/oracle.webp",
+	"m_stadium": "res://assets/ui/bg/stadium.webp",
 }
 const STAR_SHADER := preload("res://src/ui/shaders/stars.gdshader")
 
@@ -98,7 +108,7 @@ func _fit(t: TextureRect) -> void:
 ## theme: base|win|lose|system|hub|stadium|holo; dim: extra darkening (RN dim prop)
 func set_theme_name(t: String, dim_ := -1.0) -> void:
 	if dim_ < 0:
-		dim_ = 0.0 if t in ["stadium", "holo", "hub"] else 0.15 if t == "base" else 0.0
+		dim_ = 0.0 if t in ["stadium", "holo", "hub"] or t.begins_with("m_") else 0.15 if t == "base" else 0.0
 	_set_shade(t, dim_)
 	if t == theme_name:
 		return
@@ -143,6 +153,9 @@ func _set_shade(t: String, d: float) -> void:
 	var stops: Array
 	if t in ["stadium", "holo"]:
 		stops = [.55 + d, .45 + d, .82 + d]
+	elif t.begins_with("m_"):
+		# keep the new art vivid; just enough shade under the HUD and the tab bar
+		stops = [.30 + d, .12 + d, .55 + d]
 	else:
 		stops = [.35 + d, d, .55 + d]
 	_shade_grad.offsets = PackedFloat32Array([0.0, 0.45, 1.0])

@@ -44,11 +44,36 @@ static func _fmt(ms: int) -> String:
 func _fill() -> void:
 	var p := UD.p()
 	var legends := UD.teams_of("leg")
+	# ---------------- v2 categories: FORMATION · ITEM · DISC · BALL (shop art)
+	body.add_child(Kit.section(I18n.t("v2.categories"), "CATEGORIES", NX.PINK))
+	var cats := Kit.hbox(18, true)
+	for cd in [["formation", I18n.t("v2.formation"), -1], ["item", I18n.t("v2.item"), 2], ["disc", I18n.t("v2.disc"), 0], ["ball", I18n.t("v2.ball"), 1]]:
+		var tile := NxNeon.new(38, 12, Color("#39d5ff"), Color("#ff4f8b"))
+		tile.custom_minimum_size = Vector2(0, 236)
+		tile.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var tv := Kit.vbox(6)
+		tv.alignment = BoxContainer.ALIGNMENT_CENTER
+		tv.add_child(Kit.center(Kit.img(UD.art("shop_" + cd[0]), Vector2(170, 140))))
+		var tl := Kit.label(cd[1], 29, NX.TEXT, true)
+		tl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		tv.add_child(tl)
+		tile.add_child(tv)
+		var target: int = cd[2]
+		if target == kind:
+			tile.strength = 2.2
+		Kit.tap(tile, func():
+			if target < 0:
+				Nav.go("team")
+			else:
+				kind = target
+				rebuild(_fill), 0.94)
+		cats.add_child(tile)
+	body.add_child(ent(padx(cats), 0))
 	# ---------------- legends banner
 	var ban := Control.new()
 	ban.custom_minimum_size = Vector2(0, 390)
 	ban.mouse_filter = Control.MOUSE_FILTER_PASS
-	var g := NxGrad.new([Color("#3b1a00"), Color("#1a0d3a"), Color("#070a22")], 62, 0.6, 0.18)
+	var g := NxGrad.new([Color("#4a1a3a"), Color("#1e1450"), Color("#08061e")], 62, 0.6, 0.18)
 	g.set_border(3.0, Color(1, 0.82, 0.34, 0.5))
 	g.set_glow(Color(1.4, 1.1, 0.4, 0.45), 32.0, 32.0)
 	ban.add_child(g)

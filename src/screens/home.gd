@@ -52,132 +52,95 @@ func _on_scroll(v: float) -> void:
 
 func _fill() -> void:
 	var p := UD.p()
-	var me := UD.team_by_id(str(p.get("team", "club0")))
 	var W := 1080.0
-	# ---------------- hero
-	var hw := 560.0
-	var hh := hw + 400.0
+	# ---------------- hero: mascot (left) + NEXORA logo (right), small drifting planets
+	var hh := 470.0
 	var wrap := Kit.stage(W, hh)
 	wrap.clip_contents = false
 	hero = Control.new()
 	hero.mouse_filter = Control.MOUSE_FILTER_PASS
 	hero.size = Vector2(W, hh)
 	wrap.add_child(hero)
-	var logo := Kit.img(UD.menu("logo"), Vector2(600, 290))
-	Kit.put(hero, logo, W * 0.5, 145)
+	var orb := Kit.img(UD.art("planet"), 120)
+	Kit.put(hero, orb, W * 0.5, 70)
+	orb.modulate = Color(1, 1, 1, 0.55)
+	Kit.bob(orb, 10, 4.2, 0.3)
+	var logo := Kit.img(UD.art("logo"), Vector2(560, 336))
+	Kit.put(hero, logo, W * 0.68, hh * 0.5)
 	logo.modulate.a = 0.0
 	var lw := logo.create_tween().set_parallel(true)
 	lw.tween_property(logo, "modulate:a", 1.0, 0.5).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	lw.tween_property(logo, "position:y", 145.0, 0.55).from(190.0).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	var pulse := Kit.pulse(hw * 0.9, Color(0.31, 0.55, 1.0, 0.5))
-	Kit.put(hero, pulse, W * 0.5, hh - 360)
-	var pa := pulse.modulate.a
-	pulse.modulate.a = 0.0
-	var pw2 := pulse.create_tween()
-	pw2.tween_interval(0.08)
-	pw2.tween_property(pulse, "modulate:a", pa, 0.45)
-	var ped := Kit.img(UD.menu("pedestal"), Vector2(hw * 1.5, hw * 1.5 * 0.42))
-	Kit.put(hero, ped, W * 0.5, hh - hw * 0.315)
-	ped.modulate.a = 0.0
-	var pdw := ped.create_tween()
-	pdw.tween_interval(0.12)
-	pdw.tween_property(ped, "modulate:a", 1.0, 0.45)
-	# mascot drifting on the left
-	var mtex := UD.ui2("mascot")
-	if mtex:  # the sheet crop carries a sliver of the next sprite on its right edge
-		var at := AtlasTexture.new()
-		at.atlas = mtex
-		at.region = Rect2(0, 0, 356, 520)
-		mtex = at
-	var mas := Kit.img(mtex, Vector2(240, 350))
-	Kit.put(hero, mas, 150, hh - 300)
+	lw.tween_property(logo, "position:y", logo.position.y, 0.55).from(logo.position.y + 40).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	var pad := Kit.img(UD.menu("holo_ring"), Vector2(240, 70))
+	Kit.put(hero, pad, 210, hh - 40)
+	pad.modulate = Color(0.6, 0.8, 1.4, 0.7)
+	var mas := Kit.img(UD.art("mascot"), Vector2(300, 380))
+	Kit.put(hero, mas, 210, hh * 0.5 - 10)
 	mas.modulate.a = 0.0
 	var mw := mas.create_tween()
-	mw.tween_interval(0.18)
+	mw.tween_interval(0.15)
 	mw.tween_property(mas, "modulate:a", 1.0, 0.45)
 	Kit.bob(mas, 14, 2.4, 0.4)
 	Kit.tap(mas, func(): UD.sfx("ui"); _mascot_say(I18n.t("home.hi_captain_ready_to_play")), 0.9)
-	# hovering disc
-	var dsz := hw * 0.78
-	var disc := Panel.new()
-	disc.mouse_filter = Control.MOUSE_FILTER_PASS
-	disc.custom_minimum_size = Vector2(dsz, dsz)
-	var dsb := NX.box(Color("#05040E"), int(dsz / 2), 8, NX.hdr(Color(0.47, 0.86, 1.0, 0.95), 1.3), 30, Color(0.31, 0.89, 1.0, 0.6))
-	disc.add_theme_stylebox_override("panel", dsb)
-	var dimg := Kit.img(UD.team_tex(me), dsz - 26)
-	dimg.position = Vector2(13, 13)
-	disc.add_child(dimg)
-	Kit.put(hero, disc, W * 0.5, 300 + dsz * 0.5)
-	disc.modulate.a = 0.0
-	var dw2 := disc.create_tween()
-	dw2.tween_interval(0.22)
-	dw2.tween_property(disc, "modulate:a", 1.0, 0.45)
-	Kit.bob(disc, 14, 2.8)
-	var tilt := disc.create_tween().set_loops()
-	tilt.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	tilt.tween_property(disc, "scale:x", 0.93, 2.8)
-	tilt.tween_property(disc, "scale:x", 1.0, 2.8)
-	Kit.tap(disc, func(): Nav.go("team"), 0.93)
 	body.add_child(wrap)
 
-	var link := Kit.label(I18n.t("home.x_change_team") % me["name"], 31, NX.DIM, true)
-	link.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	link.custom_minimum_size.y = 100
-	link.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	Kit.tap(link, func(): Nav.go("team"))
-	body.add_child(link)
-
-	# ---------------- play button (shine sweep)
-	var play := NxButton.new(I18n.t("lobby.start_match"), func(): Nav.go("setup", {"mode": "quick"}), "primary", false, UD.menu("ic_play"), "QUICK MATCH")
-	play.custom_minimum_size.y = 176
-	play.lbl.add_theme_font_size_override("font_size", 60)
+	# ---------------- Quick Match pill (gradient, play glyph, chevron disc, shine sweep)
+	var play := NxButton.new(I18n.t("v2.quick_match"), func(): Nav.go("setup", {"mode": "quick"}), "primary", false)
+	play.custom_minimum_size = Vector2(700, 160)
+	play.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	play.lbl.add_theme_font_size_override("font_size", 50)
+	play.row.layout_direction = Control.LAYOUT_DIRECTION_LTR
+	var tri := Glyph.new("play")
+	tri.custom_minimum_size = Vector2(56, 64)
+	play.row.add_child(tri)
+	play.row.move_child(tri, 0)
+	var gap := Control.new()
+	gap.custom_minimum_size.x = 40
+	play.row.add_child(gap)
+	var chev := Glyph.new("chev")
+	chev.custom_minimum_size = Vector2(86, 86)
+	play.row.add_child(chev)
 	var sh := play.create_tween().set_loops()
 	sh.tween_method(func(v): play.bg.shine = v, 0.0, 1.0, 1.6).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
 	sh.tween_interval(0.9)
-	body.add_child(ent(padx(play), 0))
+	body.add_child(ent(Kit.center(play), 0))
 
-	# ---------------- league strip
-	body.add_child(ent(padx(_league_strip(p)), 1))
-
-	# ---------------- quick actions (max 4)
-	var qrow := Kit.hbox(18, true)
-	var quick := [
-		[UD.menu("ic_friends"), I18n.t("hub.online"), func(): Nav.online("hub"), false],
-		[UD.menu("ic_trophy"), I18n.t("home.nexora_cup"), func(): Nav.go("setup", {"mode": "cup"}), false],
-		[UD.menu("shield_star"), I18n.t("kb.my_team"), func(): Nav.go("team"), false],
-		[UD.menu("ic_gift"), I18n.t("kb.chest"), func(): Nav.open_chest(false), UD.chest_ready()],
+	# ---------------- five glass tiles
+	var tiles := Kit.hbox(16, true)
+	var tdef := [
+		["t_trophy", I18n.t("v2.achievements"), func(): Nav.go("profile"), false],
+		["t_friends", I18n.t("v2.friends"), func(): Nav.go("social"), false],
+		["t_games", I18n.t("v2.games"), func(): Nav.go("play"), false],
+		["t_shop", I18n.t("v2.shop"), func(): Nav.go("shop"), UD.chest_ready()],
+		["t_events", I18n.t("v2.events"), func(): Nav.online("tournaments"), false],
 	]
-	for q in quick:
-		var c := PanelContainer.new()
-		c.add_theme_stylebox_override("panel", NX.box(Color(0.04, 0.055, 0.157, 0.82), 47, 3, NX.LINE))
-		c.custom_minimum_size = Vector2(0, 218)
+	for i in tdef.size():
+		var td: Array = tdef[i]
+		var c := NxNeon.new(36, 10, Color("#39d5ff"), Color("#ff4f8b"))
+		c.custom_minimum_size = Vector2(0, 196)
 		c.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		var v := Kit.vbox(8)
+		var v := Kit.vbox(10)
 		v.alignment = BoxContainer.ALIGNMENT_CENTER
-		v.add_child(Kit.center(Kit.img(q[0], 104)))
-		var l := Kit.label(q[1], 29, NX.TEXT, true)
+		v.add_child(Kit.center(Kit.img(UD.art(td[0]), 78)))
+		var l := Kit.label(td[1], 22 if I18n.is_en() else 25, NX.TEXT, true)
 		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		l.clip_text = true
+		l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 		v.add_child(l)
 		c.add_child(v)
-		if q[3]:
-			var b := Kit.badge_dot(true)
-			b.position = Vector2(20, 14)
-			c.add_child(b)
-			b.top_level = false
+		if td[3]:
+			c.add_child(NxNeon.dot(Vector2(10, 4)))
 		var cc := c
 		cc.resized.connect(func(): cc.pivot_offset = cc.size * 0.5)
-		cc.mouse_entered.connect(func():
-			var twq := cc.create_tween()
-			twq.tween_property(cc, "scale", Vector2(1.045, 1.045), 0.14).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT))
-		cc.mouse_exited.connect(func():
-			var twq := cc.create_tween()
-			twq.tween_property(cc, "scale", Vector2.ONE, 0.2).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT))
-		Kit.tap(cc, q[2], 0.94)
-		qrow.add_child(cc)
-	body.add_child(ent(Kit.margin(qrow, 30, 10, 30, 0), 2))
+		Kit.tap(cc, td[2], 0.93)
+		tiles.add_child(cc)
+	body.add_child(ent(Kit.margin(tiles, 34, 6, 34, 0), 1))
 
-	# ---------------- game mode rail
-	body.add_child(Kit.section(I18n.t("home.game_modes"), "GAME MODES", NX.VIOLET, I18n.t("home.all"), func(): Nav.go("play")))
+	# ---------------- level / XP card
+	body.add_child(ent(padx(_level_card(p)), 2))
+
+	# ---------------- game modes
+	body.add_child(Kit.section(I18n.t("home.game_modes"), "GAME MODES", NX.PINK, I18n.t("home.all"), func(): Nav.go("play")))
 	var hs := Kit.hscroll(24)
 	var rail: HBoxContainer = hs[1]
 	(hs[0] as ScrollContainer).custom_minimum_size.y = 420
@@ -187,49 +150,27 @@ func _fill() -> void:
 	rail.add_child(Kit.gap(0, 20))
 	body.add_child(ent(hs[0], 3))
 
-	# ---------------- command deck plates
-	body.add_child(Kit.section(I18n.t("home.command_deck"), "COMMAND DECK", NX.CYAN))
-	var grid := GridContainer.new()
-	grid.columns = 2
-	grid.add_theme_constant_override("h_separation", 22)
-	grid.add_theme_constant_override("v_separation", 22)
-	grid.layout_direction = I18n.LD
-	var plates := [
-		["portal_globe", I18n.t("hub.online"), I18n.t("home.1v1_2v2_3v3"), NX.CYAN, func(): Nav.online("hub")],
-		["portal_friends", I18n.t("home.social"), I18n.t("home.friends_clubs_chat"), NX.PINK, func(): Nav.go("social")],
-		["portal_shop", I18n.t("kb.shop"), I18n.t("home.chests_and_today_s_deal"), NX.GOLD, func(): Nav.go("shop")],
-		["portal_profile", I18n.t("hub.leaderboard"), I18n.t("home.nexora_s_best"), NX.VIOLET, func(): Nav.online("ranks")],
-	]
-	for pl in plates:
-		grid.add_child(_plate(pl))
-	body.add_child(ent(padx(grid), 4))
-
 	# ---------------- daily reward
 	body.add_child(Kit.section(I18n.t("daily.daily_reward"), "DAILY REWARD", NX.GOLD))
 	var dr := UD.daily_ready()
-	var dp := Kit.glass(NX.GOLD if dr else Color.TRANSPARENT, dr)
-	dp.set_pad(32, 26)
+	var dp := NxNeon.new(40, 26, NX.GOLD, Color("#ff4f8b"))
 	var dh := Kit.hbox(26, true)
-	dh.add_child(Kit.img(UD.menu("ic_gift"), 104))
+	dh.add_child(Kit.img(UD.art("h_gift"), 96))
 	var dc := Kit.vbox(2)
 	dc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	dc.alignment = BoxContainer.ALIGNMENT_CENTER
 	dc.add_child(Kit.label(I18n.t("home.today_s_reward_is_ready") if dr else I18n.t("home.day_x_of_7") % NX.fa(int(p.get("streak", 0))), 36, NX.TEXT, true))
 	dc.add_child(Kit.label(I18n.t("home.free_coins_and_gems_bigger") if dr else I18n.t("home.come_back_tomorrow"), 29, NX.DIM))
 	dh.add_child(dc)
-	var cta := Kit.chip(I18n.t("challenges.claim") if dr else I18n.t("home.details"), NX.GOLD if dr else NX.DIM, dr)
+	var cta := Kit.chip(I18n.t("challenges.claim") if dr else I18n.t("home.details"), NX.PINK if dr else NX.DIM, dr)
 	cta.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	dh.add_child(cta)
 	dp.add_child(dh)
 	Kit.tap(dp, func(): Nav.go("daily"), 0.98)
-	body.add_child(ent(padx(dp), 5))
-
-	# ---------------- loadout
-	body.add_child(Kit.section(I18n.t("home.loadout"), "LOADOUT", NX.GREEN, I18n.t("home.change"), func(): Nav.go("team")))
-	body.add_child(ent(padx(_loadout(p, me)), 6))
+	body.add_child(ent(padx(dp), 4))
 
 	# ---------------- missions
-	body.add_child(Kit.section(I18n.t("home.missions"), "MISSIONS", NX.GREEN, I18n.t("home.challenges"), func(): Nav.online("challenges")))
+	body.add_child(Kit.section(I18n.t("home.missions"), "MISSIONS", NX.PINK, I18n.t("home.challenges"), func(): Nav.online("challenges")))
 	var mv := Kit.vbox(18)
 	var shown := 0
 	for a in UD.ACHS:
@@ -244,9 +185,37 @@ func _fill() -> void:
 	var occ := _challenges_card()
 	if occ:
 		mv.add_child(occ)
-	var ch := Kit.list_row(UD.ui2("c_calendar"), I18n.t("challenges.today_s_challenges"), I18n.t("home.daily_online_challenges_gem_rewards"), Kit.img(UD.menu("g_chevrons"), 60), func(): Nav.online("challenges"))
+	var ch := Kit.list_row(UD.art("t_events"), I18n.t("challenges.today_s_challenges"), I18n.t("home.daily_online_challenges_gem_rewards"), Glyph.new("chev").sized(76), func(): Nav.online("challenges"))
 	mv.add_child(ch)
-	body.add_child(ent(padx(mv), 7))
+	body.add_child(ent(padx(mv), 5))
+
+func _level_card(p: Dictionary) -> Control:
+	var op := UD.online_profile()
+	var xp := int(op.get("xp", p.get("xp", 0))) if not op.is_empty() else int(p.get("xp", 0))
+	var lv := UD.level(xp)
+	var card := NxNeon.new(48, 26, Color("#39d5ff"), Color("#ff4f8b"))
+	card.strength = 1.4
+	card.custom_minimum_size.y = 210
+	var h := Kit.hbox(26, true)
+	h.add_child(Kit.img(UD.art("lvl_star"), 150))
+	var sep := ColorRect.new()
+	sep.color = Color(0.56, 0.5, 1.0, 0.35)
+	sep.custom_minimum_size = Vector2(3, 120)
+	sep.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	h.add_child(sep)
+	var col := Kit.vbox(8)
+	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	col.alignment = BoxContainer.ALIGNMENT_CENTER
+	col.add_child(Kit.label(I18n.t("v2.level_x") % NX.fa(int(lv["level"])), 42, NX.TEXT, true))
+	col.add_child(Kit.label(I18n.t("v2.xp_x") % [NX.fa(int(lv["cur"])), NX.fa(int(lv["need"]))], 28, NX.DIM))
+	var bar := Kit.progress(float(lv["cur"]) / maxf(1.0, float(lv["need"])), Color("#ff9a66"), Color("#ff4f8b"), 16)
+	bar.layout_direction = Control.LAYOUT_DIRECTION_LTR
+	col.add_child(bar)
+	h.add_child(col)
+	h.add_child(Glyph.new("chev").sized(86))
+	card.add_child(h)
+	Kit.tap(card, func(): Nav.go("profile"), 0.98)
+	return card
 
 func _league_strip(p: Dictionary) -> Control:
 	var tr := int(p.get("trophies", 0))
@@ -274,27 +243,21 @@ func _league_strip(p: Dictionary) -> Control:
 
 func _mode_card(m: Dictionary) -> Control:
 	var col: Color = m["color"]
-	var c := PanelContainer.new()
+	var c := NxNeon.new(48, 0, Color(col.r, col.g, col.b), Color("#ff4f8b"))
 	c.custom_minimum_size = Vector2(300, 380)
 	c.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	var sb := NX.box(Color(0.04, 0.06, 0.18, 0.9), 52, 4, Color(col.r, col.g, col.b, 0.55), 16, Color(col.r, col.g, col.b, 0.3))
-	c.add_theme_stylebox_override("panel", sb)
 	var st := Kit.stage(300, 380)
-	var g := NxGrad.new([Color(col.r, col.g, col.b, 0.35), Color(0.055, 0.086, 0.25, 0.6), Color(0.02, 0.03, 0.09, 0.0)], 50, 1.57, 0.0)
-	g.position = Vector2.ZERO
-	g.size = Vector2(300, 380)
-	st.add_child(g)
-	var art := Kit.img(UD.ui(m["img"]), Vector2(220, 230))
+	var art := Kit.img(UD.ui(m["img"]), Vector2(220, 220))
 	Kit.put(st, art, 150, 140)
 	Kit.bob(art, 8, 2.2 + randf() * 0.6)
 	var e := Kit.caps(m["en"], 19, NX.hdr(col, 1.3), 3)
 	e.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	e.position = Vector2(0, 275)
+	e.position = Vector2(0, 268)
 	e.size = Vector2(300, 30)
 	st.add_child(e)
-	var n := Kit.label(m["name"], 38, NX.TEXT, true)
+	var n := Kit.label(m["name"], 36, NX.TEXT, true)
 	n.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	n.position = Vector2(0, 300)
+	n.position = Vector2(0, 298)
 	n.size = Vector2(300, 60)
 	st.add_child(n)
 	c.add_child(st)
@@ -421,9 +384,8 @@ func _mascot_say(text: String) -> void:
 	b.reset_size()
 	var sz := b.get_combined_minimum_size()
 	b.size = sz
-	# mascot box: x 30..270, y (hh-475)..(hh-125); bubble's tail corner points at its head
-	var hh := hero.size.y
-	b.position = Vector2(clampf(286.0, 20.0, W - sz.x - 20.0), maxf(20.0, hh - 470.0 - sz.y * 0.5))
+	# mascot box: x 60..360, y 25..405; bubble sits right of its head, tail towards it
+	b.position = Vector2(clampf(350.0, 20.0, W - sz.x - 20.0), maxf(10.0, 120.0 - sz.y * 0.5))
 	b.pivot_offset = Vector2(0, sz.y)
 	(func():
 		if is_instance_valid(b):
@@ -452,3 +414,28 @@ func _hide_say() -> void:
 	var tw := b.create_tween()
 	tw.tween_property(b, "modulate:a", 0.0, 0.22)
 	tw.tween_callback(b.queue_free)
+
+
+## small vector glyphs for the v2 pills/cards: "play" (gradient-free white triangle) and
+## "chev" (dark disc with a ring and a chevron that follows the reading direction)
+class Glyph extends Control:
+	var kind := "play"
+	func _init(k := "play") -> void:
+		kind = k
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	func sized(d: float) -> Glyph:
+		custom_minimum_size = Vector2(d, d)
+		return self
+	func _draw() -> void:
+		var c := size * 0.5
+		if kind == "play":
+			var s := minf(size.x, size.y) * 0.5
+			draw_colored_polygon(PackedVector2Array([c + Vector2(-s * 0.7, -s), c + Vector2(s, 0), c + Vector2(-s * 0.7, s)]), Color(1, 1, 1, 0.95))
+			return
+		var r := minf(size.x, size.y) * 0.5 - 3
+		draw_circle(c, r, Color(0.08, 0.04, 0.16, 0.55), true, -1.0, true)
+		draw_arc(c, r, 0, TAU, 48, Color(1, 1, 1, 0.35), 2.5, true)
+		var d := r * 0.28
+		var dir := 1.0 if I18n.is_en() else -1.0
+		draw_polyline(PackedVector2Array([c + Vector2(-d * 0.5 * dir, -d), c + Vector2(d * 0.6 * dir, 0), c + Vector2(-d * 0.5 * dir, d)]), Color(1, 1, 1, 0.9), 4.0, true)

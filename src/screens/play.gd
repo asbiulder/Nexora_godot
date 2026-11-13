@@ -19,7 +19,7 @@ func on_store_changed() -> void:
 func _fill() -> void:
 	var p := UD.p()
 	var head := Kit.vbox(0)
-	var e := Kit.caps("PORTAL · SELECT", 26, NX.hdr(NX.CYAN, 1.3), 12)
+	var e := Kit.caps("PORTAL · SELECT", 26, NX.hdr(NX.PINK, 1.3), 12)
 	e.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	head.add_child(e)
 	var t := Kit.title(I18n.t("play.choose_a_game_mode"), 57)
@@ -118,14 +118,14 @@ func _online_card() -> Control:
 	var card := Control.new()
 	card.custom_minimum_size = Vector2(0, 292)
 	card.mouse_filter = Control.MOUSE_FILTER_PASS
-	var g := NxGrad.new([Color("#3a1d8a"), Color("#1b2f8f"), Color("#0a5a8a")], 62, 0.6, 0.3)
+	var g := NxGrad.new([Color("#ff8a5c"), Color("#c23a7e"), Color("#3a1d8a")], 62, 0.6, 0.3)
 	g.set_border(4.0, Color(0.63, 0.86, 1.0, 0.55))
-	g.set_glow(Color(0.64 * 1.5, 0.36 * 1.5, 1.5, 0.5), 30.0, 30.0)
+	g.set_glow(Color(1.5, 0.45, 0.9, 0.45), 30.0, 30.0)
 	card.add_child(g)
 	var row := Kit.hbox(20, true)
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	card.add_child(row)
-	row.add_child(Kit.img(UD.ui("portal_globe"), 218))
+	row.add_child(Kit.img(UD.art("planet"), 218))
 	var col := Kit.vbox(4)
 	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	col.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -184,15 +184,13 @@ func _online_card() -> Control:
 					Nav.online("hub"))
 	v.add_child(card)
 	var links := Kit.hbox(18, true)
-	for l in [["arena", I18n.t("arena.arena"), "x_crown"], ["tours", I18n.t("hub.tournament"), "x_trophy"], ["leagues", I18n.t("tournaments.league"), "x_medal"], ["challenges", I18n.t("kb.challenge"), "c_calendar"], ["social", I18n.t("home.social"), "x_team"]]:
-		var b := PanelContainer.new()
-		var sb := NX.box(Color(0.04, 0.063, 0.172, 0.85), 36, 3, NX.LINE)
-		b.add_theme_stylebox_override("panel", sb)
+	for l in [["arena", I18n.t("arena.arena"), "x_crown"], ["tours", I18n.t("hub.tournament"), "@trophy_tournament"], ["leagues", I18n.t("tournaments.league"), "@trophy_league"], ["challenges", I18n.t("kb.challenge"), "@t_events"], ["social", I18n.t("home.social"), "@t_friends"]]:
+		var b := NxNeon.new(36, 8)
 		b.custom_minimum_size = Vector2(0, 114)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		var h := Kit.hbox(8, true)
 		h.alignment = BoxContainer.ALIGNMENT_CENTER
-		h.add_child(Kit.img(UD.ui2(l[2]), 68))
+		h.add_child(Kit.img(UD.ui(l[2]) if str(l[2]).begins_with("@") else UD.ui2(l[2]), 68))
 		h.add_child(Kit.label(l[1], 29, NX.TEXT, true))
 		b.add_child(h)
 		var entry: String = l[0]
@@ -252,7 +250,7 @@ class _Carousel extends Control:
 		c.add_child(g)
 		var portal := Kit.img(UD.ui2("portal"), Vector2(w * 1.05, w * 0.7))
 		portal.position = Vector2(-w * 0.025, 26)
-		portal.modulate.a = 0.42
+		portal.modulate = Color(1.0, 0.6, 0.9, 0.3)
 		c.add_child(portal)
 		var art := Control.new()
 		art.mouse_filter = Control.MOUSE_FILTER_IGNORE

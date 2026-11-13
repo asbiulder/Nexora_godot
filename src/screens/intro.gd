@@ -13,6 +13,8 @@ var cy := 0.0
 var f := 0.0
 var glow_rect: ColorRect
 var planet: TextureRect
+var space: TextureRect
+var mascot: TextureRect
 var logo: TextureRect
 var tagline: Label
 var flash: ColorRect
@@ -41,6 +43,15 @@ func _ready() -> void:
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
+	# v2: the NEXORA space backdrop fades in under the warp
+	space = TextureRect.new()
+	space.texture = UD.art("bg/home")
+	space.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	space.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	space.set_anchors_preset(Control.PRESET_FULL_RECT)
+	space.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	space.modulate.a = 0.0
+	add_child(space)
 	glow_rect = ColorRect.new()
 	glow_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
 	glow_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -54,20 +65,27 @@ func _ready() -> void:
 	_canvas.draw.connect(_draw_warp)
 	add_child(_canvas)
 	planet = TextureRect.new()
-	planet.texture = UD.ui("planet")
+	planet.texture = UD.art("planet")
 	planet.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	planet.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	planet.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	planet.modulate.a = 0.0
 	add_child(planet)
 	logo = TextureRect.new()
-	logo.texture = UD.ui("nx_logo")
+	logo.texture = UD.art("logo")
 	logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	logo.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	logo.modulate.a = 0.0
 	add_child(logo)
-	tagline = Kit.caps("NEXORA · FINGER SOCCER", 31, NX.hdr(Color("#5ce1ff"), 1.4), 14)
+	mascot = TextureRect.new()
+	mascot.texture = UD.art("mascot")
+	mascot.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	mascot.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	mascot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	mascot.modulate.a = 0.0
+	add_child(mascot)
+	tagline = Kit.caps("NEXORA · FINGER SOCCER", 31, NX.hdr(Color("#ff9ab8"), 1.4), 14)
 	tagline.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	tagline.modulate.a = 0.0
 	add_child(tagline)
@@ -79,7 +97,7 @@ func _ready() -> void:
 	add_child(flash)
 	# tap to enter
 	tap_btn = PanelContainer.new()
-	var sb := NX.box(Color(0.047, 0.078, 0.188, 0.8), 78, 3, NX.hdr(Color("#5ce1ff"), 1.3), 40, Color(0.36, 0.88, 1.0, 0.55))
+	var sb := NX.box(Color(0.09, 0.05, 0.2, 0.85), 78, 3, NX.hdr(Color("#ff6f9a"), 1.3), 40, Color(1.0, 0.3, 0.55, 0.5))
 	sb.content_margin_left = 68; sb.content_margin_right = 68; sb.content_margin_top = 30; sb.content_margin_bottom = 30
 	tap_btn.add_theme_stylebox_override("panel", sb)
 	tap_btn.add_child(Kit.label(I18n.t("intro.tap_to_enter"), 39, NX.TEXT, true))
@@ -87,7 +105,7 @@ func _ready() -> void:
 	add_child(tap_btn)
 	# skip
 	skip = PanelContainer.new()
-	var ssb := NX.box(Color("#141a30"), 57, 3, Color(1, 1, 1, 0.2))
+	var ssb := NX.box(Color(0.07, 0.055, 0.2, 0.9), 57, 3, Color(0.56, 0.5, 1.0, 0.45))
 	ssb.content_margin_left = 42; ssb.content_margin_right = 42; ssb.content_margin_top = 22; ssb.content_margin_bottom = 22
 	skip.add_theme_stylebox_override("panel", ssb)
 	skip.add_child(Kit.label(I18n.t("intro.skip"), 34))
@@ -103,14 +121,17 @@ func _layout() -> void:
 	var W := size.x
 	var H := size.y
 	cx = W * 0.5
-	cy = H * 0.44
+	cy = H * 0.38
 	f = maxf(W, H) * 0.3
 	(glow_rect.material as ShaderMaterial).set_shader_parameter("aspect", Vector2(1.0, H / maxf(1.0, W)))
-	var ls := minf(W * 0.7, 884)
+	var ls := minf(W * 0.86, 940)
 	logo.size = Vector2(ls, ls)
 	logo.pivot_offset = logo.size * 0.5
 	logo.position = Vector2(cx - ls * 0.5, cy - ls * 0.5)
-	tagline.position = Vector2(0, cy + ls * 0.42)
+	tagline.position = Vector2(0, cy + ls * 0.33)
+	var ms := minf(W * 0.36, 400)
+	mascot.size = Vector2(ms, ms * 1.25)
+	mascot.position = Vector2(cx - ms * 0.5, H * 0.56)
 	tagline.size = Vector2(W, 60)
 	skip.position = Vector2(42 + NX.safe_left, NX.safe_top + 120)
 	tap_btn.reset_size()
@@ -164,12 +185,13 @@ func _process(dt: float) -> void:
 	# planet grows out of the warp
 	var pp := clampf((t - 1.8) / 2.4, 0.0, 1.0)
 	var e := 1.0 - pow(1.0 - pp, 3)
-	var sz := minf(size.x, size.y) * 1.1 * e
+	var sz := minf(size.x, size.y) * 0.8 * e
+	space.modulate.a = clampf((t - 1.4) / 1.6, 0.0, 0.9)
 	planet.size = Vector2(sz, sz)
 	planet.pivot_offset = planet.size * 0.5
 	planet.position = Vector2(cx - sz * 0.5, cy - sz * 0.5)
 	planet.rotation = (t - 4.0) * 0.02
-	planet.modulate.a = clampf((t - 1.8) * 0.6, 0.0, 1.0)
+	planet.modulate.a = clampf((t - 1.8) * 0.6, 0.0, 1.0) * (0.35 if _logo_shown else 0.8)
 	_canvas.queue_redraw()
 
 func _draw_warp() -> void:
@@ -188,6 +210,10 @@ func _show_logo() -> void:
 	tw.tween_property(logo, "modulate:a", 1.0, 0.25)
 	tw.tween_property(flash, "modulate:a", 0.6, 0.06)
 	tw.chain().tween_property(flash, "modulate:a", 0.0, 0.35)
+	var mt := create_tween()
+	mt.tween_interval(0.35)
+	mt.tween_property(mascot, "modulate:a", 1.0, 0.4)
+	Kit.bob(mascot, 16, 2.4, 0.6)
 	var tg := create_tween()
 	tg.tween_interval(0.5)
 	tg.tween_property(tagline, "modulate:a", 0.9, 0.8)

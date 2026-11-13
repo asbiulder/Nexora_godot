@@ -96,6 +96,25 @@ static func icon_button(tex, cb: Callable = Callable(), art := 104.0, badge = fa
 	NxTap.attach(c, cb, 0.88)
 	return c
 
+## round glass close button (sheet / modal X): 96px touch target, drawn X so it is crisp at any scale
+static func close_button(cb: Callable, d := 96.0) -> Control:
+	var c := CloseX.new()
+	c.custom_minimum_size = Vector2(d, d)
+	c.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	c.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	NxTap.attach(c, cb, 0.88)
+	return c
+
+class CloseX extends Control:
+	func _draw() -> void:
+		var c := size * 0.5
+		var r := minf(size.x, size.y) * 0.5 - 2
+		draw_circle(c, r, Color(0.06, 0.05, 0.18, 0.92), true, -1.0, true)
+		draw_arc(c, r - 1, 0, TAU, 48, Color(0.56, 0.5, 1.0, 0.5), 3.0, true)
+		var k := r * 0.34
+		draw_line(c + Vector2(-k, -k), c + Vector2(k, k), Color(1, 0.86, 0.92), 5.0, true)
+		draw_line(c + Vector2(k, -k), c + Vector2(-k, k), Color(1, 0.86, 0.92), 5.0, true)
+
 static func badge_dot(v = true) -> Control:
 	var hold := Control.new()
 	hold.name = "Badge"

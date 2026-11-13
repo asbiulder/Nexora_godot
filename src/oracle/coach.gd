@@ -252,16 +252,26 @@ class Sprite2Fade extends Control:
 		add_child(b)
 	func _mk(m: String) -> TextureRect:
 		var t := TextureRect.new()
-		t.texture = OUI.oracle_tex(m)
+		t.texture = _tx(m)
 		t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		t.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		t.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		t.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		return t
+	## the new NEXORA robot mascot replaces the old mood sheet when present; moods then "pop"
+	func _tx(m: String) -> Texture2D:
+		var t := UD.art("mascot")
+		return t if t else OUI.oracle_tex(m)
 	func set_mood(m: String) -> void:
 		if m == mood:
 			return
 		mood = m
+		if UD.art("mascot"):
+			pivot_offset = size * 0.5
+			var pw := create_tween()
+			pw.tween_property(self, "scale", Vector2(1.08, 1.08), 0.12)
+			pw.tween_property(self, "scale", Vector2.ONE, 0.4).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+			return
 		var to: TextureRect = b if front == 0 else a
 		var from: TextureRect = a if front == 0 else b
 		to.texture = OUI.oracle_tex(m)
@@ -270,7 +280,7 @@ class Sprite2Fade extends Control:
 		tw.tween_property(to, "modulate:a", 1.0, 0.26)
 		tw.tween_property(from, "modulate:a", 0.0, 0.26)
 	func _process(dt: float) -> void:
-		if not blink:
+		if not blink or UD.art("mascot"):
 			return
 		_blink_t -= dt
 		if _blink_t <= 0:

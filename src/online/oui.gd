@@ -20,10 +20,10 @@ const GREEN := Color("#3dffa8")
 const TEXT := Color("#eef4ff")
 const DIM := Color("#93a7d8")
 const DIM2 := Color("#5f6f9e")
-const LINE := Color(110 / 255.0, 170 / 255.0, 1.0, 0.24)
+const LINE := Color(0.55, 0.52, 1.0, 0.28)  # v2 violet glass edge
 const LINE_HI := Color(120 / 255.0, 220 / 255.0, 1.0, 0.75)
-const ROW_BG := Color(10 / 255.0, 16 / 255.0, 44 / 255.0, 0.86)
-const PANEL_BG := Color(14 / 255.0, 22 / 255.0, 58 / 255.0, 0.80)
+const ROW_BG := Color(16 / 255.0, 12 / 255.0, 44 / 255.0, 0.86)
+const PANEL_BG := Color(22 / 255.0, 16 / 255.0, 60 / 255.0, 0.80)
 const GEM_BLUE := Color("#9fd8ff")
 
 ## button gradients (RN G) — [top/border, body, highlight]
@@ -886,18 +886,15 @@ static func seg_value(seg: Control) -> Variant:
 	return seg.get_meta("value") if seg and seg.has_meta("value") else null
 
 
-static func toggle(on: bool, cb: Callable, accent: Color = GREEN) -> CheckButton:
-	var t := CheckButton.new()
-	t.button_pressed = on
-	t.focus_mode = Control.FOCUS_NONE
-	t.custom_minimum_size = Vector2(px(56), px(44))
-	t.modulate = Color(1, 1, 1)
-	t.add_theme_color_override("font_color", accent)
-	t.toggled.connect(func(v: bool) -> void:
-		sfx("ui")
-		buzz("light")
+## pill switch (56x32 dp) with a sliding knob. Was a bare CheckButton, which rendered as a ~105px
+## square hit box with the theme's tiny check dot in it.
+static func toggle(on: bool, cb: Callable, accent: Color = GREEN) -> NxToggle:
+	var t := NxToggle.new(on, func(v: bool) -> void:
 		if cb.is_valid():
-			cb.call(v))
+			cb.call(v), accent)
+	t.custom_minimum_size = Vector2(px(56), px(32))
+	t.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	t.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	return t
 
 
@@ -905,6 +902,7 @@ static func toggle(on: bool, cb: Callable, accent: Color = GREEN) -> CheckButton
 static func opt_row(title: String, sub: String, on: bool, cb: Callable) -> Control:
 	var h := hbox(S_M)
 	h.custom_minimum_size.y = px(56)
+	h.alignment = BoxContainer.ALIGNMENT_CENTER
 	var v := vbox(0)
 	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	v.add_child(lbl(title, TS_BODY, TEXT, "bold"))

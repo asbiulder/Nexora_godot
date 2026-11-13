@@ -23,9 +23,9 @@ const MINT := Color("#3dffa8")
 const TEXT := Color("#eaf4ff")
 const DIM := Color("#8ea3d6")
 const DIM2 := Color("#5f6f9e")
-const LINE := Color(0.43, 0.67, 1.0, 0.24)
+const LINE := Color(0.55, 0.52, 1.0, 0.30)  # v2: violet-blue glass edge
 const LINE_HI := Color(0.47, 0.86, 1.0, 0.75)
-const PANEL := Color(0.043, 0.071, 0.188, 0.78)  # 0x0b1230 @ .78
+const PANEL := Color(0.055, 0.05, 0.17, 0.80)  # v2 glass: deep indigo @ .80
 const DARK_TXT := Color("#04122a")
 const VEIL := Color("#02030b")
 
@@ -38,12 +38,13 @@ static func a(c: Color, alpha: float) -> Color:
 
 # ---- gradients (3 stops like RN G.*) ----
 const G := {
-	"primary": [Color("#4fe3ff"), Color("#5b8cff"), Color("#a35bff")],
+	"primary": [Color("#ff9a66"), Color("#ff4f8b"), Color("#8a3fe0")],  # v2 neon orange -> pink -> violet
+	"blue": [Color("#4fe3ff"), Color("#5b8cff"), Color("#a35bff")],
 	"gold": [Color("#8a5200"), Color("#d39420"), Color("#ffe08a")],
 	"green": [Color("#0a6b4a"), Color("#16b77a"), Color("#5dffbf")],
 	"red": [Color("#5a0f24"), Color("#a3203f"), Color("#ff5b74")],
 	"danger": [Color("#5a0f24"), Color("#a3203f"), Color("#ff5b74")],
-	"dark": [Color("#151f4a"), Color("#1d2b63"), Color("#2a3f86")],
+	"dark": [Color("#1a1747"), Color("#24205e"), Color("#33307f")],
 	"ghost": [Color(0.08, 0.12, 0.29, 0.85), Color(0.11, 0.17, 0.39, 0.85), Color(0.16, 0.25, 0.53, 0.85)],
 	"violet": [Color("#3a1d8a"), Color("#6d3bff"), Color("#c08bff")],
 }

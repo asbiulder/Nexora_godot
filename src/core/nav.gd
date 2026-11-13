@@ -46,7 +46,10 @@ const REG := {
 	"oracle": ["res://src/oracle/oracle.gd", "screen"],
 }
 ## backdrop theme per screen (RN Space theme per tab)
-const BACKDROP := {"home": ["stadium", 0.0], "play": ["holo", 0.0], "team": ["base", 0.15], "shop": ["base", 0.15], "profile": ["base", 0.15], "result": ["system", 0.0]}
+const BACKDROP := {"home": ["m_home", 0.0], "play": ["m_mode", 0.0], "team": ["m_team", 0.05], "shop": ["m_shop", 0.05], "profile": ["m_settings", 0.08], "account": ["m_settings", 0.1], "result": ["system", 0.0],
+	"ranks": ["m_rank", 0.1], "tournaments": ["m_rank", 0.1], "challenges": ["m_rank", 0.1], "arena": ["m_rank", 0.1],
+	"social": ["m_social", 0.1], "chat": ["m_social", 0.18], "club": ["m_social", 0.1], "public_profile": ["m_social", 0.1],
+	"oracle": ["m_oracle", 0.1], "hub": ["m_stadium", 0.05], "lobby": ["m_stadium", 0.05], "online_result": ["m_stadium", 0.1]}
 const NO_MUSIC := ["match", "online_match", "intro"]
 ## alternative script locations tried when the registry path is missing
 const ALT_DIRS := ["res://src/screens/", "res://src/online/", "res://src/social/", "res://src/oracle/"]
@@ -330,7 +333,7 @@ func sheet(content: Control, opts := {}) -> Control:
 	panel.size = Vector2(layer.size.x, h + 100)
 	panel.position = Vector2(0, H)
 	root.add_child(panel)
-	var bg := NxGrad.new([Color("#18245a"), Color("#0b1236"), Color("#060a22")], 72.0, 1.57, 0.05)
+	var bg := NxGrad.new([Color("#1e1752"), Color("#120d38"), Color("#08061e")], 72.0, 1.57, 0.05)
 	bg.set_border(3.0, Color(accent.r, accent.g, accent.b, 0.4))
 	bg.set_glow(Color(accent.r * 1.3, accent.g * 1.3, accent.b * 1.3, 0.4), 50.0, 60.0)
 	bg.position = Vector2(-60, -60)
@@ -339,7 +342,7 @@ func sheet(content: Control, opts := {}) -> Control:
 	# bled into headers and rows
 	var back := Panel.new()
 	back.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var bsb := NX.box(Color("#0a1032"), 0)
+	var bsb := NX.box(Color("#0d0a2a"), 0)
 	bsb.corner_radius_top_left = 72; bsb.corner_radius_top_right = 72
 	back.add_theme_stylebox_override("panel", bsb)
 	back.size = panel.size
@@ -370,7 +373,7 @@ func sheet(content: Control, opts := {}) -> Control:
 		row.position = Vector2(40, 58)
 		row.size = Vector2(panel.size.x - 80, 130)
 		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		row.add_child(Kit.icon_button(UD.menu("g_x"), func(): close_sheet()))
+		row.add_child(Kit.close_button(func(): close_sheet()))
 		var col := Kit.vbox(0)
 		col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		col.alignment = BoxContainer.ALIGNMENT_CENTER

@@ -9,10 +9,10 @@ extends RefCounted
 
 static func modes() -> Array:
 	return [
-		{"k": "quick", "img": "portal_gamepad", "name": I18n.t("kb.quick_play"), "en": "QUICK MATCH", "desc": I18n.t("launch.an_instant_match_against_the"), "reward": I18n.t("launch.coins_xp_and_trophies"), "color": Color("#4fe3ff"), "grad": "primary"},
-		{"k": "cup", "img": "portal_globe", "name": I18n.t("home.nexora_cup"), "en": "NEXORA CUP", "desc": I18n.t("launch.three_opponents_in_a_row"), "reward": I18n.t("launch.2_rewards_20_champion_gems"), "color": NX.GOLD, "grad": "gold"},
-		{"k": "galaxy", "img": "portal_galaxy", "name": I18n.t("launch.galactic_challenge"), "en": "GALAXY CHALLENGE", "desc": I18n.t("launch.two_minutes_vs_the_legendary"), "reward": I18n.t("launch.3_rewards"), "color": NX.VIOLET, "grad": "violet"},
-		{"k": "local", "img": "portal_friends", "name": I18n.t("launch.two_players"), "en": "LOCAL 2 PLAYER", "desc": I18n.t("launch.play_with_a_friend_on"), "reward": I18n.t("launch.just_for_glory"), "color": Color("#3dffa8"), "grad": "green"},
+		{"k": "quick", "img": "@ic_quick", "name": I18n.t("kb.quick_play"), "en": "QUICK MATCH", "desc": I18n.t("launch.an_instant_match_against_the"), "reward": I18n.t("launch.coins_xp_and_trophies"), "color": Color("#4fe3ff"), "grad": "primary"},
+		{"k": "cup", "img": "@trophy_worldcup", "name": I18n.t("home.nexora_cup"), "en": "NEXORA CUP", "desc": I18n.t("launch.three_opponents_in_a_row"), "reward": I18n.t("launch.2_rewards_20_champion_gems"), "color": NX.GOLD, "grad": "gold"},
+		{"k": "galaxy", "img": "@planet", "name": I18n.t("launch.galactic_challenge"), "en": "GALAXY CHALLENGE", "desc": I18n.t("launch.two_minutes_vs_the_legendary"), "reward": I18n.t("launch.3_rewards"), "color": NX.VIOLET, "grad": "violet"},
+		{"k": "local", "img": "@ic_local", "name": I18n.t("launch.two_players"), "en": "LOCAL 2 PLAYER", "desc": I18n.t("launch.play_with_a_friend_on"), "reward": I18n.t("launch.just_for_glory"), "color": Color("#3dffa8"), "grad": "green"},
 		{"k": "train", "img": "portal_brain", "name": I18n.t("launch.practice"), "en": "TRAINING", "desc": I18n.t("launch.no_timer_easy_bot_to"), "reward": I18n.t("launch.low_xp_no_trophies"), "color": NX.SKY, "grad": "primary"},
 	]
 

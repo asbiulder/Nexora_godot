@@ -115,7 +115,9 @@ static func tex(path: String) -> Texture2D:
 	_tex[path] = t
 	return t
 
-static func ui(n: String) -> Texture2D: return tex("res://assets/g/ui/%s.webp" % n)
+static func ui(n: String) -> Texture2D: return art(n.substr(1)) if n.begins_with("@") else tex("res://assets/g/ui/%s.webp" % n)
+## new menu art (assets/ui): "mascot", "logo", "ic_quick", "bg/home" ...
+static func art(n: String) -> Texture2D: return tex("res://assets/ui/%s.webp" % n)
 static func ui2(n: String) -> Texture2D: return tex("res://assets/g/ui2/%s.webp" % n)
 static func menu(n: String) -> Texture2D: return tex("res://assets/g/menu/%s.webp" % n)
 
