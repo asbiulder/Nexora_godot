@@ -11,6 +11,12 @@ extends RefCounted
 ##
 ## Statuses repeat: after a network drop the channel reports CHANNEL_ERROR, then SUBSCRIBED again
 ## once the socket reconnects and the channel rejoins (like supabase-js).
+##
+## Same topic twice on one socket (e.g. a screen re-entered before the old one left): Phoenix keeps only
+## the newest join and a stale phx_leave would kill it. The newest channel owns the topic; older ones
+## become "shadowed" (they keep receiving every message, their pushes go through the owner, they never
+## rejoin or send phx_leave). When the owner unsubscribes, the newest shadow takes the topic over.
+## Presence: the tracked meta is re-tracked automatically after every (re)join.
 
 signal status_changed(status: String)
 signal broadcast(event: String, payload: Variant)
@@ -27,7 +33,7 @@ var name: String
 var topic: String
 var opts: Dictionary
 var status := "CLOSED"      # last reported status
-var state := "closed"       # closed | joining | joined | leaving | errored
+var state := "closed"       # closed | joining | joined | errored | shadowed
 var last_error := ""
 var socket: Socket
 
@@ -46,7 +52,8 @@ var _pres_leave_cbs: Array = []
 var _sys_cbs: Array = []
 var _pres_raw := {}         # key -> Array of metas (with phx_ref)
 var _tracked: Variant = null
-var _buf: Array = []        # [time, event, payload] pushes queued while not joined
+var _buf: Array = []        # [time, payload] pushes queued while not joined
+var _join_seq := 0          # socket-wide order of joins (newest owns the topic)
 
 func _init(sock: Socket, name_: String, opts_: Dictionary) -> void:
 	socket = sock
@@ -103,7 +110,11 @@ func unsubscribe() -> void:
 	if not _want and state == "closed":
 		return
 	_want = false
-	if socket.is_open() and (state == "joined" or state == "joining"):
+	var heir: RtChannel = socket._newest_shadow(topic, self) if state != "shadowed" else null
+	if heir != null:
+		# a newer screen still wants this topic: hand it over instead of leaving (its join replaces ours)
+		heir._unshadow()
+	elif socket.is_open() and (state == "joined" or state == "joining"):
 		socket._push(topic, "phx_leave", {}, socket._make_ref(), _join_ref)
 	state = "closed"
 	_pres_raw.clear()
@@ -117,10 +128,16 @@ func send_broadcast(event: String, payload: Variant) -> bool:
 
 func track(meta: Dictionary) -> bool:
 	_tracked = meta
+	if state == "shadowed":
+		return true   # the owner channel carries presence for this topic; re-tracked on takeover
+	_drop_buffered("presence")
 	return _send({"type": "presence", "event": "track", "payload": meta})
 
 func untrack() -> bool:
 	_tracked = null
+	if state == "shadowed":
+		return true   # never untrack the owner's presence
+	_drop_buffered("presence")
 	return _send({"type": "presence", "event": "untrack"})
 
 ## supabase-js presenceState(): {key: [ {presence_ref, ...meta} ]}
@@ -134,12 +151,33 @@ func presence_state() -> Dictionary:
 	return out
 
 func is_joined() -> bool:
+	if state == "shadowed":
+		var o: RtChannel = socket._owner(topic, self)
+		return o != null and o.state == "joined"
 	return state == "joined"
 
+## Send only if it can go out right now (no queueing): for high-rate realtime data (snapshots, aim)
+## that is worthless when stale.
+func send_now(event: String, payload: Variant) -> bool:
+	if not _want or not is_joined() or not socket.is_open():
+		return false
+	return _send({"type": "broadcast", "event": event, "payload": payload})
+
 # ------------------------------------------------------------------ internals
+func _drop_buffered(type: String) -> void:
+	var keep: Array = []
+	for it in _buf:
+		if str(it[1].get("type", "")) != type:
+			keep.append(it)
+	_buf = keep
+
 func _send(payload: Dictionary) -> bool:
 	if not _want:
 		return false
+	if state == "shadowed":
+		var o: RtChannel = socket._owner(topic, self)
+		if o != null:
+			return o._send(payload)
 	if state == "joined" and socket.is_open():
 		return socket._push(topic, payload.type, payload, socket._make_ref(), _join_ref)
 	# queue until joined (dropped when stale)
@@ -172,14 +210,42 @@ func _join_payload() -> Dictionary:
 func _join() -> void:
 	if not _want or not socket.is_open():
 		return
+	# older wanted channels on this topic step aside (Phoenix keeps only the newest join)
+	for other in socket.channels:
+		if other != self and other.topic == topic and other._want and other.state != "shadowed":
+			other._shadow()
+	socket._join_counter += 1
+	_join_seq = socket._join_counter
 	_join_push_ref = socket._make_ref()
 	_join_ref = _join_push_ref
 	_join_sent_at = socket.now()
 	state = "joining"
 	socket._push(topic, "phx_join", _join_payload(), _join_push_ref, _join_ref)
 
+func _shadow() -> void:
+	var was := state
+	state = "shadowed"
+	# queued pushes go through the owner
+	var q := _buf
+	_buf = []
+	var o: RtChannel = socket._owner(topic, self)
+	for it in q:
+		if o != null and str(it[1].get("type", "")) != "presence":
+			o._send(it[1])
+	if o != null and o.status != status and o.status != "CLOSED":
+		_set_status(o.status)
+
+func _unshadow() -> void:
+	if state != "shadowed":
+		return
+	state = "errored"
+	_rejoin_at = 0.0
+	_tries = 0
+	if socket.is_open():
+		_join()
+
 func _rejoin_now() -> void:
-	if not _want:
+	if not _want or state == "shadowed":
 		return
 	if socket.is_open() and state == "joined":
 		socket._push(topic, "phx_leave", {}, socket._make_ref(), _join_ref)
@@ -192,7 +258,7 @@ func _schedule_rejoin() -> void:
 	_tries += 1
 
 func _tick(now: float) -> void:
-	if not _want or not socket.is_open():
+	if not _want or not socket.is_open() or state == "shadowed":
 		return
 	if state == "joining" and now - _join_sent_at > JOIN_TIMEOUT:
 		last_error = "join timeout"
@@ -202,17 +268,18 @@ func _tick(now: float) -> void:
 		_join()
 
 func _on_socket_open() -> void:
-	if _want and state != "joining":
+	if _want and state != "joining" and state != "shadowed":
 		_join()
 
 func _on_socket_close() -> void:
 	if not _want:
 		return
 	var was := state
-	state = "errored"
+	if was != "shadowed":
+		state = "errored"
 	_rejoin_at = 0.0
 	_pres_raw.clear()
-	if was == "joined" or was == "joining":
+	if was == "joined" or was == "joining" or was == "shadowed":
 		last_error = "socket closed"
 		_set_status("CHANNEL_ERROR")
 
@@ -221,11 +288,18 @@ func _set_status(s: String) -> void:
 	if _status_cb.is_valid():
 		_status_cb.call(s)
 	status_changed.emit(s)
+	# shadows mirror their owner's connection status (they ride on its join)
+	if state != "shadowed" and s != "CLOSED" and socket != null:
+		for sh in socket.channels.duplicate():
+			if sh != self and sh.topic == topic and sh.state == "shadowed" and sh._want and sh.status != s:
+				sh._set_status(s)
 
 func _on_message(event: String, payload: Variant, ref: String, join_ref: String) -> void:
 	# lifecycle events from an older join are ignored (same rule as supabase-js isMember)
 	if event in ["phx_close", "phx_error", "phx_reply"] and join_ref != "" and join_ref != _join_ref:
 		return
+	if state == "shadowed" and event in ["phx_close", "phx_error", "phx_reply"]:
+		return   # our old join was replaced by the owner's; only the owner reacts
 	match event:
 		"phx_reply":
 			if ref == _join_push_ref and state == "joining":
@@ -285,6 +359,9 @@ func _on_join_reply(payload: Variant) -> void:
 	state = "joined"
 	_tries = 0
 	last_error = ""
+	if _tracked != null:
+		_drop_buffered("presence")
+		socket._push(topic, "presence", {"type": "presence", "event": "track", "payload": _tracked}, socket._make_ref(), _join_ref)
 	_set_status("SUBSCRIBED")
 	# flush queued pushes (drop stale ones)
 	var now := socket.now()
@@ -307,7 +384,7 @@ func _postgres(payload: Dictionary) -> void:
 	postgres_change.emit(ch)
 	for b in _pg:
 		var hit := false
-		if b.id >= 0 and not ids.is_empty():
+		if b.id >= 0 and not ids.is_empty() and state != "shadowed":
 			for x in ids:
 				if int(x) == b.id:
 					hit = true
@@ -406,8 +483,11 @@ func _emit_sync() -> void:
 ## One websocket to Supabase Realtime. Polled by Supa._process(). Connects lazily when a channel
 ## subscribes, disconnects when the last channel leaves. Heartbeat 25 s, reconnect with backoff.
 class Socket extends RefCounted:
-	const HEARTBEAT := 25.0
-	const RECONNECT := [1.0, 2.0, 5.0, 10.0]
+	const HEARTBEAT := 20.0
+	## a heartbeat unanswered this long means the TCP connection is dead (half-open after a network switch)
+	const HEARTBEAT_TIMEOUT := 8.0
+	const WAKE_TIMEOUT := 4.0
+	const RECONNECT := [0.5, 1.0, 2.0, 5.0, 10.0]
 	const CONNECT_TIMEOUT := 12.0
 
 	signal opened
@@ -416,15 +496,21 @@ class Socket extends RefCounted:
 	var endpoint: String
 	var key: String
 	var token := ""
-	var ws: WebSocketPeer = null
+	var ws: Object = null          # WebSocketPeer (or a test transport with the same methods)
 	var channels: Array = []
 	var connected := false       # websocket OPEN
 	var tries := 0
 	var _ref := 0
 	var _hb_at := 0.0
 	var _hb_ref := ""
+	var _hb_sent := 0.0
+	var _hb_timeout := HEARTBEAT_TIMEOUT
 	var _retry_at := 0.0
 	var _open_started := 0.0
+	var _join_counter := 0
+	var last_rx := 0.0            # time of the last frame received
+	## test hook: when set, used instead of a real WebSocketPeer (see tests/net_reliability.gd)
+	var transport: Object = null
 
 	func _init(url: String, key_: String) -> void:
 		key = key_
@@ -453,12 +539,33 @@ class Socket extends RefCounted:
 	func channel(name_: String, opts: Dictionary = {}) -> RtChannel:
 		return RtChannel.new(self, name_, opts)
 
-	## after app resume: reconnect immediately if we are waiting on a backoff
+	## after app resume / network change: reconnect immediately if we are waiting on a backoff,
+	## else probe the socket with a heartbeat that must be answered within WAKE_TIMEOUT
 	func wake() -> void:
 		if ws == null and not channels.is_empty():
 			_retry_at = 0.0
+			tries = 0
 		elif connected:
-			_hb_at = 0.0   # heartbeat right away to detect a dead socket
+			_hb_ref = ""
+			_hb_at = 0.0
+			_hb_timeout = WAKE_TIMEOUT
+
+	## newest wanted channel that owns `topic` (not shadowed), other than `except`
+	func _owner(topic: String, except: Object = null) -> RtChannel:
+		var best: RtChannel = null
+		for c in channels:
+			if c != except and c.topic == topic and c._want and c.state != "shadowed":
+				if best == null or c._join_seq > best._join_seq:
+					best = c
+		return best
+
+	func _newest_shadow(topic: String, except: Object = null) -> RtChannel:
+		var best: RtChannel = null
+		for c in channels:
+			if c != except and c.topic == topic and c._want and c.state == "shadowed":
+				if best == null or c._join_seq > best._join_seq:
+					best = c
+		return best
 
 	func _add(ch: RtChannel) -> void:
 		if not channels.has(ch):
@@ -478,17 +585,26 @@ class Socket extends RefCounted:
 		connected = false
 		_hb_ref = ""
 
+	func _backoff() -> float:
+		var b: float = RECONNECT[min(tries, RECONNECT.size() - 1)]
+		return b * (1.0 + randf() * 0.3)   # jitter: phones on one cell tower don't reconnect in lockstep
+
 	func _open() -> void:
-		ws = WebSocketPeer.new()
-		ws.inbound_buffer_size = 1 << 21
-		ws.outbound_buffer_size = 1 << 20
-		ws.max_queued_packets = 4096
-		ws.heartbeat_interval = 0.0
-		var err := ws.connect_to_url(endpoint)
+		if transport != null:
+			ws = transport.call("open", endpoint)
+			_open_started = now()
+			return
+		var w := WebSocketPeer.new()
+		w.inbound_buffer_size = 1 << 21
+		w.outbound_buffer_size = 1 << 20
+		w.max_queued_packets = 4096
+		w.heartbeat_interval = 0.0
+		ws = w
+		var err := w.connect_to_url(endpoint)
 		_open_started = now()
 		if err != OK:
 			ws = null
-			_retry_at = now() + RECONNECT[min(tries, RECONNECT.size() - 1)]
+			_retry_at = now() + _backoff()
 			tries += 1
 
 	func poll() -> void:
@@ -498,28 +614,30 @@ class Socket extends RefCounted:
 				_open()
 			return
 		ws.poll()
-		var st := ws.get_ready_state()
+		var st: int = ws.get_ready_state()
 		if st == WebSocketPeer.STATE_OPEN:
 			if not connected:
 				connected = true
 				tries = 0
 				_hb_ref = ""
 				_hb_at = t + HEARTBEAT
+				last_rx = t
 				opened.emit()
 				for ch in channels.duplicate():
 					ch._on_socket_open()
 			while ws != null and ws.get_available_packet_count() > 0:
-				var pkt := ws.get_packet()
+				var pkt: PackedByteArray = ws.get_packet()
 				_on_text(pkt.get_string_from_utf8())
 			if ws == null:
 				return
-			if t >= _hb_at:
-				if _hb_ref != "":
-					# previous heartbeat never answered → socket is dead
-					ws.close(1000, "heartbeat timeout")
-					_on_closed(1000, "heartbeat timeout")
-					return
+			if _hb_ref != "" and t - _hb_sent > _hb_timeout:
+				# heartbeat not answered in time → the connection is dead (half-open TCP): reconnect now
+				ws.close(1000, "heartbeat timeout")
+				_on_closed(1000, "heartbeat timeout")
+				return
+			if t >= _hb_at and _hb_ref == "":
 				_hb_ref = _make_ref()
+				_hb_sent = t
 				_push("phoenix", "heartbeat", {}, _hb_ref, "")
 				_hb_at = t + HEARTBEAT
 			for ch in channels.duplicate():
@@ -536,7 +654,8 @@ class Socket extends RefCounted:
 		ws = null
 		connected = false
 		_hb_ref = ""
-		_retry_at = now() + RECONNECT[min(tries, RECONNECT.size() - 1)]
+		_hb_timeout = HEARTBEAT_TIMEOUT
+		_retry_at = now() + _backoff()
 		tries += 1
 		if was:
 			closed.emit(code, reason)
@@ -549,9 +668,10 @@ class Socket extends RefCounted:
 		var msg := {"topic": topic, "event": event, "payload": payload, "ref": ref}
 		if join_ref != "":
 			msg["join_ref"] = join_ref
-		return ws.send_text(JSON.stringify(msg)) == OK
+		return int(ws.send_text(JSON.stringify(msg))) == OK
 
 	func _on_text(s: String) -> void:
+		last_rx = now()
 		var m: Variant = JSON.parse_string(s)
 		if not (m is Dictionary):
 			return
@@ -562,6 +682,7 @@ class Socket extends RefCounted:
 		if topic == "phoenix":
 			if event == "phx_reply" and ref == _hb_ref:
 				_hb_ref = ""
+				_hb_timeout = HEARTBEAT_TIMEOUT
 			return
 		for ch in channels.duplicate():
 			if ch.topic == topic:

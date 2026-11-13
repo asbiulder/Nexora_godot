@@ -12,6 +12,14 @@ extends Node
 ##
 ## Usage: var l := RoomLink.new(room_id, my_uid, my_name); add it anywhere in the tree (if nobody does,
 ## it parents itself under Supa next frame). l.destroy() when leaving (it frees itself).
+##
+## Reliability:
+##  - every 'g' message carries a per-sender counter "gi": duplicates are dropped before on_game listeners;
+##  - send_game(): snapshots ("s") and aim streaming ("aim") are sent only while the channel is joined
+##    (never queued -> no stale burst after a reconnect); everything else is queued <=5 s and flushed;
+##  - app resume (Supa.app_resumed): heartbeat + refetch + "sync" ping at once; if we were away long
+##    enough for the server sweep (45 s) to drop us from a waiting room, we re-enter it (join_room) once;
+##  - state.offline_since = msec when the realtime link dropped (0 while connected).
 
 signal changed
 ## (msg: Dictionary, from: String) — every 'g' broadcast
@@ -21,7 +29,10 @@ var id: String
 var me: String
 var my_name: String
 ## state: {room, players, online {uid:{name}}, chat [{id,uid,name,text,ts}], connected, loaded, gone, unread, rtt (int or null)}
-var state := {"room": null, "players": [], "online": {}, "chat": [], "connected": false, "loaded": false, "gone": false, "unread": 0, "rtt": null}
+var state := {"room": null, "players": [], "online": {}, "chat": [], "connected": false, "loaded": false, "gone": false, "unread": 0, "rtt": null, "offline_since": 0, "rejoined": false}
+## game message kinds that are worthless when stale (sent only while joined, never queued)
+const EPHEMERAL := ["s", "aim"]
+const SWEEP_AFTER := 40.0
 var chat_open := false
 var dead := false
 var ch: RtChannel = null
@@ -35,6 +46,13 @@ var _gl: Array[Callable] = []
 var _refreshing := false
 var _refresh_again := false
 var _voice_joined := false
+var _gi := 0                     # my outgoing game message counter
+var _seen_gi := {}               # from -> {gi: true} (bounded)
+var _seen_order := {}            # from -> Array of gi (FIFO)
+var _chat_ids := {}
+var _last_beat_ok := 0.0         # unix s of the last successful heartbeat rpc
+var _maybe_swept := false
+var _rejoining := false
 
 func _init(room_id: String = "", my_uid: String = "", name_: String = "") -> void:
 	id = room_id
@@ -46,7 +64,9 @@ func _init(room_id: String = "", my_uid: String = "", name_: String = "") -> voi
 	_S().register_link(id, self)
 	_connect()
 	refresh()
-	_S().call_rpc("heartbeat", {"p_room": id})
+	_beat()
+	if _S().has_signal("app_resumed"):
+		_S().app_resumed.connect(_on_resumed)
 	_ensure_parent.call_deferred()
 
 ## Supa autoload, looked up at runtime (keeps this class compilable before autoloads exist, e.g. in -s tests)
@@ -75,7 +95,7 @@ func _process(dt: float) -> void:
 	_beat_t -= dt
 	if _beat_t <= 0.0:
 		_beat_t = 15.0
-		_S().call_rpc("heartbeat", {"p_room": id})
+		_beat()
 	_ping_t -= dt
 	if _ping_t <= 0.0:
 		_ping_t = 3.0
@@ -83,6 +103,29 @@ func _process(dt: float) -> void:
 
 func get_state() -> Dictionary:
 	return state
+
+## heartbeat rpc (server sweeps silent players after 45 s); a failure retries after 4 s
+func _beat() -> void:
+	var r: Dictionary = await _S().call_rpc("heartbeat", {"p_room": id})
+	if dead:
+		return
+	if r.ok:
+		_last_beat_ok = Time.get_unix_time_from_system()
+	else:
+		_beat_t = minf(_beat_t, 4.0)
+
+## back from the background: resync everything right away
+func _on_resumed(away: float) -> void:
+	if dead:
+		return
+	if away >= SWEEP_AFTER or (_last_beat_ok > 0.0 and Time.get_unix_time_from_system() - _last_beat_ok >= SWEEP_AFTER):
+		_maybe_swept = true
+	_beat_t = 15.0
+	_beat()
+	_poll_t = 12.0
+	refresh()
+	ping()
+	_ping_t = 1.0
 
 func _now_ms() -> int:
 	return int(Time.get_unix_time_from_system() * 1000.0)
@@ -113,7 +156,7 @@ func _probe() -> void:
 		if state.rtt != null:
 			_patch({"rtt": null})
 		return
-	ch.send_broadcast("pi", {"t": _now_ms(), "f": me, "to": to})
+	ch.send_now("pi", {"t": _now_ms(), "f": me, "to": to})
 
 func _connect() -> void:
 	ch = _S().channel("room:" + id, {"broadcast": {"self": false, "ack": false}, "presence": {"key": me}})
@@ -123,7 +166,7 @@ func _connect() -> void:
 	ch.on_broadcast("chat", func(p: Variant) -> void: _add_chat(p))
 	ch.on_broadcast("pi", func(p: Variant) -> void:
 		if p is Dictionary and str(p.get("to", "")) == me:
-			ch.send_broadcast("po", {"t": p.get("t"), "to": p.get("f")}))
+			ch.send_now("po", {"t": p.get("t"), "to": p.get("f")}))
 	ch.on_broadcast("po", func(p: Variant) -> void:
 		if not (p is Dictionary) or str(p.get("to", "")) != me or not (p.get("t") is float or p.get("t") is int):
 			return
@@ -136,6 +179,8 @@ func _connect() -> void:
 		if not (p is Dictionary):
 			return
 		var from := str(p.get("from", ""))
+		if from == me or _dup(from, p.get("gi")):
+			return
 		game.emit(p, from)
 		for f in _gl.duplicate():
 			if f.is_valid():
@@ -161,11 +206,12 @@ func _connect() -> void:
 		if dead:
 			return
 		if st == "SUBSCRIBED":
-			_patch({"connected": true})
+			_patch({"connected": true, "offline_since": 0})
 			ch.track({"name": my_name})
 			refresh()
+			ping()   # others refetch: covers changes we missed while offline
 		elif st == "CHANNEL_ERROR" or st == "TIMED_OUT" or st == "CLOSED":
-			_patch({"connected": false}))
+			_patch({"connected": false, "offline_since": state.offline_since if int(state.offline_since) > 0 else _now_ms()}))
 
 ## debounced refetch (150 ms)
 func soon() -> void:
@@ -195,6 +241,22 @@ func refresh() -> void:
 				mine = true
 				break
 		var gone: bool = r.data == null or not mine
+		if gone and r.data != null and _maybe_swept and not _rejoining:
+			# dropped by the server sweep while backgrounded -> re-enter the room once
+			_maybe_swept = false
+			_rejoining = true
+			var j: Dictionary = await _S().call_rpc("join_room", {"p_room": id})
+			_rejoining = false
+			if dead:
+				return
+			if j.ok:
+				_patch({"rejoined": true})
+				ping()
+				_refresh_again = false
+				refresh()
+				return
+		if mine:
+			_maybe_swept = false
 		_patch({"room": r.data if r.data != null else state.room, "players": players, "loaded": true, "gone": gone})
 	if _refresh_again:
 		_refresh_again = false
@@ -208,6 +270,13 @@ func ping() -> void:
 func _add_chat(c: Variant) -> void:
 	if not (c is Dictionary) or not (c.get("text") is String):
 		return
+	var cid := str(c.get("id", ""))
+	if cid != "":
+		if _chat_ids.has(cid):
+			return
+		_chat_ids[cid] = true
+		if _chat_ids.size() > 200:
+			_chat_ids.erase(_chat_ids.keys()[0])
 	var m: Dictionary = c.duplicate()
 	m.text = str(m.text).substr(0, 200)
 	var chat: Array = state.chat.duplicate()
@@ -237,11 +306,35 @@ func on_game(f: Callable) -> Callable:
 	_gl.append(f)
 	return func() -> void: _gl.erase(f)
 
-func send_game(m: Dictionary) -> void:
-	if ch:
-		var p := m.duplicate()
-		p["from"] = me
-		ch.send_broadcast("g", p)
+## Returns false when the message could not be sent (ephemeral kinds while disconnected).
+func send_game(m: Dictionary) -> bool:
+	if ch == null:
+		return false
+	var p := m.duplicate()
+	p["from"] = me
+	_gi += 1
+	p["gi"] = _gi
+	if str(p.get("k", "")) in EPHEMERAL:
+		return ch.send_now("g", p)
+	return ch.send_broadcast("g", p)
+
+## true when (from, gi) was seen already (messages without gi are never treated as duplicates)
+func _dup(from: String, gi: Variant) -> bool:
+	if not (gi is int or gi is float):
+		return false
+	var g := int(gi)
+	if not _seen_gi.has(from):
+		_seen_gi[from] = {}
+		_seen_order[from] = []
+	var seen: Dictionary = _seen_gi[from]
+	if seen.has(g):
+		return true
+	seen[g] = true
+	var order: Array = _seen_order[from]
+	order.append(g)
+	if order.size() > 256:
+		seen.erase(order.pop_front())
+	return false
 
 # ---------------------------------------------------------------- voice (Voice autoload, one room at a time)
 func voice() -> Node:
@@ -264,6 +357,8 @@ func destroy() -> void:
 		return
 	dead = true
 	_S().unregister_link(id, self)
+	if _S().has_signal("app_resumed") and _S().app_resumed.is_connected(_on_resumed):
+		_S().app_resumed.disconnect(_on_resumed)
 	# leave voice if it is (or may be) this room's session
 	var v := voice()
 	if v and v.has_method("leave"):

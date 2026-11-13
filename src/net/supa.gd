@@ -16,6 +16,8 @@ const POOL_MAX_IDLE := 8
 signal auth_changed(event: String, session: Variant)
 ## the signed-in user's own profiles row (live, kept up to date via realtime)
 signal profile_changed(profile: Variant)
+## app came back to the foreground after `away` seconds in the background (sockets already woken)
+signal app_resumed(away: float)
 
 var session: Variant = null          # Dictionary {access_token, refresh_token, expires_at, expires_in, token_type, user} or null
 var profile: Variant = null          # own profiles row (Dictionary) or null
@@ -36,6 +38,7 @@ var _sockets: Array = []             # all RtChannel.Socket instances polled in 
 var _links := {}                     # room_id -> weakref(RoomLink)
 var _profile_ch: RtChannel = null
 var _refresh_fail := 0
+var _paused_at := -1.0
 
 class _Waiter extends RefCounted:
 	signal done(v: Variant)
@@ -61,15 +64,24 @@ func _process(_dt: float) -> void:
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_APPLICATION_RESUMED or what == NOTIFICATION_APPLICATION_FOCUS_IN:
+		var away := 0.0
+		if _paused_at >= 0.0:
+			away = maxf(0.0, Time.get_ticks_msec() / 1000.0 - _paused_at)
+			_paused_at = -1.0
 		_check_refresh_on_resume()
-	elif what == NOTIFICATION_APPLICATION_PAUSED:
-		_refresh_timer.stop()
+		if what == NOTIFICATION_APPLICATION_RESUMED or away > 0.0:
+			app_resumed.emit(away)
+	elif what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+		if _paused_at < 0.0:
+			_paused_at = Time.get_ticks_msec() / 1000.0
+		if what == NOTIFICATION_APPLICATION_PAUSED and _refresh_timer:
+			_refresh_timer.stop()
 
 func _check_refresh_on_resume() -> void:
-	if session == null:
-		return
 	for s in _sockets:
 		s.wake()
+	if session == null:
+		return
 	if _expires_in() < 90.0:
 		refresh_session()
 	else:
@@ -142,8 +154,12 @@ func _save_session() -> void:
 func _set_session(s: Variant, event: String) -> void:
 	var prev_uid := uid()
 	if s is Dictionary:
-		if not s.has("expires_at") or s.get("expires_at") == null:
-			s["expires_at"] = int(_now() + float(s.get("expires_in", 3600)))
+		# expiry on the LOCAL clock: GoTrue's absolute expires_at is server time, and phones with a wrong
+		# clock/timezone would otherwise refresh in a loop (clock ahead) or send expired JWTs (behind).
+		if s.get("expires_in") != null and float(s.get("expires_in", 0)) > 0:
+			s["expires_at"] = int(_now() + float(s.expires_in))
+		elif not s.has("expires_at") or s.get("expires_at") == null:
+			s["expires_at"] = int(_now() + 3600.0)
 		session = s
 	else:
 		session = null
@@ -157,6 +173,8 @@ func _set_session(s: Variant, event: String) -> void:
 		for sk in _sockets:
 			sk.set_auth("")
 	if uid() != prev_uid:
+		if prev_uid != "":
+			_drop_links()   # another account (or signed out): rooms of the old user are gone
 		_after_sign_in()
 	auth_changed.emit(event, session)
 
@@ -181,10 +199,12 @@ func refresh_session() -> Dictionary:
 	var rt := str(session.get("refresh_token", ""))
 	var res := await _request("POST", URL + "/auth/v1/token?grant_type=refresh_token", {"refresh_token": rt}, [], false)
 	_refreshing = false
-	if res.ok and res.data is Dictionary and res.data.has("access_token"):
+	if session == null:
+		pass   # signed out while the request was in flight
+	elif res.ok and res.data is Dictionary and res.data.has("access_token"):
 		_refresh_fail = 0
 		_set_session(res.data, "TOKEN_REFRESHED")
-	elif res.status >= 400 and res.status < 500:
+	elif _refresh_token_dead(res):
 		# refresh token revoked / already used / user deleted → local sign out
 		_set_session(null, "SIGNED_OUT")
 	else:
@@ -193,6 +213,21 @@ func refresh_session() -> Dictionary:
 		_refresh_timer.start(min(60.0, 2.0 * pow(2.0, min(_refresh_fail, 5))))
 	_refresh_waiter.done.emit(res)
 	return res
+
+## Only a definitive GoTrue answer about the refresh token signs the user out. 408/429/5xx, timeouts,
+## captive portals (HTML 4xx) and proxies keep the session and retry.
+func _refresh_token_dead(res: Dictionary) -> bool:
+	var st := int(res.get("status", 0))
+	if st != 400 and st != 401 and st != 403 and st != 404:
+		return false
+	var d: Variant = res.get("data")
+	if not (d is Dictionary):
+		return false
+	var code := str(d.get("error_code", d.get("code", ""))).to_lower()
+	var msg := (str(d.get("error", "")) + " " + str(d.get("error_description", "")) + " " + str(d.get("msg", "")) + " " + str(d.get("message", ""))).to_lower()
+	if code in ["refresh_token_not_found", "refresh_token_already_used", "session_not_found", "session_expired", "user_not_found", "user_banned", "bad_jwt"]:
+		return true
+	return msg.contains("refresh token") or msg.contains("invalid_grant") or msg.contains("user not found")
 
 ## Make sure the access token is fresh before a request (called by every authed request).
 func _fresh_token() -> void:
@@ -283,7 +318,9 @@ func set_session_tokens(access: String, refresh: String, type: String = "") -> D
 	if parts.size() == 3:
 		var pl: Variant = JSON.parse_string(_b64url_decode(parts[1]))
 		if pl is Dictionary and pl.has("exp"):
-			exp = int(pl.exp)
+			# lifetime from the token itself (exp - iat) so a wrong phone clock does not matter
+			var life := float(pl.exp) - float(pl.get("iat", float(pl.exp) - 3600.0))
+			exp = int(_now() + clampf(life, 60.0, 86400.0))
 	_set_session({"access_token": access, "refresh_token": refresh, "token_type": "bearer", "expires_at": exp, "expires_in": exp - int(_now()), "user": res.data}, "SIGNED_IN")
 	if type == "recovery":
 		recovery = true
@@ -368,11 +405,24 @@ func _after_sign_in() -> void:
 ## PostgREST: path like "rooms?select=*&id=eq.<id>". prefer e.g. "return=representation".
 func rest(method: String, path: String, body: Variant = null, prefer: String = "", extra_headers: Array = []) -> Dictionary:
 	await _fresh_token()
+	var res := await _request(method, URL + "/rest/v1/" + path, body, _rest_headers(prefer, extra_headers), false)
+	# JWT expired server-side (clock skew / slept through the refresh timer): refresh once and retry
+	if res.status == 401 and session != null and _jwt_expired(res):
+		var rr := await refresh_session()
+		if rr.ok:
+			res = await _request(method, URL + "/rest/v1/" + path, body, _rest_headers(prefer, extra_headers), false)
+	return res
+
+func _rest_headers(prefer: String, extra: Array) -> PackedStringArray:
 	var h := _auth_headers()
 	if prefer != "":
 		h.append("Prefer: " + prefer)
-	h.append_array(extra_headers)
-	return await _request(method, URL + "/rest/v1/" + path, body, h, false)
+	h.append_array(extra)
+	return h
+
+func _jwt_expired(res: Dictionary) -> bool:
+	var t := (str(res.get("raw", "")) + " " + (JSON.stringify(res.data) if res.get("data") != null else "")).to_lower()
+	return t.contains("jwt expired") or t.contains("pgrst301") or t.contains("pgrst303") or t.contains("invalid jwt")
 
 ## select("room_players", "select=*,profiles(username,avatar)&room_id=eq.X&order=joined_at")
 ## single=true → data is the first row or null (maybeSingle)
@@ -423,7 +473,12 @@ func call_rpc(fn: String, args: Dictionary = {}) -> Dictionary:
 ## Edge function. On HTTP errors data still carries the parsed body and status the HTTP code.
 func fn_invoke(name_: String, body: Variant = {}) -> Dictionary:
 	await _fresh_token()
-	return await _request("POST", URL + "/functions/v1/" + name_, body, _auth_headers(), false)
+	var res := await _request("POST", URL + "/functions/v1/" + name_, body, _auth_headers(), false)
+	if res.status == 401 and session != null and _jwt_expired(res):
+		var rr := await refresh_session()
+		if rr.ok:
+			res = await _request("POST", URL + "/functions/v1/" + name_, body, _auth_headers(), false)
+	return res
 
 ## Upload bytes to Storage. Returns data = public URL.
 func upload(bucket: String, path: String, bytes: PackedByteArray, mime: String = "image/jpeg", upsert_: bool = false) -> Dictionary:
@@ -487,6 +542,22 @@ func register_link(room_id: String, link: Object) -> void:
 func unregister_link(room_id: String, link: Object) -> void:
 	if _links.has(room_id) and _links[room_id].get_ref() == link:
 		_links.erase(room_id)
+
+## every live RoomLink is destroyed (sign-out / account switch)
+func _drop_links() -> void:
+	for k in _links.keys():
+		var o: Object = _links[k].get_ref()
+		if o and is_instance_valid(o) and not o.get("dead") and o.has_method("destroy"):
+			o.destroy()
+	_links.clear()
+
+func live_links() -> Array:
+	var out: Array = []
+	for k in _links:
+		var o: Object = _links[k].get_ref()
+		if o and is_instance_valid(o) and not o.get("dead"):
+			out.append(o)
+	return out
 
 ## RoomLink for a room created earlier (lobby → match → result share it)
 func link_for(room_id: String) -> Object:
