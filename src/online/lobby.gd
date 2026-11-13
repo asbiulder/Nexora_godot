@@ -28,10 +28,27 @@ func _ready() -> void:
 	Nav.chrome(false)
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	layout_direction = Control.LAYOUT_DIRECTION_RTL
+	# params from online_match / online_result: {room_id, link, skip_match, why}
+	var pl: Variant = params.get("link")
+	if pl != null and is_instance_valid(pl) and not bool(pl.get("dead")):
+		if OUI.link != pl:
+			if OUI.link != null and is_instance_valid(OUI.link) and OUI.link != pl:
+				OUI.drop_link()
+			OUI.link = pl
+			OUI.ebus().link_changed.emit()
 	link = OUI.link
+	if link != null and not is_instance_valid(link):
+		OUI.link = null
+		link = null
 	if link == null:
-		Nav.go("hub", {})
+		Nav.go.call_deferred("hub", {})
 		return
+	var skip := OUI.s(params.get("skip_match", ""))
+	if skip != "":
+		OUI.skip_match = skip
+		OUI.first_load = false
+	if params.has("skip_match"):
+		link.refresh()
 	if link.has_signal("changed"):
 		link.changed.connect(_on_change)
 	Voice.state_changed.connect(_on_change)
@@ -103,9 +120,10 @@ func _on_change(_x: Variant = null) -> void:
 		return
 	var room := _room()
 	if bool(st.get("gone", false)):
-		OUI.toast("از اتاق خارج شدی" if not room.is_empty() else "اتاق بسته شد")
+		OUI.toast("از اتاق خارج شدی" if not room.is_empty() else "اتاق بسته شد", "err")
 		OUI.drop_link()
 		Nav.go("hub", {})
+		OUI.prune_history()
 		return
 	if room.is_empty():
 		return
@@ -394,9 +412,9 @@ func _run(key: String, fn: Callable, ok_msg: String = "") -> void:
 		link.ping()
 		await link.refresh()
 		if ok_msg != "":
-			OUI.toast(ok_msg)
+			OUI.toast(ok_msg, "ok")
 	else:
-		OUI.toast(OUI.err(r))
+		OUI.toast_err(OUI.err(r))
 		OUI.buzz("heavy")
 	busy = ""
 	sig = ""
@@ -443,7 +461,7 @@ func _watch() -> void:
 
 func _copy() -> void:
 	DisplayServer.clipboard_set(OUI.s(_room().get("code")))
-	OUI.toast("کد اتاق کپی شد")
+	OUI.toast("کد اتاق کپی شد", "ok")
 	OUI.buzz("light")
 
 
@@ -570,10 +588,10 @@ func _open_settings() -> void:
 		if OUI.ok(r):
 			link.ping()
 			await link.refresh()
-			OUI.toast("تنظیمات ذخیره شد")
+			OUI.toast("تنظیمات ذخیره شد", "ok")
 			Nav.close_sheet()
 		else:
-			OUI.toast(OUI.err(r))
+			OUI.toast_err(OUI.err(r))
 			if is_instance_valid(save):
 				save.disabled = false
 				save.text = "ذخیره")

@@ -193,7 +193,7 @@ func _toggle_follow() -> void:
 	if not is_inside_tree():
 		return
 	if not OUI.ok(r):
-		OUI.toast(OUI.err(r))
+		OUI.toast_err(OUI.err(r))
 		_render()
 		return
 	stats["followers"] = OUI.i(stats.get("followers")) + (-1 if following else 1)
@@ -209,7 +209,7 @@ func _message() -> void:
 	if OUI.ok(r):
 		Nav.go("chat", {"id": OUI.s(r.get("data"))})
 	else:
-		OUI.toast(OUI.err(r))
+		OUI.toast_err(OUI.err(r))
 
 
 func _toggle_block() -> void:
@@ -224,7 +224,7 @@ func _toggle_block() -> void:
 	if not is_inside_tree():
 		return
 	if not OUI.ok(r):
-		OUI.toast(OUI.err(r))
+		OUI.toast_err(OUI.err(r))
 		return
 	OUI.toast("از مسدودی خارج شد" if blocked else "کاربر مسدود شد")
 	blocked = not blocked

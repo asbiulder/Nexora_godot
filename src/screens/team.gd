@@ -85,7 +85,7 @@ func _discs() -> void:
 		b = Kit.button_small("انتخاب این دیسک", _disc_act, "primary")
 	else:
 		var sub_l := "موجودی: %s الماس" % NX.fa(int(op.get("gems", 0))) if not op.is_empty() else ""
-		b = Kit.button_ex("…" if busy else "خرید · 💎 %s" % NX.fa(price), _disc_act, "violet", true, null, sub_l)
+		b = Kit.button_ex("…" if busy else "خرید · %s الماس" % NX.fa(price), _disc_act, "violet", true, null, sub_l)
 		b.set_disabled(busy)
 	v.add_child(b)
 	pn.add_child(v)

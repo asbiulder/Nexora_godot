@@ -80,7 +80,7 @@ func _build_hud() -> void:
 
 	var row := HBoxContainer.new()
 	row.name = "Row"
-	row.add_theme_constant_override("separation", 10)
+	row.add_theme_constant_override("separation", 8)
 	row.alignment = BoxContainer.ALIGNMENT_BEGIN
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud.add_child(row)
@@ -95,17 +95,17 @@ func _build_hud() -> void:
 	var col := Kit.vbox(8)
 	col.alignment = BoxContainer.ALIGNMENT_CENTER
 	name_l = Kit.label("Pilot", 34, NX.TEXT, true)
-	name_l.custom_minimum_size.x = 150
+	name_l.custom_minimum_size.x = 128
 	name_l.clip_text = true
 	name_l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	name_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	col.add_child(name_l)
 	xp_bar = NxBar.new(0.0, NX.CYAN, NX.CYAN, 13)
-	xp_bar.custom_minimum_size = Vector2(182, 13)
+	xp_bar.custom_minimum_size = Vector2(150, 13)
 	col.add_child(xp_bar)
 	mh.add_child(col)
 	var avs := Control.new()
-	avs.custom_minimum_size = Vector2(110, 110)
+	avs.custom_minimum_size = Vector2(104, 104)
 	avs.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	av_holder = Control.new()
 	av_holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -118,7 +118,7 @@ func _build_hud() -> void:
 	lvl_l = Kit.title("1", 24, NX.DARK_TXT)
 	lvl_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lv.add_child(lvl_l)
-	lv.position = Vector2(30, 82)
+	lv.position = Vector2(26, 76)
 	lv.custom_minimum_size = Vector2(52, 40)
 	avs.add_child(lv)
 	mh.add_child(avs)
@@ -140,36 +140,36 @@ func _build_hud() -> void:
 	row.add_child(cp)
 
 	gift = Control.new()
-	gift.custom_minimum_size = Vector2(114, 114)
-	gift_art = Kit.img(UD.menu("ic_gift"), 104)
-	gift_art.position = Vector2(5, 5)
-	gift_art.pivot_offset = Vector2(52, 52)
+	gift.custom_minimum_size = Vector2(94, 104)
+	gift_art = Kit.img(UD.menu("ic_gift"), 88)
+	gift_art.position = Vector2(3, 8)
+	gift_art.pivot_offset = Vector2(44, 44)
 	gift.add_child(gift_art)
 	gift_badge = Kit.badge_dot(true)
-	gift_badge.position = Vector2(8, 8)
+	gift_badge.position = Vector2(2, 4)
 	gift.add_child(gift_badge)
 	Kit.tap(gift, func(): Nav.go("daily"), 0.88)
 	row.add_child(gift)
-	row.add_child(Kit.icon_button(UD.menu("ic_settings"), func(): Nav.go("settings")))
+	row.add_child(Kit.icon_button(UD.menu("ic_settings"), func(): Nav.go("settings"), 86.0))
 
 func _pill(icon: Texture2D, plus: bool) -> Control:
 	var p := PanelContainer.new()
 	var sb := NX.box(Color(0.024, 0.04, 0.118, 0.8), 42, 3, NX.LINE)
-	sb.content_margin_left = 8; sb.content_margin_right = 10 if plus else 26; sb.content_margin_top = 4; sb.content_margin_bottom = 4
+	sb.content_margin_left = 8; sb.content_margin_right = 8 if plus else 22; sb.content_margin_top = 4; sb.content_margin_bottom = 4
 	p.add_theme_stylebox_override("panel", sb)
 	p.custom_minimum_size.y = 84
 	p.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	var h := Kit.hbox(10)
 	h.alignment = BoxContainer.ALIGNMENT_CENTER
 	p.add_child(h)
-	h.add_child(Kit.img(icon, 66))
+	h.add_child(Kit.img(icon, 58))
 	var l := Kit.title("0", 31, NX.TEXT, "head")
 	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	h.add_child(l)
 	if plus:
 		var pl := PanelContainer.new()
 		pl.add_theme_stylebox_override("panel", NX.box(NX.hdr(NX.GREEN, 1.1), 27))
-		pl.custom_minimum_size = Vector2(54, 54)
+		pl.custom_minimum_size = Vector2(48, 48)
 		pl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		pl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		var t := Kit.title("+", 32, NX.DARK_TXT)

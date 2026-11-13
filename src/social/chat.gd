@@ -163,7 +163,7 @@ func _load_msgs(before: String) -> void:
 	if not is_inside_tree():
 		return
 	if not OUI.ok(r):
-		OUI.toast(OUI.err(r))
+		OUI.toast_err(OUI.err(r))
 		if before == "":
 			msgs = []
 			_loaded = true
@@ -328,7 +328,7 @@ func _render_meta() -> void:
 			if OUI.ok(r):
 				_load_meta()
 			else:
-				OUI.toast(OUI.err(r)), "green"))
+				OUI.toast_err(OUI.err(r)), "green"))
 	elif not conv.is_empty():
 		input_slot.add_child(OUI.lbl("فقط مدیران کانال می‌توانند پیام بفرستند" if kind == "channel" else "امکان ارسال پیام نیست", OUI.TS_SMALL, OUI.DIM, "body", HORIZONTAL_ALIGNMENT_CENTER))
 
@@ -505,7 +505,7 @@ func _send(image_url: String) -> void:
 	if not is_inside_tree():
 		return
 	if not OUI.ok(r):
-		OUI.toast(OUI.err(r))
+		OUI.toast_err(OUI.err(r))
 		return
 	if is_instance_valid(txt):
 		txt.text = ""
@@ -526,9 +526,9 @@ func _send_image() -> void:
 			return
 		if not res.get("ok", false):
 			if res.get("unsupported", false):
-				OUI.toast("انتخاب عکس روی این دستگاه پشتیبانی نمی‌شود")
+				OUI.toast_err("انتخاب عکس روی این دستگاه پشتیبانی نمی‌شود")
 			elif not res.get("cancelled", false):
-				OUI.toast(OUI.s(res.get("error")))
+				OUI.toast_err(OUI.s(res.get("error")))
 			return
 		_send(OUI.s(res.get("url"))))
 
@@ -580,7 +580,7 @@ func _menu(m: Dictionary) -> void:
 			_close_overlay()
 			var r: Dictionary = await OUI.patch("messages?id=eq.%d" % OUI.i(m.get("id")), {"deleted": true, "body": null})
 			if not OUI.ok(r):
-				OUI.toast(OUI.err(r)), OUI.RED)
+				OUI.toast_err(OUI.err(r)), OUI.RED)
 	item.call("انصراف", _close_overlay, OUI.DIM)
 	overlay = OUI.modal(self, v, OUI.CYAN, _close_overlay)
 
@@ -625,7 +625,7 @@ func _open_info() -> void:
 			await _load_meta()
 			(refs["refill"] as Callable).call()
 		else:
-			OUI.toast(OUI.err(r))
+			OUI.toast_err(OUI.err(r))
 	var mem_box := OUI.vbox(0)
 	var refill := func() -> void:
 		if not is_instance_valid(mem_box):
@@ -701,10 +701,10 @@ func _open_info() -> void:
 		v.add_child(OUI.btn("خروج از گفتگو", func() -> void:
 			var r: Dictionary = await Supa.call_rpc("leave_conversation", {"p_conv": id})
 			if OUI.ok(r):
-				OUI.toast("خارج شدی")
+				OUI.toast("خارج شدی", "ok")
 				Nav.close_sheet()
 				Nav.back()
 			else:
-				OUI.toast(OUI.err(r)), "red", true))
+				OUI.toast_err(OUI.err(r)), "red", true))
 	var t := OUI.s(conv.get("title"))
 	OUI.open_sheet(t if t != "" else KIND_LABEL.get(kind, ""), "%s INFO" % KIND_LABEL.get(kind, ""), scr, OUI.CYAN, 0.85)

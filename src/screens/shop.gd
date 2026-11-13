@@ -301,7 +301,8 @@ func _disc_card(d: Dictionary, cell: float) -> Control:
 	c.add_theme_stylebox_override("panel", sb)
 	c.custom_minimum_size.x = cell
 	var v := Kit.vbox(8)
-	v.add_child(Kit.center(Kit.img(UD.team_tex(str(d["id"])), cell * 0.6)))
+	var dt := UD.disc_tex(str(d["id"]), str(d.get("name", "")))
+	v.add_child(Kit.center(Kit.img(dt if dt else UD.menu("shield_gem"), cell * 0.6)))
 	var n := Kit.label(str(d.get("name", "")), 26, NX.TEXT, true)
 	n.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	n.clip_text = true

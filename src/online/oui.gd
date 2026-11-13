@@ -302,8 +302,17 @@ static func disc_key(key: Variant) -> String:
 	return "club00"
 
 
+## piece art (NX8 catalog) only through Data/Kit
 static func disc_tex(key: Variant) -> Texture2D:
-	return tex("res://assets/g/teams/%s.webp" % disc_key(key))
+	var k := s(key)
+	var t: Texture2D = null
+	if k != "" and not Data.team_by_id(k).is_empty():
+		t = Data.team_tex(k)
+	if t == null:
+		t = Kit._team_tex_from_key(k)
+	if t == null:
+		t = Data.team_tex("club0")
+	return t
 
 
 static func field_count() -> int:
@@ -494,9 +503,14 @@ static func buzz(kind: String) -> void:
 		Sfx.haptic("heavy" if kind == "success" else kind)
 
 
-static func toast(msg: String) -> void:
+static func toast(msg: String, kind: String = "info") -> void:
 	if msg != "":
-		Nav.toast(msg)
+		Nav.toast(msg, kind)
+
+
+static func toast_err(msg: String) -> void:
+	if msg != "":
+		Nav.toast(msg, "err")
 
 
 static func _btn_style(cols: Array, state: String, radius: float) -> StyleBoxFlat:
@@ -1054,41 +1068,12 @@ static func enter(c: Control, idx: int) -> void:
 	tw.tween_property(c, "modulate:a", 1.0, 0.25)
 
 
-## bottom-sheet content with a title row (RN Sheet). Opens via Nav.sheet.
+## bottom sheet (RN Sheet): Nav.sheet draws the grip + title row; content fills the body.
 static func open_sheet(title: String, en: String, content: Control, accent: Color = CYAN, height_frac := 0.85) -> Control:
-	var root := PanelContainer.new()
-	root.layout_direction = Control.LAYOUT_DIRECTION_RTL
-	var st := sb(Color(8 / 255.0, 12 / 255.0, 34 / 255.0, 0.97), 26, Color(accent, 0.6), 1.5)
-	st.corner_radius_bottom_left = 0
-	st.corner_radius_bottom_right = 0
-	st.shadow_color = Color(accent, 0.25)
-	st.shadow_size = px(12)
-	root.add_theme_stylebox_override("panel", st)
-	var vp := Vector2(1080, 1920)
-	var tree := Engine.get_main_loop() as SceneTree
-	if tree and tree.root:
-		vp = tree.root.get_visible_rect().size
-	root.custom_minimum_size = Vector2(vp.x, vp.y * height_frac)
-	var v := vbox(0)
-	root.add_child(v)
-	var handle := ColorRect.new()
-	handle.color = Color(1, 1, 1, 0.25)
-	handle.custom_minimum_size = Vector2(px(44), px(5))
-	handle.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	v.add_child(margin(handle, 0, S_S, 0, S_XS))
-	var hd := hbox(S_S)
-	var tv := vbox(0)
-	tv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	if en != "":
-		tv.add_child(lbl(en, 9, accent, "head"))
-	tv.add_child(lbl(title, TS_H + 2, TEXT, "title"))
-	hd.add_child(tv)
-	hd.add_child(pill("✕", func() -> void: Nav.close_sheet(), DIM, 44, 44))
-	v.add_child(margin(hd, S_L, 0, S_L, S_S))
+	content.layout_direction = Control.LAYOUT_DIRECTION_RTL
 	content.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	v.add_child(content)
-	Nav.sheet(root)
-	return root
+	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	return Nav.sheet(content, {"title": title, "en": en, "accent": accent, "height": height_frac})
 
 
 ## centered modal card over a dim veil (RN Modal) added into `host`
@@ -1340,7 +1325,7 @@ static func enter_room(room: Variant) -> void:
 		return
 	var rid := s(r.get("id"))
 	if link != null and s(link.id) == rid:
-		Nav.go("lobby", {"room_id": rid})
+		Nav.go("lobby", {"room_id": rid, "link": link})
 		return
 	drop_link()
 	first_load = true
@@ -1348,12 +1333,10 @@ static func enter_room(room: Variant) -> void:
 	var name := s(profile.get("username", ""), "Pilot")
 	if name == "":
 		name = "Pilot"
-	var l: Variant = RoomLink.new(rid, u, name)
-	if l is Node:
-		(Engine.get_main_loop() as SceneTree).root.add_child(l)
+	var l: Variant = RoomLink.new(rid, u, name)  # parents itself under Supa
 	link = l
 	ebus().link_changed.emit()
-	Nav.go("lobby", {"room_id": rid})
+	Nav.go("lobby", {"room_id": rid, "link": l})
 
 
 static func drop_link() -> void:
@@ -1361,9 +1344,9 @@ static func drop_link() -> void:
 		return
 	var l: Variant = link
 	link = null
-	l.destroy()
-	if l is Node and is_instance_valid(l):
-		(l as Node).queue_free()
+	if is_instance_valid(l):
+		l.destroy()  # frees itself
+	prune_history()
 	ebus().link_changed.emit()
 
 
@@ -1377,6 +1360,15 @@ static func leave_room(to_hub := true) -> void:
 		Sfx.music(true)
 	if to_hub:
 		Nav.go("hub", {})
+		prune_history()
+
+
+## room screens in Nav's back history are dead once the link is gone (and "hub" must not stack)
+static func prune_history() -> void:
+	var h: Array = Nav.history
+	for k in range(h.size() - 1, -1, -1):
+		if h[k] is Array and str(h[k][0]) in ["lobby", "online_result", "online_match", "hub"]:
+			h.remove_at(k)
 
 
 ## shared quick/arena matchmaking (RN Hub.quick / Arena.find)

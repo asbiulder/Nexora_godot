@@ -6,6 +6,9 @@ var hero: Control
 var _hero_y := 0.0
 
 func build() -> void:
+	# menu track on Home (Sfx picks menu_music.mp3, else music.mp3); Settings' music toggle wins
+	if bool(UD.pv("music", true)):
+		UD.menu_music(true)
 	make_scroll(20)
 	_fill()
 	end_body()
@@ -51,22 +54,28 @@ func _fill() -> void:
 	var W := 1080.0
 	# ---------------- hero
 	var hw := 560.0
-	var hh := hw + 330.0
+	var hh := hw + 400.0
 	var wrap := Kit.stage(W, hh)
 	wrap.clip_contents = false
 	hero = Control.new()
 	hero.mouse_filter = Control.MOUSE_FILTER_PASS
 	hero.size = Vector2(W, hh)
 	wrap.add_child(hero)
-	var logo := Kit.img(UD.menu("logo"), Vector2(660, 316))
-	Kit.put(hero, logo, W * 0.5, 150)
+	var logo := Kit.img(UD.menu("logo"), Vector2(600, 290))
+	Kit.put(hero, logo, W * 0.5, 145)
 	var pulse := Kit.pulse(hw * 0.9, Color(0.31, 0.55, 1.0, 0.5))
 	Kit.put(hero, pulse, W * 0.5, hh - 360)
 	var ped := Kit.img(UD.menu("pedestal"), Vector2(hw * 1.5, hw * 1.5 * 0.42))
 	Kit.put(hero, ped, W * 0.5, hh - hw * 0.315)
 	# mascot drifting on the left
-	var mas := Kit.img(UD.ui2("mascot"), Vector2(300, 340))
-	Kit.put(hero, mas, 175, hh - 330)
+	var mtex := UD.ui2("mascot")
+	if mtex:  # the sheet crop carries a sliver of the next sprite on its right edge
+		var at := AtlasTexture.new()
+		at.atlas = mtex
+		at.region = Rect2(0, 0, 356, 520)
+		mtex = at
+	var mas := Kit.img(mtex, Vector2(240, 350))
+	Kit.put(hero, mas, 150, hh - 300)
 	Kit.bob(mas, 14, 2.4, 0.4)
 	Kit.tap(mas, func(): UD.sfx("ui"); Nav.toast("سلام کاپیتان! آماده‌ی بازی هستی؟"), 0.9)
 	# hovering disc
@@ -79,7 +88,7 @@ func _fill() -> void:
 	var dimg := Kit.img(UD.team_tex(me), dsz - 26)
 	dimg.position = Vector2(13, 13)
 	disc.add_child(dimg)
-	Kit.put(hero, disc, W * 0.5, hh - hw * 0.315 - 150 - dsz * 0.5 + 40)
+	Kit.put(hero, disc, W * 0.5, 300 + dsz * 0.5)
 	Kit.bob(disc, 14, 2.8)
 	var tilt := disc.create_tween().set_loops()
 	tilt.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
@@ -222,7 +231,7 @@ func _league_strip(p: Dictionary) -> Control:
 	var top := Kit.hbox(12, true)
 	top.add_child(Kit.label("لیگ %s" % UD.LEAGUE_FA[lg["name"]], 38, NX.TEXT, true))
 	var sp := Control.new(); sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL; top.add_child(sp)
-	top.add_child(Kit.label("%s / %s 🏆" % [NX.fa(tr), NX.fa(lg["to"])], 29, NX.GOLD))
+	top.add_child(Kit.label("%s / %s" % [NX.fa(tr), NX.fa(lg["to"])], 29, NX.GOLD))
 	col.add_child(top)
 	var bar := Kit.progress(float(tr - int(lg["from"])) / maxf(1.0, float(int(lg["to"]) - int(lg["from"]))), NX.GOLD, NX.ORANGE, 18)
 	bar.layout_direction = Control.LAYOUT_DIRECTION_LTR

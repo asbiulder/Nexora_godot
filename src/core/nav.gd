@@ -30,7 +30,7 @@ const REG := {
 	"chest": ["res://src/screens/chest.gd", "modal"],
 	"match": ["res://src/screens/match.gd", "fs"],
 	"result": ["res://src/screens/result.gd", "screen"],
-	"account": ["res://src/online/account.gd", "screen"],
+	"account": ["res://src/screens/account.gd", "screen"],
 	"hub": ["res://src/online/hub.gd", "screen"],
 	"lobby": ["res://src/online/lobby.gd", "screen"],
 	"ranks": ["res://src/online/ranks.gd", "screen"],
@@ -309,6 +309,15 @@ func sheet(content: Control, opts := {}) -> Control:
 	bg.set_glow(Color(accent.r * 1.3, accent.g * 1.3, accent.b * 1.3, 0.4), 50.0, 60.0)
 	bg.position = Vector2(-60, -60)
 	bg.size = panel.size + Vector2(120, 120)
+	# opaque backing: the gradient shader leaves the sheet see-through, so the screen behind
+	# bled into headers and rows
+	var back := Panel.new()
+	back.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var bsb := NX.box(Color("#0a1032"), 0)
+	bsb.corner_radius_top_left = 72; bsb.corner_radius_top_right = 72
+	back.add_theme_stylebox_override("panel", bsb)
+	back.size = panel.size
+	panel.add_child(back)
 	panel.add_child(bg)
 	var scan := TextureRect.new()
 	scan.texture = UD.tex("res://assets/g/ui/scan.png")

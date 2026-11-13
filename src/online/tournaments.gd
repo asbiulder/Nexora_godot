@@ -264,7 +264,7 @@ func _open_create() -> void:
 	go.pressed.connect(func() -> void:
 		var nm := OUI.field_value(nf).strip_edges()
 		if nm.length() < 3:
-			OUI.toast("نام تورنمنت حداقل ۳ کاراکتر")
+			OUI.toast_err("نام تورنمنت حداقل ۳ کاراکتر")
 			return
 		go.disabled = true
 		go.text = "در حال ساخت…"
@@ -273,14 +273,14 @@ func _open_create() -> void:
 		if OUI.ok(r):
 			OUI.sfx("ready")
 			OUI.buzz("success")
-			OUI.toast("تورنمنت ساخته شد")
+			OUI.toast("تورنمنت ساخته شد", "ok")
 			Nav.close_sheet()
 			var dd: Variant = r.get("data")
 			if dd is Array and dd.size() > 0:
 				dd = dd[0]
 			Nav.go("tournaments", {"id": OUI.s(OUI.d(dd).get("id"))})
 		else:
-			OUI.toast(OUI.err(r))
+			OUI.toast_err(OUI.err(r))
 			if is_instance_valid(go):
 				go.disabled = false
 				go.text = "ساخت تورنمنت")
@@ -355,11 +355,11 @@ func _run(k: String, fn: Callable, ok_msg: String = "") -> void:
 		return
 	if OUI.ok(r):
 		if ok_msg != "":
-			OUI.toast(ok_msg)
+			OUI.toast(ok_msg, "ok")
 			OUI.buzz("success")
 		await _load_detail()
 	else:
-		OUI.toast(OUI.err(r))
+		OUI.toast_err(OUI.err(r))
 		OUI.buzz("heavy")
 		_render_detail()
 
@@ -480,7 +480,7 @@ func _open_room(tm_id: String) -> void:
 	if OUI.ok(r):
 		OUI.enter_room(r.get("data"))
 	else:
-		OUI.toast(OUI.err(r))
+		OUI.toast_err(OUI.err(r))
 		if is_inside_tree():
 			_render_detail()
 

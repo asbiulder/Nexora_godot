@@ -88,7 +88,6 @@ static func icon_button(tex, cb: Callable = Callable(), art := 104.0, badge = fa
 	var c := Control.new()
 	c.custom_minimum_size = Vector2(art + 10, art + 10)
 	var i := img(tex, art)
-	i.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
 	i.position = Vector2(5, 5)
 	i.size = Vector2(art, art)
 	c.add_child(i)
@@ -98,12 +97,27 @@ static func icon_button(tex, cb: Callable = Callable(), art := 104.0, badge = fa
 	return c
 
 static func badge_dot(v = true) -> Control:
+	var hold := Control.new()
+	hold.name = "Badge"
+	hold.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hold.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	hold.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	hold.custom_minimum_size = Vector2(30, 30)
+	hold.add_child(_badge_pill(v))
+	return hold
+
+static func _badge_pill(v) -> Control:
 	var b := PanelContainer.new()
 	b.name = "Badge"
 	b.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_theme_stylebox_override("panel", NX.box(NX.hdr(NX.RED, 1.2), 20, 4, Color("#0b1236")))
 	b.custom_minimum_size = Vector2(26, 26)
 	b.position = Vector2(2, 2)
+	b.size = Vector2(26, 26)
+	if not (v is int and v > 0):  # plain dot: no padding, so it stays a 26px circle
+		var dsb := NX.box(NX.RED, 13, 3, Color("#0b1236"))
+		dsb.content_margin_left = 0; dsb.content_margin_right = 0; dsb.content_margin_top = 0; dsb.content_margin_bottom = 0
+		b.add_theme_stylebox_override("panel", dsb)
 	if v is int and v > 0:
 		var l := label("9+" if v > 9 else str(v), 22, Color.WHITE, true)
 		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -292,9 +306,10 @@ static func _team_tex_from_key(key: String) -> Texture2D:
 	var re := RegEx.create_from_string("^([a-z]+)(\\d+)$")
 	var m := re.search(key)
 	if m:
-		var path := "res://assets/g/teams/%s%02d.webp" % [m.get_string(1), int(m.get_string(2))]
-		if ResourceLoader.exists(path):
-			return UD.tex(path)
+		var cat := UD.data_cat("TEAM_IMG")
+		var k2 := "%s%02d" % [m.get_string(1), int(m.get_string(2))]
+		if cat.has(k2):
+			return UD.tex(str(cat[k2]))
 	return UD.team_tex(key)
 
 static func _fetch_avatar(holder: Control, url: String, t: TextureRect) -> void:

@@ -55,7 +55,7 @@ static func claim(def_id: String) -> Dictionary:
 	var dd := OUI.d(r.get("data"))
 	OUI.sfx("win")
 	OUI.buzz("success")
-	OUI.toast("+%s الماس · +%s XP" % [OUI.fa(OUI.i(dd.get("gems"))), OUI.fa(OUI.i(dd.get("xp")))])
+	OUI.toast("+%s الماس · +%s XP" % [OUI.fa(OUI.i(dd.get("gems"))), OUI.fa(OUI.i(dd.get("xp")))], "ok")
 	return {"ok": true, "gems": OUI.i(dd.get("gems")), "xp": OUI.i(dd.get("xp"))}
 
 
@@ -166,7 +166,7 @@ func _claim(c: Dictionary, card: Control) -> void:
 		c["claimed"] = true
 		_render()
 	else:
-		OUI.toast(r["error"])
+		OUI.toast_err(r["error"])
 
 
 static func _pop(card: Control) -> void:
@@ -283,6 +283,6 @@ class HomeCard extends VBoxContainer:
 					if is_inside_tree():
 						_render()
 				else:
-					OUI.toast(r["error"])))
+					OUI.toast_err(r["error"])))
 		p.add_child(v)
 		add_child(p)

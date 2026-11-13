@@ -23,6 +23,8 @@ var tick: Timer
 func setup(p: Dictionary) -> void:
 	params = p
 	tab = OUI.s(p.get("tab", "top"), "top")
+	if OUI.s(p.get("entry", "")) == "leagues":
+		tab = "leagues"
 	if tab != "leagues":
 		tab = "top"
 
@@ -281,10 +283,10 @@ func _render_leagues(list0: Array) -> void:
 			OUI.sfx("win")
 			OUI.buzz("success")
 			var g := OUI.i(OUI.d(r.get("data")).get("gems"))
-			OUI.toast("+%s الماس جایزه‌ی فصل" % OUI.fa(g))
+			OUI.toast("+%s الماس جایزه‌ی فصل" % OUI.fa(g), "ok")
 			OracleCoach.react("reward", "%s الماس" % OUI.fa(g))
 		else:
-			OUI.toast(OUI.err(r)))
+			OUI.toast_err(OUI.err(r)))
 	sv.add_child(cb)
 	sp.add_child(sv)
 	content.add_child(sp)

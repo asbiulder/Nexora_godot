@@ -125,10 +125,51 @@ static func team_key(t: Dictionary) -> String:
 static func team_tex(id_or_team) -> Texture2D:
 	var t: Dictionary = id_or_team if id_or_team is Dictionary else team_by_id(str(id_or_team))
 	var k := team_key(t)
-	var r := tex("res://assets/g/teams/%s.webp" % k)
-	return r if r else tex("res://assets/g/teams/club00.webp")
+	var cat := data_cat("TEAM_IMG")
+	if not cat.is_empty():
+		var r0 := tex(str(cat.get(k, ""))) if cat.has(k) else null
+		if r0:
+			return r0
+		for v in cat.values():
+			return tex(str(v))
+	return tex("res://assets/g/teams/%s.webp" % k)
 
-static func ball_tex(i: int) -> Texture2D: return tex("res://assets/g/balls/b%d.webp" % i)
+## piece art for an online catalogue disc: local team by id, then by name, else null (no
+## misleading fallback crest)
+static func disc_tex(id: String, name_ := "") -> Texture2D:
+	var ts := teams()
+	team_by_id(id)
+	if _team_idx.has(id):
+		return team_tex(_team_idx[id])
+	var nl := name_.strip_edges().to_lower()
+	if nl != "":
+		for t in ts:
+			if str(t.get("name", "")).to_lower() == nl:
+				return team_tex(t)
+	var m := RegEx.create_from_string("^([a-z]+)(\\d+)$").search(id)
+	if m:
+		var cat := data_cat("TEAM_IMG")
+		var k := "%s%02d" % [m.get_string(1), int(m.get_string(2))]
+		if cat.has(k):
+			return tex(str(cat[k]))
+	return null
+
+## Data's piece catalogs (TEAM_IMG / BALL_IMG): the only source of piece art paths.
+static func data_cat(n: String) -> Dictionary:
+	var d := node("Data")
+	if d == null or d.get_script() == null:
+		return {}
+	var m: Dictionary = (d.get_script() as Script).get_script_constant_map()
+	var v = m.get(n, d.get(n))
+	return v if v is Dictionary else {}
+
+static func ball_tex(i: int) -> Texture2D:
+	var cat := data_cat("BALL_IMG")
+	if not cat.is_empty():
+		var r := tex(str(cat.get("b%d" % i, cat.get("b0", ""))))
+		if r:
+			return r
+	return tex("res://assets/g/balls/b%d.webp" % i)
 
 static func field_thumb(i: int) -> Texture2D:
 	var f := field(i)

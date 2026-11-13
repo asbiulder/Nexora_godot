@@ -1,16 +1,23 @@
 class_name NxEngine
 extends RefCounted
-## NEXORA physics engine — line-by-line port of src/game/engine.ts.
+## NEXORA physics engine.
+## DEFAULT model "nx8": line-by-line port of the NX8 build's www/js/game.js simulation (sim/walls/post/hit/fire/loop):
+##   PR 42, ball drag 610K·min(1,sp/480K)+0.035·sp with spin curve, ball wall e 0.72→0.42, piece wall e 0.82,
+##   ball-only posts (r+5, kp 1.7), ball/piece e 0.74-0.12·…, 14 sub-steps max, idle 0.25 s, goal pause 1.8 s.
+## cfg.model = "v4": the previous line-by-line port of src/game/engine.ts (reference only).
 ## Fixed 240 Hz sub-stepping, impulse-based circle collisions with positional correction,
 ## rolling 3D ball rotation, render interpolation (prev -> current).
 ##
 ## Feel tweaks requested for the Godot build (all OFF when cfg.classic == true, which is bit-for-bit the TS engine):
+## (v4 only)
 ##  * ball launch ramp: a struck ball eases up to its impulse velocity over LAUNCH_T (~75 ms) instead of jumping
 ##  * visual ball roll reduced to ROLL_VIS (35%) and visual spin to SPIN_VIS of the TS rate (render only, no physics effect)
 
 const D := preload("res://src/core/data.gd")
 const K := 1.27
-const PR := 49.0
+const PR := 42.0           # nx8 piece radius
+const PR_V4 := 49.0
+const POST_R8 := 5.0
 const BR := 25.5
 const RC := 70.0
 const LMAX := 210.0
@@ -111,6 +118,8 @@ var last_power := 0.0
 var ai_teams := [false, false]
 var rng := RandomNumberGenerator.new()
 var classic := false
+var v4 := false            # cfg.model == "v4" (old TS port)
+var pr := PR
 var _corners: Array = []    # [[cx, cy, sx, sy] x4] (TS order: tl, tr, bl, br)
 var _cxl := 0.0
 var _cxr := 0.0
@@ -132,6 +141,9 @@ func _init(_cfg: Dictionary) -> void:
 	if cfg.has("seed"): rng.seed = int(cfg.seed)
 	else: rng.randomize()
 	classic = bool(cfg.get("classic", false))
+	v4 = String(cfg.get("model", "v4" if classic else "nx8")) == "v4"
+	if not v4: classic = false
+	pr = PR_V4 if v4 else PR
 	c_ai = bool(cfg.get("ai", false))
 	c_ai_lvl = int(cfg.get("ai_lvl", cfg.get("aiLvl", 1)))
 	c_limit = int(cfg.get("limit", 3))
@@ -167,9 +179,9 @@ func reset(kick_team: int) -> void:
 		for i in sl.size():
 			var nx: float = sl[i][0]
 			var ny: float = sl[i][1]
-			var x := Fl + PR + 10 + nx * (Fw - 2 * (PR + 10))
+			var x := Fl + pr + 10 + nx * (Fw - 2 * (pr + 10))
 			var y := (Ft + ny * Fh) if cm else (Fb - ny * Fh)
-			bodies.append(_mk(x, y, cm, PR, 5, cm * 20 + i))
+			bodies.append(_mk(x, y, cm, pr, 5, cm * 20 + i))
 	ball = _mk(CX, KY, 2, BR, 1.5, 99)
 	bodies.append(ball)
 	turn = kick_team; phase = "aim"; drag = null; pause = 0.0; idle = 0.0; shots = 0
@@ -187,7 +199,7 @@ func pick(x: float, y: float) -> bool:
 	for b in bodies:
 		if b.team == turn and b != ball:
 			var d := sqrt((x - b.x) * (x - b.x) + (y - b.y) * (y - b.y))
-			if d < b.r + 34 and d < bd: fb = b; bd = d
+			if d < b.r + (34 if v4 else 30) and d < bd: fb = b; bd = d
 	if fb == null: return false
 	drag = {"b": fb, "sx": fb.x, "sy": fb.y, "cx": x, "cy": y, "ai": false}
 	return true
@@ -237,12 +249,16 @@ func fire(b: NxBody, dx: float, dy: float, l: float, human := false) -> void:
 	var vx := ux * v
 	var vy := uy * v
 	b.tvx = vx * 1.02; b.tvy = vy * 1.02; b.ramp = 0.06; b.vx = vx * 0.5; b.vy = vy * 0.5; b.boost = 0.22
+	if not v4 and b.team != turn: turn = b.team
 	phase = "move"; idle = 0.0; shots += 1; drag = null; cam = maxf(cam, 0.18)
 	last_who = b.team
 	events.append({"t": "shot", "team": b.team})
 
 # ---------- simulation ----------
 func _eN(bl: bool, vn: float) -> float:
+	if not v4:
+		# nx8: ball .72 at low normal speed -> .42 by ~1000K; pieces .82
+		return (0.72 - 0.30 * minf(1.0, maxf(0.0, (vn - 270 * K) / (730 * K)))) if bl else 0.82
 	if bl: return minf(0.64 - 0.24 * clampf((vn - 270 * K) / (730 * K), 0, 1), WALL_VOUT * K / maxf(1, vn))
 	return minf(0.72, WALL_VOUT * 1.4 * K / maxf(1, vn))
 
@@ -360,7 +376,9 @@ func _hit(a: NxBody, b: NxBody) -> void:
 	var vn := (b.vx - a.vx) * nx + (b.vy - a.vy) * ny
 	if vn >= 0: return
 	var e := 0.0
-	if vn < -40 * K: e = (0.68 - 0.12 * clampf((-vn - 500 * K) / (1200 * K), 0, 1)) if isB else EPP
+	if vn < -40 * K:
+		if isB: e = (0.68 if v4 else 0.74) - 0.12 * minf(1.0, maxf(0.0, (-vn - 500 * K) / (1200 * K)))
+		else: e = EPP
 	var j := -(1 + e) * vn / sm
 	var pa: NxBody = null
 	if isB: pa = b if a == ball else a
@@ -375,15 +393,18 @@ func _hit(a: NxBody, b: NxBody) -> void:
 		if not isB and vn < -420 * K:
 			var q := minf(1, -vn / (1500 * K))
 			a.sq = maxf(a.sq, q); b.sq = maxf(b.sq, q)
-		if isB and not classic: ball.lt = LAUNCH_T
+		if isB and v4 and not classic: ball.lt = LAUNCH_T
 	if isB:
 		ball.spin += (1.0 if ball == b else -1.0) * (-ny * (b.vx - a.vx) + nx * (b.vy - a.vy)) / ball.r * 0.3
 		ball.spin = clampf(ball.spin, -34, 34)
 		var pw := minf(1, -vn / (1700 * K))
 		if pw > 0.2:
 			var o := a if ball == b else b
-			ball.sq = maxf(ball.sq, pw); o.sq = maxf(o.sq, pw * 0.7); cam = maxf(cam, pw * 0.4)
-			burst((a.x + b.x) / 2, (a.y + b.y) / 2, int(roundf(6 + pw * 10)), 260 + pw * 300, HIT_COLS, 0.35, 2)
+			if v4:
+				ball.sq = maxf(ball.sq, pw); o.sq = maxf(o.sq, pw * 0.7); cam = maxf(cam, pw * 0.4)
+				burst((a.x + b.x) / 2, (a.y + b.y) / 2, int(roundf(6 + pw * 10)), 260 + pw * 300, HIT_COLS, 0.35, 2)
+			else:
+				ball.sq = maxf(ball.sq, pw); cam = maxf(cam, pw * 0.4); o.sq = maxf(o.sq, pw)
 
 func _rotate(b: NxBody, wx: float, wy: float, wz: float, dt: float) -> void:
 	var w := sqrt(wx * wx + wy * wy + wz * wz)
@@ -421,7 +442,95 @@ func _rotate(b: NxBody, wx: float, wy: float, wz: float, dt: float) -> void:
 	var l0 := sqrt(n0 * n0 + n1 * n1 + n2 * n2)
 	b.r0 = n0 / l0; b.r1 = n1 / l0; b.r2 = n2 / l0
 
+## nx8 ball-only goal post (game.js post()): radius r+5, kp 1.7-.16·…, no velocity cap
+func _post8(b: NxBody, px: float, py: float) -> void:
+	var dx := b.x - px
+	var dy := b.y - py
+	var d := sqrt(dx * dx + dy * dy)
+	var m := b.r + POST_R8
+	if d >= m or d == 0: return
+	var nx := dx / d
+	var ny := dy / d
+	var vn := b.vx * nx + b.vy * ny
+	b.x = px + nx * m; b.y = py + ny * m
+	if vn < 0:
+		var kp := (1.7 - 0.16 * minf(1, -vn / (2000 * K))) if b == ball else 1.7
+		b.vx -= kp * vn * nx; b.vy -= kp * vn * ny
+		if b == ball:
+			events.append({"t": "post", "power": -vn / 1800})
+			if -vn > 900 * K: cam = maxf(cam, 0.18)
+
+## nx8 sub-step (game.js sim())
+func _sim8(dt: float) -> void:
+	for b: NxBody in bodies:
+		if b.ramp > 0:
+			var k := minf(1, dt / b.ramp)
+			b.vx += (b.tvx - b.vx) * k; b.vy += (b.tvy - b.vy) * k; b.ramp -= dt
+			if b.ramp <= 0: b.ramp = 0.0
+		if b.vox != 0 or b.voy != 0:
+			var q := 1 - minf(1, dt * 15)
+			b.vox *= q; b.voy *= q
+			if absf(b.vox) < 0.04: b.vox = 0.0
+			if absf(b.voy) < 0.04: b.voy = 0.0
+		b.x += b.vx * dt; b.y += b.vy * dt
+		var sp := sqrt(b.vx * b.vx + b.vy * b.vy)
+		var bl := b == ball
+		if sp > 0:
+			if bl:
+				var fr := 610 * K * minf(1, sp / (480 * K)) + sp * 0.035
+				var ns := sp - fr * dt
+				if ns < 12 * K: b.vx = 0.0; b.vy = 0.0
+				else:
+					var m := maxf(-34, minf(34, b.spin)) * 0.034 * dt
+					var cs := cos(m)
+					var sn := sin(m)
+					var vx := b.vx * cs - b.vy * sn
+					var vy := b.vx * sn + b.vy * cs
+					var k2 := minf(ns, 2500 * K) / sp
+					b.vx = vx * k2; b.vy = vy * k2
+			else:
+				var fb := 0.35 if b.boost > 0 else 1.0
+				if b.boost > 0: b.boost -= dt
+				var ns2 := sp - (PF1 * K * minf(1, sp / (PV0 * K)) + sp * PF2) * fb * dt
+				if ns2 < 14 * K: b.vx = 0.0; b.vy = 0.0
+				else:
+					var k3 := minf(ns2, 2800 * K) / sp
+					b.vx *= k3; b.vy *= k3
+		if bl:
+			var sp2 := sqrt(b.vx * b.vx + b.vy * b.vy)
+			b.spin *= 1 - (1.05 if sp2 > 0 else 3.2) * dt
+			if absf(b.spin) < 0.02: b.spin = 0.0
+			b.sq *= 1 - 9 * dt
+			var roll := 0.95 / b.r
+			var wz := b.spin * 0.55
+			if sp2 > 0 or wz != 0: _rotate(b, -b.vy * roll, b.vx * roll, wz, dt)
+			b.ang += b.spin * dt
+		else:
+			b.spin *= 1 - 2.6 * dt; b.ang += b.spin * dt
+		_walls(b)
+	var n := bodies.size()
+	for it in 2:
+		for a in n:
+			var ba: NxBody = bodies[a]
+			for c in range(a + 1, n):
+				var bc: NxBody = bodies[c]
+				var mm := ba.r + bc.r
+				var ddx := bc.x - ba.x
+				if ddx >= mm or ddx <= -mm: continue
+				var ddy := bc.y - ba.y
+				if ddy >= mm or ddy <= -mm: continue
+				_hit(ba, bc)
+	if ball:
+		for g: Goal in goals:
+			_post8(ball, g.x1, g.y); _post8(ball, g.x2, g.y)
+	for b: NxBody in bodies: _walls(b)
+	if phase == "move":
+		for g: Goal in goals:
+			if ball.x > g.x1 and ball.x < g.x2 and ((ball.y < g.y - ball.r * 0.8) if g.d < 0 else (ball.y > g.y + ball.r * 0.8)):
+				_scored(g.team)
+
 func _sim(dt: float) -> void:
+	if not v4: _sim8(dt); return
 	for b: NxBody in bodies:
 		if b.ramp > 0:
 			var k := minf(1, dt / b.ramp)
@@ -509,7 +618,7 @@ func _scored(t: int) -> void:
 	var nogoal := shots <= 1
 	events.append({"t": "goal", "team": t, "nogoal": nogoal})
 	if nogoal: phase = "goal"; pause = 1.4; kick = turn; return
-	ripple[t] = 1.0; ripple_x[t] = ball.x; score[t] += 1; pause = 2.0; flash = 1.0; shake[t] = 0.6; phase = "goal"; kick = 1 - t
+	ripple[t] = 1.0; ripple_x[t] = ball.x; score[t] += 1; pause = 2.0 if v4 else 1.8; flash = 1.0; shake[t] = 0.6; phase = "goal"; kick = 1 - t
 	slow = 1.1; cam = 1.4
 	var g: Goal = goals[t]
 	burst(ball.x, g.y, 80, 760, GOAL_COLS, 1.4, 1); burst(ball.x, g.y, 50, 520, GOAL_COLS, 1.8, 3)
@@ -542,28 +651,31 @@ func update(rdt: float) -> void:
 	var ts := 1.0
 	if slow > 0:
 		slow -= dt
-		ts = 0.3 + 0.7 * pow(1 - maxf(0, slow) / 1.1, 2)
+		ts = (0.3 + 0.7 * pow(1 - maxf(0, slow) / 1.1, 2)) if v4 else (0.32 + 0.68 * pow(1 - maxf(0, slow) / 1.1, 2))
 	acc += dt * ts
 	var n := 0
+	var cap := 16 if v4 else 14
 	while acc >= STEP:
-		if n >= 16: n += 1; break
+		if n >= cap: n += 1; break
 		n += 1
 		for b: NxBody in bodies: b.px = b.x; b.py = b.y
 		_sim(STEP); acc -= STEP
-	if n > 16: acc = 0.0
+	if n > cap: acc = 0.0
 	if phase == "move":
 		var moving := false
 		for b: NxBody in bodies:
-			if b.vx != 0 or b.vy != 0 or b.ramp > 0: moving = true; break
+			if b.vx != 0 or b.vy != 0 or (v4 and b.ramp > 0): moving = true; break
 		idle = 0.0 if moving else idle + dt
-		if idle > 0.15: _finish_turn()
+		if idle > (0.15 if v4 else 0.25): _finish_turn()
 	elif phase == "aim":
 		if c_match_time > 0 and not sudden and mleft <= 0:
 			if score[0] != score[1]: _end(); return
 			sudden = true; events.append({"t": "clock"})
 		if c_turn_time > 0:
 			tleft -= dt
-			if tleft <= 0: drag = null; ai_plan = null; _finish_turn()
+			if tleft <= 0:
+				drag = null; ai_plan = null; _finish_turn()
+				if not v4: tick_fx(dt); return
 		if is_ai_turn(): _ai_tick(dt)
 	elif phase == "goal":
 		pause -= dt
@@ -601,6 +713,7 @@ func tick_fx(dt: float) -> void:
 		trail.resize(40)
 	for b: NxBody in bodies:
 		if b != ball:
+			if not v4 and b.sq != 0: b.sq = b.sq - dt * 5 if b.sq > 0.02 else 0.0
 			var s := sqrt(b.vx * b.vx + b.vy * b.vy)
 			if s > 140 * K: b.tr.append(Vector2(b.x, b.y))
 			elif b.tr.size(): b.tr.pop_front()
@@ -619,7 +732,7 @@ func alpha() -> float: return clampf(acc / STEP, 0, 1)
 func _ai_tick(dt: float) -> void:
 	if ai_plan == null:
 		ai_t += dt
-		if ai_t < 0.7 + rng.randf() * 0.5: return
+		if ai_t < 0.7 + rng.randf() * (0.5 if v4 else 0.7): return
 		var p = _ai_decide()
 		if p == null: return
 		p["t"] = 0.0

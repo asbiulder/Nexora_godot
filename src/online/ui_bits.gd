@@ -297,7 +297,8 @@ class VoiceBar extends HBoxContainer:
 			off.disabled = true
 			add_child(off)
 			if not compact:
-				add_child(OUI.flbl("چت صوتی فقط در نسخه‌ی اندروید فعال است", OUI.TS_CAP, OUI.DIM, "body", true, 2))
+				var why: String = Voice.support_reason()
+				add_child(OUI.flbl(why if why != "" else "چت صوتی فقط در نسخه‌ی اندروید فعال است", OUI.TS_CAP, OUI.DIM, "body", true, 2))
 			return
 		var v := _vstate()
 		var status := str(v.get("status", "off"))

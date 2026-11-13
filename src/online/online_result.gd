@@ -20,6 +20,12 @@ var ring: TextureRect
 func setup(p: Dictionary) -> void:
 	o = OUI.d(p.get("o", p.get("outcome", {})))
 	before = OUI.d(p.get("before", OUI.before_profile))
+	var mid := OUI.s(o.get("match_id", o.get("matchId", "")))
+	if mid != "":
+		OUI.skip_match = mid
+	var pl: Variant = p.get("link")
+	if pl != null and is_instance_valid(pl) and not bool(pl.get("dead")) and OUI.link != pl:
+		OUI.link = pl
 
 
 func _g(snake: String, camel: String, def: Variant = null) -> Variant:
@@ -160,7 +166,7 @@ func on_back() -> bool:
 func _to_lobby() -> void:
 	if OUI.link != null:
 		OUI.link.refresh()
-		Nav.go("lobby", {})
+		Nav.go("lobby", {"room_id": OUI.s(OUI.link.id), "link": OUI.link, "skip_match": OUI.skip_match})
 	else:
 		Nav.go("hub", {})
 

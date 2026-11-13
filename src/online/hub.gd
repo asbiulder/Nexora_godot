@@ -135,7 +135,7 @@ func _on_profile(_p: Dictionary) -> void:
 func _refresh() -> void:
 	await _load()
 	if is_inside_tree():
-		OUI.toast("به‌روز شد")
+		OUI.toast("به‌روز شد", "ok")
 
 
 func _load() -> void:
@@ -310,7 +310,7 @@ func _act(key: String, fn: Callable) -> void:
 		OUI.buzz("medium")
 		OUI.enter_room(r.get("data"))
 	else:
-		OUI.toast(OUI.err(r))
+		OUI.toast_err(OUI.err(r))
 		OUI.buzz("heavy")
 
 
@@ -335,7 +335,7 @@ func _join(id: String, spectate: bool) -> void:
 func _join_code() -> void:
 	var c := code_in.text.strip_edges().to_upper()
 	if c.length() != 6:
-		OUI.toast("کد اتاق ۶ کاراکتر است")
+		OUI.toast_err("کد اتاق ۶ کاراکتر است")
 		return
 	_act("code", func() -> Dictionary: return await Supa.call_rpc("join_room", {"p_code": c}))
 
@@ -463,7 +463,7 @@ func _open_create() -> void:
 			if is_instance_valid(go):
 				go.text = "ساخت اتاق"
 				go.disabled = false
-			OUI.toast(OUI.err(r))
+			OUI.toast_err(OUI.err(r))
 			OUI.buzz("heavy"))
 	v.add_child(go)
 	OUI.open_sheet("ساخت اتاق", "CREATE ROOM", sc, OUI.GREEN, 0.88)

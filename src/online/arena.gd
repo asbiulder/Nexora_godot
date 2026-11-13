@@ -143,4 +143,4 @@ func _find(m: String) -> void:
 		(btns[k] as Button).disabled = false
 		(btns[k] as Button).text = k.to_upper() + "\nیافتن حریف"
 	if e != "":
-		OUI.toast(e)
+		OUI.toast_err(e)

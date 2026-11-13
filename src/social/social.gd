@@ -79,7 +79,7 @@ func _build() -> void:
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(root)
 	var top_pad := Control.new()
-	top_pad.custom_minimum_size.y = OUI.px(76) + OUI.top_inset()
+	top_pad.custom_minimum_size.y = float(Nav.insets().get("top", OUI.px(76)))
 	top_pad.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(top_pad)
 	if OUI.uid() == "":
@@ -92,7 +92,7 @@ func _build() -> void:
 				b.text = "…"
 			var u: String = await OUI.ensure()
 			if u == "":
-				OUI.toast("اتصال برقرار نشد")
+				OUI.toast_err("اتصال برقرار نشد")
 			if is_inside_tree():
 				_build()
 		var e := OUI.empty(OUI.ui2("c_profile"), "اجتماعی", "برای پیام، باشگاه و دوستان وارد بخش آنلاین شو (مهمان هم می‌شود)", "ورود به‌عنوان مهمان", go)
@@ -113,7 +113,7 @@ func _build() -> void:
 # ================================================================ messages
 func _build_messages() -> void:
 	vl = OUI.VList.new(72, _make_inbox_row, _bind_inbox_row, 8)
-	vl.pad_bottom = OUI.px(110)
+	vl.pad_bottom = int(Nav.insets().get("bottom", OUI.px(110)))
 	root.add_child(vl)
 	var hv := OUI.vbox(OUI.S_S)
 	var sf := OUI.line_edit("جستجوی بازیکن با نام کاربری…", 30)
@@ -207,13 +207,13 @@ func _dm(id: String) -> void:
 		q = ""
 		Nav.go("chat", {"id": OUI.s(r.get("data"))})
 	else:
-		OUI.toast(OUI.err(r))
+		OUI.toast_err(OUI.err(r))
 
 
 class InboxRow extends Button:
 	var av: NetImg.Avatar
 	var icon_wrap: PanelContainer
-	var icon: TextureRect
+	var icon_tex: TextureRect
 	var title_l: Label
 	var kind_slot: HBoxContainer
 	var last_l: Label
@@ -238,8 +238,8 @@ func _make_inbox_row() -> Control:
 	b.icon_wrap = PanelContainer.new()
 	b.icon_wrap.custom_minimum_size = Vector2(OUI.px(48), OUI.px(48))
 	b.icon_wrap.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	b.icon = OUI.img(null, 32)
-	b.icon_wrap.add_child(b.icon)
+	b.icon_tex = OUI.img(null, 32)
+	b.icon_wrap.add_child(b.icon_tex)
 	h.add_child(b.icon_wrap)
 	var v := OUI.vbox(2)
 	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -284,12 +284,12 @@ func _bind_inbox_row(c: Control, item: Variant, _i: int) -> void:
 	else:
 		b.icon_wrap.add_theme_stylebox_override("panel", OUI.sb(Color("#050816"), 24, kc, 2))
 		var url := OUI.s(r.get("avatar_url"))
-		b.icon.texture = OUI.ui2("x_shield" if kind == "club" else ("c_mega" if kind == "channel" else "x_team"))
+		b.icon_tex.texture = OUI.ui2("x_shield" if kind == "club" else ("c_mega" if kind == "channel" else "x_team"))
 		if url != "":
 			var want := b.id
 			NetImg.fetch(url, func(t: Texture2D) -> void:
 				if is_instance_valid(b) and b.id == want and t:
-					b.icon.texture = t)
+					b.icon_tex.texture = t)
 	b.title_l.text = OUI.s(peer.get("username"), "گفتگو") if is_dm else (OUI.s(r.get("title")) if OUI.s(r.get("title")) != "" else KIND_LABEL.get(kind, ""))
 	OUI.clear(b.kind_slot)
 	if not is_dm:
@@ -332,7 +332,7 @@ func _open_new_conv() -> void:
 	go.pressed.connect(func() -> void:
 		var title := OUI.field_value(tf).strip_edges()
 		if title.length() < 2:
-			OUI.toast("عنوان لازم است")
+			OUI.toast_err("عنوان لازم است")
 			return
 		go.disabled = true
 		go.text = "…"
@@ -343,7 +343,7 @@ func _open_new_conv() -> void:
 			Nav.close_sheet()
 			Nav.go("chat", {"id": OUI.s(r.get("data"))})
 		else:
-			OUI.toast(OUI.err(r))
+			OUI.toast_err(OUI.err(r))
 			if is_instance_valid(go):
 				go.disabled = false
 				go.text = "ساختن")
@@ -388,7 +388,7 @@ func _open_discover() -> void:
 				Nav.close_sheet()
 				Nav.go("chat", {"id": id})
 			else:
-				OUI.toast(OUI.err(jr)), OUI.GREEN, 64, 44))
+				OUI.toast_err(OUI.err(jr)), OUI.GREEN, 64, 44))
 		row.add_child(h)
 		v.add_child(row)
 
@@ -396,7 +396,7 @@ func _open_discover() -> void:
 # ================================================================ clubs
 func _build_clubs() -> void:
 	vl = OUI.VList.new(70, _make_club_row, _bind_club_row, 8)
-	vl.pad_bottom = OUI.px(110)
+	vl.pad_bottom = int(Nav.insets().get("bottom", OUI.px(110)))
 	root.add_child(vl)
 	var hv := OUI.vbox(OUI.S_S)
 	club_btn_slot = OUI.vbox(0)
@@ -571,13 +571,13 @@ func _open_create_club() -> void:
 		var name := OUI.field_value(nf).strip_edges()
 		var tag := tle.text
 		if name.length() < 3 or name.length() > 24:
-			OUI.toast("نام باشگاه ۳ تا ۲۴ کاراکتر")
+			OUI.toast_err("نام باشگاه ۳ تا ۲۴ کاراکتر")
 			return
 		if RegEx.create_from_string("^[A-Z0-9]{2,5}$").search(tag) == null:
-			OUI.toast("تگ: ۲ تا ۵ حرف/عدد انگلیسی بزرگ")
+			OUI.toast_err("تگ: ۲ تا ۵ حرف/عدد انگلیسی بزرگ")
 			return
 		if OUI.i(OUI.profile.get("gems")) < 50:
-			OUI.toast("۵۰ الماس لازم داری")
+			OUI.toast_err("۵۰ الماس لازم داری")
 			OracleCoach.react("nogems")
 			return
 		go.disabled = true
@@ -587,12 +587,12 @@ func _open_create_club() -> void:
 		if OUI.ok(r):
 			OUI.sfx("win")
 			OUI.buzz("success")
-			OUI.toast("باشگاه ساخته شد!")
+			OUI.toast("باشگاه ساخته شد!", "ok")
 			OUI.refresh_profile()
 			Nav.close_sheet()
 			Nav.go("club", {"id": OUI.s(r.get("data"))})
 		else:
-			OUI.toast(OUI.err(r))
+			OUI.toast_err(OUI.err(r))
 			if is_instance_valid(go):
 				go.disabled = false
 				go.text = "ساخت باشگاه · ۵۰ الماس")
@@ -603,7 +603,7 @@ func _open_create_club() -> void:
 # ================================================================ friends
 func _build_friends() -> void:
 	vl = OUI.VList.new(60, _make_friend_row, _bind_friend_row, 8)
-	vl.pad_bottom = OUI.px(110)
+	vl.pad_bottom = int(Nav.insets().get("bottom", OUI.px(110)))
 	root.add_child(vl)
 	vl.set_header(OUI.margin(OUI.segment([["following", "دنبال‌شده‌ها"], ["followers", "دنبال‌کننده‌ها"]], fmode, func(x: Variant) -> void:
 		fmode = str(x)

@@ -289,6 +289,8 @@ func _apply_quality() -> void:
 	if is_inside_tree(): _set_msaa()
 
 func _set_msaa() -> void:
+	# Compatibility (GLES3) has no 2D MSAA: discs/rings/lines rely on texture filtering + antialiased draws instead
+	if RenderingServer.get_current_rendering_method() == "gl_compatibility": return
 	var vp := get_viewport()
 	if vp == null: return
 	if _prev_msaa < 0: _prev_msaa = vp.msaa_2d

@@ -13,10 +13,18 @@ func _ready() -> void:
 	get_tree().quit_on_go_back = false
 	_update_safe_area()
 	get_viewport().size_changed.connect(_update_safe_area)
+	# Chrome's _ready laid out before the insets were known: lay it out again now
+	if chrome_node.has_method("_layout"):
+		chrome_node.call("_layout")
 	veil.color = Color(NX.VEIL, 0.0)
 	veil.visible = false
 	chrome_node.visible = false
 	Nav.attach(self)
+	# online UI boot (password-recovery deep link etc.); guarded so the offline shell runs without it
+	if ResourceLoader.exists("res://src/online/oui.gd"):
+		var oui = load("res://src/online/oui.gd")
+		if oui is GDScript and (oui as GDScript).can_instantiate() and "boot" in (oui as GDScript).get_script_method_list().map(func(m): return m["name"]):
+			oui.call("boot")
 	UD.apply_prefs()
 	_apply_quality()
 	var st := UD.node("Store")
@@ -47,6 +55,8 @@ func _update_safe_area() -> void:
 			var a := OS.get_environment("NX_SAFE").split(",")
 			NX.safe_top = float(a[0])
 			NX.safe_bottom = float(a[1]) if a.size() > 1 else 0.0
+		if chrome_node and chrome_node.is_node_ready():
+			chrome_node.call("_layout")
 		return
 	var win := Vector2(DisplayServer.window_get_size())
 	var sa := DisplayServer.get_display_safe_area()
@@ -58,6 +68,8 @@ func _update_safe_area() -> void:
 	NX.safe_bottom = maxf(0.0, scr.y - (sa.position.y + sa.size.y)) * k
 	NX.safe_left = maxf(0.0, sa.position.x) * k
 	NX.safe_right = maxf(0.0, scr.x - (sa.position.x + sa.size.x)) * k
+	if chrome_node and chrome_node.has_method("_layout"):
+		chrome_node.call("_layout")
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_GO_BACK_REQUEST:

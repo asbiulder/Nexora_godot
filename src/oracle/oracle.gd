@@ -84,6 +84,10 @@ func leave() -> void:
 	Nav.chrome(true)
 
 
+func on_back() -> bool:
+	return false
+
+
 func _push(m: Dictionary) -> void:
 	msgs.append(m)
 	if m.get("from") == "oracle":
@@ -107,7 +111,7 @@ func _push(m: Dictionary) -> void:
 	v.layout_direction = Control.LAYOUT_DIRECTION_RTL
 	var text := str(m.get("text", ""))
 	var l := OUI.lbl(text, 13, OUI.TEXT, "body", HORIZONTAL_ALIGNMENT_RIGHT, true, 0)
-	var maxw := sc.size.x * 0.84 if sc.size.x > 0 else OUI.px(330)
+	var maxw: float = sc.size.x * 0.84 if sc.size.x > 0 else float(OUI.px(330))
 	var w := 0.0
 	for line in text.split("\n"):
 		w = maxf(w, l.get_theme_font("font").get_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, -1, l.get_theme_font_size("font_size")).x)

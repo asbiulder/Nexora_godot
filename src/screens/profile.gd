@@ -262,7 +262,7 @@ func _account_card() -> Control:
 		v2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		v2.alignment = BoxContainer.ALIGNMENT_CENTER
 		v2.add_child(Kit.label(str(op.get("username", "")), 42, NX.TEXT, true))
-		v2.add_child(Kit.label("امتیاز %s · 💎 %s" % [NX.fa(int(op.get("rating", 0))), NX.fa(int(op.get("gems", 0)))], 29, NX.GOLD, true))
+		v2.add_child(Kit.label("امتیاز %s · الماس %s" % [NX.fa(int(op.get("rating", 0))), NX.fa(int(op.get("gems", 0)))], 29, NX.GOLD, true))
 		h.add_child(v2)
 		h.add_child(Kit.img(UD.menu("g_chevrons"), 60))
 	pn.add_child(h)

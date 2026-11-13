@@ -1261,7 +1261,7 @@ func _sfx_node() -> Node:
 func _toast(m: String) -> void:
 	var nav := get_node_or_null("/root/Nav")
 	if nav and nav.has_method("toast"):
-		nav.toast(m)
+		nav.toast(m, "err")
 	else:
 		print("[online_match] ", m)
 

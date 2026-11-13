@@ -31,4 +31,6 @@ Thumbs.db
 .idea/
 .vscode/
 *.iml
-/shots/
+
+# The sideload-testing release keystore IS committed on purpose (see README); other keystores are not.
+!android/keys/nexora-release.keystore

@@ -236,7 +236,7 @@ func _render_account() -> void:
 				_render_account()
 				var id: String = await OUI.ensure()
 				busy = false
-				OUI.toast("به‌عنوان مهمان وارد شدی" if id != "" else "اتصال برقرار نشد")
+				Nav.toast("به‌عنوان مهمان وارد شدی" if id != "" else "اتصال برقرار نشد", "ok" if id != "" else "err")
 				_render_all(), "dark", true)
 			gb.disabled = busy
 			v.add_child(gb)
@@ -344,7 +344,7 @@ func _render_profile() -> void:
 				bb.text = "…"
 			var id: String = await OUI.ensure()
 			if id == "":
-				OUI.toast("اتصال برقرار نشد")
+				OUI.toast_err("اتصال برقرار نشد")
 			_render_all(), "primary", true)
 		holder[0] = b
 		b.custom_minimum_size.x = OUI.px(80)
@@ -394,7 +394,7 @@ func _render_profile() -> void:
 		var rp := OUI.tap(OUI.lbl("حذف عکس", OUI.TS_TINY, OUI.DIM), func() -> void:
 			await OUI.patch("profiles?id=eq." + OUI.uid(), {"avatar_url": null})
 			OUI.profile["avatar_url"] = null
-			OUI.toast("عکس حذف شد؛ دیسک فعال نمایش داده می‌شود")
+			OUI.toast("عکس حذف شد؛ دیسک فعال نمایش داده می‌شود", "ok")
 			_render_all())
 		rp.custom_minimum_size.y = OUI.px(32)
 		iv.add_child(rp)
@@ -500,11 +500,11 @@ func _save_bio() -> void:
 	var b := bio_v.strip_edges().substr(0, 160)
 	var r: Dictionary = await OUI.patch("profiles?id=eq." + OUI.uid(), {"bio": b if b != "" else null})
 	if not OUI.ok(r):
-		OUI.toast(OUI.err(r))
+		OUI.toast_err(OUI.err(r))
 		return
 	OUI.profile["bio"] = b if b != "" else null
 	edit_bio = false
-	OUI.toast("ذخیره شد")
+	OUI.toast("ذخیره شد", "ok")
 	if is_inside_tree():
 		_render_profile()
 
@@ -519,14 +519,14 @@ func _upload() -> void:
 			var pr: Dictionary = await OUI.patch("profiles?id=eq." + OUI.uid(), {"avatar_url": r.get("url")})
 			if OUI.ok(pr):
 				OUI.profile["avatar_url"] = r.get("url")
-				OUI.toast("عکس پروفایل به‌روز شد")
+				OUI.toast("عکس پروفایل به‌روز شد", "ok")
 				OUI.buzz("success")
 			else:
-				OUI.toast(OUI.err(pr))
+				OUI.toast_err(OUI.err(pr))
 		elif r.get("unsupported", false):
 			_preset_picker()
 		elif not r.get("cancelled", false):
-			OUI.toast(OUI.s(r.get("error")))
+			OUI.toast_err(OUI.s(r.get("error")))
 		up_busy = false
 		if is_inside_tree():
 			_render_all())
@@ -558,10 +558,10 @@ func _preset_picker() -> void:
 				OUI.profile["avatar"] = kk
 				OUI.profile["avatar_url"] = null
 				OUI.ebus().profile_changed.emit(OUI.profile)
-				OUI.toast("آواتار به‌روز شد")
+				OUI.toast("آواتار به‌روز شد", "ok")
 				Nav.close_sheet()
 			else:
-				OUI.toast(OUI.err(r))))
+				OUI.toast_err(OUI.err(r))))
 	v.add_child(grid)
 	OUI.open_sheet("انتخاب آواتار", "AVATAR", sc, OUI.CYAN, 0.7)
 

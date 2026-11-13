@@ -56,7 +56,7 @@ func _ready() -> void:
 		dl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		cv.add_child(dl)
 		cv.add_child(Kit.center(Kit.img(UD.ui2("x_chest") if day == 7 else (UD.ui2("x_gem") if int(d.get("gems", 0)) else UD.ui2("c_coin")), 88)))
-		var amt := "%s+%s💎" % [NX.fa(d["coins"]), NX.fa(d["gems"])] if int(d.get("gems", 0)) else NX.fa(d["coins"])
+		var amt := "%s + %s الماس" % [NX.fa(d["coins"]), NX.fa(d["gems"])] if int(d.get("gems", 0)) else NX.fa(d["coins"])
 		var al := Kit.label(amt, 27, NX.TEXT, true)
 		al.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		cv.add_child(al)

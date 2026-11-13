@@ -95,13 +95,13 @@ func _run(k: String, fn: Callable, ok_msg: String = "") -> Dictionary:
 	busy = ""
 	if OUI.ok(r):
 		if ok_msg != "":
-			OUI.toast(ok_msg)
+			OUI.toast(ok_msg, "ok")
 		OUI.buzz("success")
 		if is_inside_tree():
 			await _load()
 		OUI.refresh_profile()
 	else:
-		OUI.toast(OUI.err(r))
+		OUI.toast_err(OUI.err(r))
 		OUI.buzz("heavy")
 	return r
 
@@ -249,9 +249,9 @@ func _join() -> void:
 	if OUI.ok(r):
 		if OUI.s(r.get("data")) == "joined":
 			OUI.sfx("win")
-			OUI.toast("به باشگاه پیوستی!")
+			OUI.toast("به باشگاه پیوستی!", "ok")
 		else:
-			OUI.toast("درخواستت ارسال شد")
+			OUI.toast("درخواستت ارسال شد", "ok")
 
 
 func _search_invite() -> void:

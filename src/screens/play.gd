@@ -156,14 +156,13 @@ func _online_card() -> Control:
 	col.add_child(d)
 	var op := UD.online_profile()
 	if not op.is_empty():
-		col.add_child(Kit.label("امتیاز %s · 💎 %s" % [NX.fa(int(op.get("rating", 0))), NX.fa(int(op.get("gems", 0)))], 29, NX.GOLD, true))
+		col.add_child(Kit.label("امتیاز %s · الماس %s" % [NX.fa(int(op.get("rating", 0))), NX.fa(int(op.get("gems", 0)))], 29, NX.GOLD, true))
 	row.add_child(col)
-	card.resized.connect(func():
-		g.position = Vector2(-g.pad, -g.pad)
-		g.size = card.size + Vector2(g.pad * 2, g.pad * 2)
-		row.position = Vector2(36, 0)
-		row.size = Vector2(card.size.x - 72, card.size.y)
-		card.pivot_offset = card.size * 0.5)
+	g.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	g.offset_left = -g.pad; g.offset_top = -g.pad; g.offset_right = g.pad; g.offset_bottom = g.pad
+	row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	row.offset_left = 36; row.offset_right = -36
+	card.resized.connect(func(): card.pivot_offset = card.size * 0.5)
 	var sh := card.create_tween().set_loops()
 	sh.tween_interval(1.8)
 	sh.tween_method(func(x): g.shine = x, 0.0, 1.0, 1.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
@@ -306,10 +305,22 @@ class _Carousel extends Control:
 			c.scale = Vector2(sx, sc)
 			c.position = Vector2(cxp + d * step * 0.92 - cw * 0.5, 40)
 			c.modulate.a = clampf(1.0 - ad * 0.45 if ad <= 1.0 else 0.55 - (ad - 1.0) * 0.3, 0.0, 1.0)
-			c.z_index = 10 - int(round(ad * 2))
+			c.z_index = 0
 			c.rotation = clampf(d, -1.0, 1.0) * 0.035
 			arts[i].position.x = clampf(-d, -1.5, 1.5) * 104.0
+		# draw order by distance (nearest last) without z_index, which would escape the scroll
+		# clip and paint over the tab bar
+		var order := cards.duplicate()
+		order.sort_custom(func(a, b): return absf(cards.find(a) - x) > absf(cards.find(b) - x))
+		for k in order.size():
+			move_child(order[k], k)
 		moved.emit(x)
+
+	func _process(_d: float) -> void:
+		# the carousel art was seen painting through sheets opened over Play; hide it while one is up
+		var cover: bool = Nav.has_sheet()
+		if visible == cover:
+			visible = not cover
 
 	func _gui_input(ev: InputEvent) -> void:
 		if ev is InputEventMouseButton and ev.button_index == MOUSE_BUTTON_LEFT:
