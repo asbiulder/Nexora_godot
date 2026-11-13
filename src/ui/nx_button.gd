@@ -17,7 +17,7 @@ func _init(text := "", cb := Callable(), style_ := "primary", small_ := false, i
 	small = small_
 	style = style_
 	mouse_filter = Control.MOUSE_FILTER_PASS
-	custom_minimum_size = Vector2(0, 124 if small else 164)
+	custom_minimum_size = Vector2(0, 114 if small else 150)
 	var r := 36.0 if small else 46.0
 	bg = NxGrad.new(NX.grad(style), r, 0.6, 0.34)
 	bg.set_border(3.0, Color(1, 1, 1, 0.35))
@@ -53,7 +53,7 @@ func _init(text := "", cb := Callable(), style_ := "primary", small_ := false, i
 
 func _get_minimum_size() -> Vector2:
 	var m := row.get_combined_minimum_size() if row else Vector2.ZERO
-	return Vector2(m.x + 90, max(m.y + 20, 124 if small else 164))
+	return Vector2(m.x + 90, max(m.y + 20, 114 if small else 150))
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_SORT_CHILDREN:

@@ -56,7 +56,7 @@ const CAT_ORDER := ["lux", "club", "nat", "spt", "gal", "vip", "car", "elite", "
 const CAT_FA := {"lux": "لوکس", "club": "باشگاه", "nat": "ملی", "spt": "ورزشی", "gal": "بانوان", "vip": "VIP", "car": "خودرو", "elite": "الیت", "emb": "نشان", "leg": "افسانه", "chrome": "کروم"}
 ## Formations (user's 9-formation sheet). Entry: [name_fa, name_en, rows (legacy, unused), pts]
 ## pts: [depth, lateral] per disc — depth 0 = own goal line … 1 = halfway line; lateral 0..1 across the pitch
-## (left->right for the bottom side; the top side is the mirror image). Spaced for PR 62 discs (fm check: min gap >= 13 px).
+## (left->right for the bottom side; the top side is the mirror image). Spaced for the current disc radius (fm check: min gap >= 13 px).
 const FORMS := [
 	["الماس", "Diamond", [], [[0.14, 0.5], [0.39, 0.20], [0.39, 0.80], [0.76, 0.36], [0.76, 0.64]]],
 	["عقاب", "Eagle", [], [[0.14, 0.5], [0.36, 0.20], [0.36, 0.80], [0.56, 0.5], [0.86, 0.5]]],

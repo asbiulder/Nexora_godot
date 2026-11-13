@@ -84,7 +84,7 @@ func _run() -> void:
 			goal_seen = true)
 	await frames(20)
 	var eng: NxEngine = m.eng
-	check(not eng.v4 and is_equal_approx(eng.pr, NxEngine.PR) and eng.pr >= 60.0, "engine runs the nx8 model by default (Godot PR %.0f, bigger discs)" % eng.pr)
+	check(not eng.v4 and is_equal_approx(eng.pr, NxEngine.PR) and eng.pr >= 45.0, "engine runs the nx8 model by default (Godot PR %.0f)" % eng.pr)
 	check(eng.phase == "aim" and eng.turn == 0, "human (team 0) to aim")
 	if OS.get_environment("NX_SMOKE_PART") == "end":
 		await _bots(m, eng, played0)

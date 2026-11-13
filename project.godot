@@ -9,7 +9,7 @@ config/features=PackedStringArray("4.5", "Mobile")
 config/icon="res://assets/icon.png"
 boot_splash/bg_color=Color(0.016, 0.02, 0.06, 1)
 boot_splash/image="res://assets/splash-icon.png"
-run/max_fps=0
+run/max_fps=120
 run/low_processor_mode=false
 
 [autoload]

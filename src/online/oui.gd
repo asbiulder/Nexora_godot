@@ -38,9 +38,8 @@ const G := {
 	"danger": [Color("#5a0f24"), Color("#a3203f"), Color("#ff5b74")],
 }
 
-## RN dp -> Godot px (base width 1080 vs ~400dp phone). 2.6 matched the RN layout 1:1 but read
-## too small on phones; 2.9 scales every online/social/oracle widget and text up ~12%.
-const K := 2.9
+## RN dp -> Godot px (base width 1080 vs ~400dp phone)
+const K := 2.6
 ## spacing (RN S) and text sizes (RN TS) in dp
 const S_XS := 4
 const S_S := 8

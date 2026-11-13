@@ -15,10 +15,10 @@ extends RefCounted
 
 const D := preload("res://src/core/data.gd")
 const K := 1.27
-const PR := 62.0           # piece radius (Godot build: 1.48x the nx8 42 px — user asked for clearly bigger discs)
+const PR := 49.6           # piece radius (20% smaller than the previous 62 — user: too big vs the reference; nx8 ref is 42)
 const PR_V4 := 49.0
 const POST_R8 := 5.0
-const BR := 31.0           # ball radius (1.22x nx8 25.5)
+const BR := 24.8           # ball radius (20% smaller than the previous 31; nx8 ref is 25.5)
 const BR8 := 25.5
 const RC := 70.0
 const LMAX := 210.0
@@ -28,8 +28,8 @@ const HV := 8.0
 const PF1 := 430.0
 const PF2 := 1.0
 const PV0 := 520.0
-const EPP := 0.62
-const PCAP := 190.0
+const EPP := 0.68         # pieces bounce off each other a bit harder (more energy transfer)
+const PCAP := 215.0       # higher cap on post-hit ball speed (livelier rebounds)
 const BK := 1.9
 const BF := 175.0
 const BFV := 140.0
@@ -284,12 +284,12 @@ func _walls(b: NxBody) -> void:
 		b.x = Fl + r
 		if b.vx < 0:
 			if bl and vs > 200: events.append({"t": "wall", "power": vs / 1800})
-			b.vx *= -_eN(bl, -b.vx); b.spin += b.vy / r * 0.05
+			b.vx *= -_eN(bl, -b.vx); b.spin += b.vy / r * 0.03
 	if b.x + r > Fr:
 		b.x = Fr - r
 		if b.vx > 0:
 			if bl and vs > 200: events.append({"t": "wall", "power": vs / 1800})
-			b.vx *= -_eN(bl, b.vx); b.spin -= b.vy / r * 0.05
+			b.vx *= -_eN(bl, b.vx); b.spin -= b.vy / r * 0.03
 	for g: Goal in goals:
 		var dp := g.d * (b.y - g.y)
 		if dp <= -r: continue
@@ -316,7 +316,7 @@ func _walls(b: NxBody) -> void:
 			if bl and vs > 200 and g.d * b.vy > 0: events.append({"t": "wall", "power": vs / 1800})
 			b.y = g.y - g.d * r
 			if g.d * b.vy > 0: b.vy = -g.d * absf(b.vy) * _eN(bl, absf(b.vy))
-			b.spin += g.d * b.vx / r * 0.05
+			b.spin += g.d * b.vx / r * 0.03
 	if not v4:
 		_corner_nudge(b)
 		return
@@ -421,6 +421,7 @@ func _hit(a: NxBody, b: NxBody) -> void:
 		if not isB and vn < -420 * K:
 			var q := minf(1, -vn / (1500 * K))
 			a.sq = maxf(a.sq, q); b.sq = maxf(b.sq, q)
+			cam = maxf(cam, q * 0.1)
 		if isB and v4 and not classic: ball.lt = LAUNCH_T
 	if isB:
 		ball.spin += (1.0 if ball == b else -1.0) * (-ny * (b.vx - a.vx) + nx * (b.vy - a.vy)) / ball.r * (0.3 if v4 else 0.42)
@@ -432,7 +433,9 @@ func _hit(a: NxBody, b: NxBody) -> void:
 				ball.sq = maxf(ball.sq, pw); o.sq = maxf(o.sq, pw * 0.7); cam = maxf(cam, pw * 0.4)
 				burst((a.x + b.x) / 2, (a.y + b.y) / 2, int(roundf(6 + pw * 10)), 260 + pw * 300, HIT_COLS, 0.35, 2)
 			else:
-				ball.sq = maxf(ball.sq, pw * 0.6); o.sq = maxf(o.sq, pw * 0.5)
+				ball.sq = maxf(ball.sq, pw * 0.6); o.sq = maxf(o.sq, pw * 0.5); cam = maxf(cam, pw * 0.35)
+				if pw > 0.45:
+					burst((a.x + b.x) / 2, (a.y + b.y) / 2, int(roundf(4 + pw * 8)), 200 + pw * 260, HIT_COLS, 0.3, 2)
 	if not v4:
 		# off-centre contacts make discs spin (visual + tiny; opposite senses for the two bodies)
 		var tv := -ny * (b.vx - a.vx) + nx * (b.vy - a.vy)
@@ -539,7 +542,7 @@ func _sim8(dt: float) -> void:
 			if sp2 > 0 or wz != 0: _rotate(b, -b.vy * roll, b.vx * roll, wz, dt)
 			b.ang += b.spin * dt
 		else:
-			b.spin *= 1 - 2.6 * dt; b.ang += b.spin * dt
+			b.spin *= 1 - 4.2 * dt; b.ang += b.spin * dt
 		_walls(b)
 	var n := bodies.size()
 	for it in 2:
@@ -612,7 +615,7 @@ func _sim(dt: float) -> void:
 				else: _rotate(b, -b.vy * roll * ROLL_VIS, b.vx * roll * ROLL_VIS, b.spin * 0.55 * SPIN_VIS, dt)
 			b.ang += b.spin * dt
 		else:
-			b.spin *= 1 - 2.6 * dt; b.ang += b.spin * dt
+			b.spin *= 1 - 4.2 * dt; b.ang += b.spin * dt
 		b.sq *= 1 - 9 * dt
 		_walls(b)
 	var n := bodies.size()

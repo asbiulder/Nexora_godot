@@ -492,6 +492,9 @@ func _draw_discs(c: Layer) -> void:
 		var dark := e.phase == "aim" and b.team != e.turn
 		var tex: Texture2D = tex_team[b.team]
 		var mod := Color(0.8, 0.8, 0.82, 1) if dark else Color.WHITE
+		# pseudo-3D side wall: a second disc hanging below the face gives the disc visible thickness
+		var th := maxf(2.0, r * 0.12)
+		c.draw_circle(p + Vector2(0, th), r, TEAM_GLOW[b.team].darkened(0.66).lerp(Color(0.02, 0.05, 0.12, 1), 0.35))
 		if tex:
 			c.draw_set_transform(p, b.ang, Vector2.ONE)
 			c.draw_texture_rect(tex, Rect2(-r, -r, 2 * r, 2 * r), false, mod)

@@ -17,11 +17,7 @@ extends RefCounted
 ##   spinner() -> Control
 
 # ---------------------------------------------------------------- text
-## global text scale for phone readability (every Kit text goes through label/title)
-const TS := 1.1
-
 static func label(text, size: int = 36, color: Color = NX.TEXT, bold := false) -> Label:
-	size = int(round(size * TS))
 	var l := Label.new()
 	var s := I18n.f(text)  # Persian source text from const tables -> English when lang is en
 	l.text = s
@@ -44,7 +40,6 @@ static func title(text, size: int = 52, color: Color = NX.TEXT, kind := "title")
 	if NX.is_fa(s):
 		var l := label(s, int(round(size * 1.03)), color, true)
 		return l
-	size = int(round(size * TS))
 	var l2 := Label.new()
 	l2.text = s
 	l2.mouse_filter = Control.MOUSE_FILTER_IGNORE
