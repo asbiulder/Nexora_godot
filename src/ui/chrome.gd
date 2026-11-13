@@ -95,13 +95,13 @@ func _build_hud() -> void:
 	var col := Kit.vbox(8)
 	col.alignment = BoxContainer.ALIGNMENT_CENTER
 	name_l = Kit.label("Pilot", 34, NX.TEXT, true)
-	name_l.custom_minimum_size.x = 128
+	name_l.custom_minimum_size.x = 210  # room for a 10-char pilot name at the larger text size
 	name_l.clip_text = true
 	name_l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	name_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	col.add_child(name_l)
 	xp_bar = NxBar.new(0.0, NX.CYAN, NX.CYAN, 13)
-	xp_bar.custom_minimum_size = Vector2(150, 13)
+	xp_bar.custom_minimum_size = Vector2(210, 13)
 	col.add_child(xp_bar)
 	mh.add_child(col)
 	var avs := Control.new()

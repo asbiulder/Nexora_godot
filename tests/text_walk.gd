@@ -47,6 +47,12 @@ func _walk(n: Node, tag: String) -> void:
 				if sc.size.x > 200 and (c as Control).size.x < sc.size.x * 0.8:
 					issues += 1
 					print("[tw] %s SQUEEZE %s content %d/%d" % [tag, sc.get_path(), int((c as Control).size.x), int(sc.size.x)])
+	if n is Label or n is PanelContainer or n is BaseButton:
+		var r := (n as Control).get_global_rect()
+		var vw := get_viewport().get_visible_rect().size.x
+		if r.size.x > 0 and (r.end.x > vw + 6 or r.position.x < -6) and not _in_hscroll(n):
+			issues += 1
+			print("[tw] %s OVER x=%d..%d %s" % [tag, int(r.position.x), int(r.end.x), n.get_path()])
 	if n is Label:
 		var l := n as Label
 		var t := l.text.strip_edges()
@@ -120,3 +126,13 @@ func _run() -> void:
 			await _shot(n)
 	print("[tw] DONE issues=", issues)
 	get_tree().quit()
+
+func _in_hscroll(n: Node) -> bool:
+	var p := n.get_parent()
+	while p:
+		if p is ScrollContainer and (p as ScrollContainer).horizontal_scroll_mode != ScrollContainer.SCROLL_MODE_DISABLED:
+			return true
+		if p is CanvasItem and (p as CanvasItem).top_level:
+			return false
+		p = p.get_parent()
+	return false

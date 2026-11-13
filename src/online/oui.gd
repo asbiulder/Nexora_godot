@@ -38,8 +38,9 @@ const G := {
 	"danger": [Color("#5a0f24"), Color("#a3203f"), Color("#ff5b74")],
 }
 
-## RN dp -> Godot px (base width 1080 vs ~400dp phone)
-const K := 2.6
+## RN dp -> Godot px (base width 1080 vs ~400dp phone). 2.6 matched the RN layout 1:1 but read
+## too small on phones; 2.9 scales every online/social/oracle widget and text up ~12%.
+const K := 2.9
 ## spacing (RN S) and text sizes (RN TS) in dp
 const S_XS := 4
 const S_S := 8
@@ -363,6 +364,7 @@ static func font(kind: String) -> Font:
 	if base == null:
 		base = ThemeDB.fallback_font
 	fv.base_font = base
+	fb.append(NX.emoji_font())
 	fv.fallbacks = fb
 	_fonts[kind] = fv
 	return fv
@@ -377,7 +379,9 @@ static func lbl(text: String, size: float = TS_BODY, color: Color = TEXT, kind: 
 	l.add_theme_color_override("font_color", color)
 	l.horizontal_alignment = align
 	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	l.text_direction = Control.TEXT_DIRECTION_AUTO
+	# Persian text must be an RTL paragraph: with AUTO, a string that starts with a (weak) Persian
+	# digit came out scrambled ("۲ به ۲" rendered as "۲ ۲ به")
+	l.text_direction = Control.TEXT_DIRECTION_RTL if is_rtl_text(text) else Control.TEXT_DIRECTION_AUTO
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	if wrap:
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -417,6 +421,7 @@ class FitLabel extends Label:
 		for line in text.split("\n"):
 			w = maxf(w, f.get_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x)
 		_last = text
+		text_direction = Control.TEXT_DIRECTION_RTL if OUI.is_rtl_text(text) else Control.TEXT_DIRECTION_AUTO
 		var nw := minf(ceilf(w) + 4.0, cap)
 		if absf(custom_minimum_size.x - nw) > 0.5:
 			custom_minimum_size.x = nw
@@ -587,6 +592,8 @@ static func btn(text: String, cb: Callable, style: String = "primary", small := 
 			st.border_color = Color(1, 1, 1, 0)
 		b.add_theme_stylebox_override(stt, st)
 	b.text = text if sub == "" else text + "\n" + sub
+	if is_rtl_text(b.text):
+		b.text_direction = Control.TEXT_DIRECTION_RTL
 	b.add_theme_font_override("font", font("bold"))
 	b.add_theme_font_size_override("font_size", px(TS_SMALL if small else 15))
 	b.add_theme_color_override("font_color", Color.WHITE)

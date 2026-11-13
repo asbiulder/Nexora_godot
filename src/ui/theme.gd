@@ -70,14 +70,25 @@ static func font(kind := "body") -> Font:
 		return _fonts[kind]
 	var path: String = FONT_PATHS.get(kind, FONT_PATHS["body"])
 	var f: Font = load(path)
+	var fv := FontVariation.new()
+	fv.base_font = f
 	if not kind.begins_with("fa"):
 		# latin fonts fall back to Vazirmatn so mixed strings never show tofu
-		var fv := FontVariation.new()
-		fv.base_font = f
-		fv.fallbacks = [load(FONT_PATHS["faB"] if kind in ["title", "head", "bold"] else FONT_PATHS["fa"])]
-		f = fv
-	_fonts[kind] = f
-	return f
+		fv.fallbacks = [load(FONT_PATHS["faB"] if kind in ["title", "head", "bold"] else FONT_PATHS["fa"]), emoji_font()]
+	else:
+		fv.fallbacks = [load(FONT_PATHS["bold"]), emoji_font()]
+	_fonts[kind] = fv
+	return fv
+
+static var _emoji: Font = null
+
+## system colour-emoji font (Android ships Noto Color Emoji) so 🔥💎👋 don't render as boxes
+static func emoji_font() -> Font:
+	if _emoji == null:
+		var sf := SystemFont.new()
+		sf.font_names = PackedStringArray(["Noto Color Emoji", "NotoColorEmoji", "Apple Color Emoji", "Segoe UI Emoji", "emoji"])
+		_emoji = sf
+	return _emoji
 
 # ---- Persian helpers ----
 const FA_DIGITS := "۰۱۲۳۴۵۶۷۸۹"
