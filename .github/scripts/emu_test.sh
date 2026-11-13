@@ -28,14 +28,17 @@ check_log() {  # $1 = logcat file, $2 = phase name
   grep -E -i "godot|nexora|NX_|AndroidRuntime|FATAL|DEBUG +:|libc +:|SIGSEGV|SIGABRT|livekit|ActivityManager.*(nexora|Process)|SCRIPT ERROR|USER ERROR|Parse Error|OpenGL|GLES|vulkan|crash" "$1" | grep -v chatty | tail -n 400
 }
 
+SIZE=$(adb shell wm size | tr -d '\r' | grep -o '[0-9]*x[0-9]*' | tail -n 1); W=${SIZE%x*}; H=${SIZE#*x}
+TX=$((W/2)); TY=$((H*84/100))   # the intro's "tap to enter" button sits at ~84% height
+echo "screen ${W}x${H}, tap at ${TX},${TY}"
 echo "== phase 1: normal launch"
 adb shell am start -W -n "$ACT"
 sleep 4;  shot p1_04s_splash
 sleep 6;  shot p1_10s
 P=$(alive); echo "pid@10s=$P"
-adb shell input tap 540 1500 || true
+adb shell input tap $TX $TY || true
 sleep 5;  shot p1_15s_after_tap
-adb shell input tap 540 1500 || true
+adb shell input tap $TX $TY || true
 sleep 10; shot p1_25s_menu
 P=$(alive); echo "pid@25s=$P"
 [ -z "$P" ] && { echo "::error::[launch] process died within 25 s"; fail=1; }
