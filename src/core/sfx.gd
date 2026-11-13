@@ -17,9 +17,13 @@ extends Node
 const MAP := {
 	"ui": ["select.wav", 0.55, 2], "hitb": ["hit_ball.wav", 0.9, 3], "hitp": ["hit_piece.mp3", 0.7, 3], "goal": ["goal.wav", 1.0, 2],
 	"post": ["ballHitsThePost.mp3", 0.8, 1], "roar": ["goalHappened-01.mp3", 0.7, 1], "whistle": ["startWistle.mp3", 0.8, 1],
-	"final": ["gameIsFinishedWistle.mp3", 0.8, 1], "wall": ["BallHit-01.mp3", 0.55, 2], "crowd": ["crowd-03.mp3", 0.25, 1],
+	"final": ["gameIsFinishedWistle.mp3", 0.8, 1], "crowd": ["crowd-03.mp3", 0.25, 1],
+	# impact variants: the pool cycles through the files (user-provided BallHit-02/03)
+	"wall": [["BallHit-01.mp3", "BallHit-02.mp3", "BallHit-03.mp3"], 0.55, 3],
 	"music": ["music.mp3", 0.35, 1], "ready": ["nx_ready.mp3", 0.7, 1], "chat": ["nx_chat.mp3", 0.55, 2], "join": ["nx_join.mp3", 0.6, 1],
 	"leave": ["nx_leave.mp3", 0.5, 1], "win": ["nx_win.mp3", 0.8, 1], "lose": ["nx_lose.mp3", 0.75, 1], "tick": ["nx_tick.mp3", 0.45, 2],
+	# goal announcer voice (user-provided), played after the stinger horn
+	"goalAnnounce": ["goalAnnounce.mp3", 0.85, 1],
 	# main-menu background track (user-provided menu_music.mp3; falls back to music.mp3 when absent)
 	"menu": ["menu_music.mp3", 0.35, 1],
 }
@@ -45,22 +49,26 @@ var _crowd_duck_until := 0    # msec: crowd lowered while the goal stinger plays
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	for k in MAP:
-		var file: String = MAP[k][0]
-		var path := DIR + file
-		if k == "menu" and not ResourceLoader.exists(path): path = DIR + "music.mp3"
-		if not ResourceLoader.exists(path):
-			push_warning("Sfx: missing " + path)
-			continue
-		var st = load(path)
-		if st == null:
-			push_warning("Sfx: cannot load " + path)
-			continue
-		if k in LOOPS:
-			st = st.duplicate()
-			if "loop" in st: st.loop = true
-			if st is AudioStreamWAV: st.loop_mode = AudioStreamWAV.LOOP_FORWARD
+		var files: Variant = MAP[k][0]
+		var farr: Array = files if files is Array else [files]
+		var n := maxi(int(MAP[k][2]), farr.size())
+		var loop_on := k in LOOPS
 		var list: Array = []
-		for i in int(MAP[k][2]):
+		for i in n:
+			var file: String = farr[i % farr.size()]
+			var path := DIR + file
+			if k == "menu" and not ResourceLoader.exists(path): path = DIR + "music.mp3"
+			if not ResourceLoader.exists(path):
+				push_warning("Sfx: missing " + path)
+				continue
+			var st = load(path)
+			if st == null:
+				push_warning("Sfx: cannot load " + path)
+				continue
+			if loop_on:
+				st = st.duplicate()
+				if "loop" in st: st.loop = true
+				if st is AudioStreamWAV: st.loop_mode = AudioStreamWAV.LOOP_FORWARD
 			var pl := AudioStreamPlayer.new()
 			pl.name = "%s_%d" % [k, i]
 			pl.stream = st
@@ -69,7 +77,7 @@ func _ready() -> void:
 			pl.process_mode = Node.PROCESS_MODE_ALWAYS
 			add_child(pl)
 			list.append(pl)
-		_pools[k] = {"list": list, "i": 0}
+		if not list.is_empty(): _pools[k] = {"list": list, "i": 0}
 	var st_node = get_node_or_null("/root/Store")
 	if st_node and st_node.has_signal("changed"): st_node.changed.connect(apply_prefs)
 	call_deferred("_hook_voice")
@@ -162,6 +170,9 @@ func play_goal() -> void:
 	get_tree().create_timer(0.12, true, false, true).timeout.connect(func() -> void:
 		_last.erase("roar")
 		_play("roar", 1.0))
+	get_tree().create_timer(0.45, true, false, true).timeout.connect(func() -> void:
+		_last.erase("goalAnnounce")
+		_play("goalAnnounce", 1.0))
 
 # ---------------------------------------------------------------- loops
 func crowd(on: bool) -> void:
