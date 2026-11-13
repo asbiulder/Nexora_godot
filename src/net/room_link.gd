@@ -282,9 +282,7 @@ func destroy() -> void:
 	if is_inside_tree():
 		queue_free()
 	else:
-		(func() -> void:
-			if is_instance_valid(self) and not is_inside_tree():
-				free()).call_deferred()
+		call_deferred("free")  # not in a tree: free next idle frame (lambda + bare free() fails to parse on export)
 
 func _rand36(n: int) -> String:
 	const A := "0123456789abcdefghijklmnopqrstuvwxyz"
