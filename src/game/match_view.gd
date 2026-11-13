@@ -62,6 +62,7 @@ var world: Node2D
 var field_l: Layer
 var shadow_l: Layer
 var glow_l: Layer
+var ring_l: Layer
 var disc_l: Layer
 var trail_l: Layer
 var ball_l: Layer
@@ -86,6 +87,15 @@ var tex_gloss: Texture2D
 var tex_arrow := {}
 var ball_mat: ShaderMaterial
 var _outline := PackedVector2Array()
+var _corner_arcs: Array = []
+## the local player's team (blue turn ring); online clients on team 1 render flipped
+var my_team := -1
+const RING_ME := Color("#3ba8ff")
+const RING_OPP := Color("#ff4a5a")
+# aim arrow gradient (user design: warm yellow-orange tail -> red head)
+const ARW_TAIL := Color("#f4bc5c")
+const ARW_MID := Color("#ec9450")
+const ARW_TIP := Color("#d4524e")
 var _trail_cols: Array = []
 # reusable strip buffers
 var _sp := PackedVector2Array()
@@ -236,6 +246,7 @@ func _build() -> void:
 	_layer(world, _draw_outline)
 	shadow_l = _layer(world, _draw_shadows)
 	glow_l = _layer(world, _draw_glows, true)
+	ring_l = _layer(world, _draw_turn_ring)
 	var dm := ShaderMaterial.new(); dm.shader = DISC_SHADER
 	disc_l = _layer(world, _draw_discs, false, dm)
 	trail_l = _layer(world, _draw_trail, true)
@@ -304,18 +315,21 @@ func _exit_tree() -> void:
 	if vp and _prev_msaa >= 0: vp.msaa_2d = _prev_msaa
 
 func _build_outline() -> void:
+	# sharp 90° pitch boundary (matches the engine's corner walls) + quarter-circle corner-kick arcs as real markings
 	var l := e.Fl
 	var r := e.Fr
 	var tp := e.Ft
 	var b := e.Fb
-	var rad := 70.0
-	_outline = PackedVector2Array()
-	var corners := [[r - rad, tp + rad, -90.0], [r - rad, b - rad, 0.0], [l + rad, b - rad, 90.0], [l + rad, tp + rad, 180.0]]
-	for c in corners:
+	_outline = PackedVector2Array([Vector2(l, tp), Vector2(r, tp), Vector2(r, b), Vector2(l, b), Vector2(l, tp)])
+	_corner_arcs = []
+	var rad := 34.0
+	var cs := [[l, tp, 0.0], [r, tp, 90.0], [r, b, 180.0], [l, b, 270.0]]
+	for c in cs:
+		var arc := PackedVector2Array()
 		for i in 13:
 			var a := deg_to_rad(c[2] + i * 90.0 / 12.0)
-			_outline.append(Vector2(c[0] + cos(a) * rad, c[1] + sin(a) * rad))
-	_outline.append(_outline[0])
+			arc.append(Vector2(c[0] + cos(a) * rad, c[1] + sin(a) * rad))
+		_corner_arcs.append(arc)
 
 # ------------------------------------------------------------------ layout
 ## RN computeView: fits field + both goals between `top` and `bottom` insets (pixels of this node's parent space)
@@ -369,7 +383,8 @@ func _process(delta: float) -> void:
 	if not hq and e.parts.size() > 40: e.parts.resize(40)
 	var k := W / 415.0
 	var shk := Vector2.ZERO
-	if e.cam > 0.05:
+	if e.cam > 0.05 and (e.v4 or e.flash > 0):
+		# nx8/Godot: shots and hits never shake the camera — only the goal celebration does
 		shk = Vector2(randf() - 0.5, randf() - 0.5) * e.cam * 7.0 * k
 	_place(shk, 0.012 * minf(e.cam, 1.4) if hq else 0.0)
 	var bl: NxBody = e.ball
@@ -379,7 +394,7 @@ func _process(delta: float) -> void:
 		ball_mat.set_shader_parameter("c2", Vector3(bl.r2, bl.r5, bl.r8))
 		ball_mat.set_shader_parameter("aa", minf(0.2, 1.6 / maxf(1.0, bl.r * s)))
 		ball_mat.set_shader_parameter("lflip", -1.0 if flipped else 1.0)
-	for l in [shadow_l, glow_l, disc_l, trail_l, ball_l, goal_l, light_l, aim_l, part_l]:
+	for l in [shadow_l, glow_l, ring_l, disc_l, trail_l, ball_l, goal_l, light_l, aim_l, part_l]:
 		l.queue_redraw()
 	if e.flash > 0 or flash_l.get_meta("on", false):
 		flash_l.set_meta("on", e.flash > 0)
@@ -427,6 +442,8 @@ func _draw_field(c: Layer) -> void:
 func _draw_outline(c: Layer) -> void:
 	if hq: c.draw_polyline(_outline, Color(120 / 255.0, 220 / 255.0, 1.0, 0.12), 9.0, true)
 	c.draw_polyline(_outline, Color(120 / 255.0, 220 / 255.0, 1.0, 0.35), 3.0, true)
+	for arc in _corner_arcs:
+		c.draw_polyline(arc, Color(1, 1, 1, 0.55), 3.0, true)
 
 # ------------------------------------------------------------------ draw: dynamic
 func _shadow(c: Layer, x: float, y: float, r: float, a: float) -> void:
@@ -456,10 +473,6 @@ func _draw_glows(c: Layer) -> void:
 		var tc: Color = TEAM_GLOW[b.team]
 		if b.tr.size() > 1:
 			_strip(c, b.tr, p, b.r * 0.85, Color(tc.r, tc.g, tc.b, 0.16), 1.0)
-		if _active(b):
-			var pulse := 0.5 + 0.5 * sin(t * 4)
-			var R := b.r * 1.9
-			c.draw_texture_rect(tex_dot, Rect2(p.x - R, p.y - R, 2 * R, 2 * R), false, Color(tc.r, tc.g, tc.b, 0.10 + 0.08 * pulse))
 	var bl := e.ball
 	var sp := sqrt(bl.vx * bl.vx + bl.vy * bl.vy)
 	if sp > 300:
@@ -596,15 +609,35 @@ func _draw_lights(c: Layer) -> void:
 		c.draw_set_transform(Vector2(e.ripple_x[i], cy), 0.0, Vector2(1.4, 0.7))
 		c.draw_texture_rect(tex_dot, Rect2(-R, -R, 2 * R, 2 * R), false, col)
 		c.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-	# breathing ring around selectable discs (TEAM_GLOW, width 4, r + 2.5)
+	# (turn rings live in _draw_turn_ring, under the discs)
+
+func ring_color(team: int) -> Color:
+	var me := my_team if my_team >= 0 else (1 if flipped else 0)
+	return RING_ME if team == me else RING_OPP
+
+## glowing team-coloured ring under every disc of the side whose turn it is (aim phase only, AI turns too);
+## soft subtle pulse; the selected (dragged) disc is brighter. Additive layer drawn before the discs, always on (low quality too).
+func _draw_turn_ring(c: Layer) -> void:
+	if e.phase != "aim": return
+	var tm := e.turn
+	var tc := ring_color(tm)
+	var pulse := 0.5 + 0.5 * sin(t * 3.2)
+	var sel: NxBody = e.drag.b if e.drag != null else null
 	var n := e.bodies.size()
 	for i in n:
 		var b: NxBody = e.bodies[i]
-		if b == e.ball or not _active(b): continue
-		var pulse := 0.5 + 0.5 * sin(t * 4)
-		var tc: Color = TEAM_GLOW[b.team]
-		var rr := b.r * (1 + b.sq * 0.07) + 2.5
-		c.draw_arc(pos[i], rr, 0, TAU, 48, Color(tc.r, tc.g, tc.b, 0.28 + 0.22 * pulse), 4.0, true)
+		if b == e.ball or b.team != tm: continue
+		var p := pos[i]
+		var on := b == sel
+		var k := 1.0 if on else 0.55
+		var rr := b.r * (1 + b.sq * 0.07)
+		# halo
+		var R := rr * (1.55 + 0.06 * pulse)
+		c.draw_texture_rect(tex_dot, Rect2(p.x - R, p.y - R, 2 * R, 2 * R), false, Color(tc.r, tc.g, tc.b, (0.30 + 0.12 * pulse) * k))
+		# outer soft band + crisp ring
+		c.draw_arc(p, rr + 8.0, 0, TAU, 56, Color(tc.r, tc.g, tc.b, (0.28 + 0.14 * pulse) * k), 12.0, true)
+		c.draw_arc(p, rr + 4.0, 0, TAU, 56, Color(tc.r, tc.g, tc.b, (0.80 + 0.20 * pulse) * k), 5.0, true)
+		if on: c.draw_arc(p, rr + 4.0, 0, TAU, 56, Color(1, 1, 1, 0.35 + 0.2 * pulse), 1.6, true)
 
 static func _sstep(a: float, b: float, v: float) -> float:
 	var k := clampf((v - a) / (b - a), 0, 1)
@@ -634,6 +667,66 @@ func _slices(c: Layer, head: Texture2D, shaft: Texture2D, k: Dictionary, L0: flo
 	if topL > 0: c.draw_texture_rect_region(shaft, Rect2(x0, -neck, sw, topL), Rect2(0, 0, sW, y0), col)
 	c.draw_texture_rect_region(head, Rect2(-hw / 2, -L, hw, hh), Rect2(0, 0, head.get_width(), head.get_height()), col)
 
+## quadratic-fillet rounded polygon (radius per vertex), for the code-drawn arrow parts
+static func _fillet(pts: PackedVector2Array, radii: PackedFloat32Array, seg := 5) -> PackedVector2Array:
+	var o := PackedVector2Array()
+	var n := pts.size()
+	for i in n:
+		var P := pts[i]
+		var rad := radii[i]
+		if rad <= 0.01:
+			o.append(P); continue
+		var A := pts[(i - 1 + n) % n]
+		var B := pts[(i + 1) % n]
+		var la := (A - P).length()
+		var lb := (B - P).length()
+		if la < 0.01 or lb < 0.01:
+			o.append(P); continue
+		var t := minf(rad, minf(la, lb) * 0.45)
+		var P1 := P + (A - P) / la * t
+		var P2 := P + (B - P) / lb * t
+		for k in seg + 1:
+			var u := float(k) / seg
+			o.append(P1.lerp(P, u).lerp(P.lerp(P2, u), u))
+	return o
+
+## arrow gradient along its length (u = 0 tail … 1 tip) with a slight diagonal shade across (v = -1 … 1)
+static func _arw_col(u: float, v: float, a: float) -> Color:
+	var c: Color
+	if u < 0.3: c = Color("#ee9a52").lerp(ARW_TAIL, u / 0.3)
+	elif u < 0.62: c = ARW_TAIL.lerp(ARW_MID, (u - 0.3) / 0.32)
+	else: c = ARW_MID.lerp(ARW_TIP, (u - 0.62) / 0.38)
+	var sh := 1.0 - 0.07 * v
+	return Color(c.r * sh, c.g * sh, c.b * sh, a)
+
+func _arw_poly(c: Layer, pts: PackedVector2Array, x0: float, x1: float, hw: float, a: float, shadow: bool) -> void:
+	var cols := PackedColorArray()
+	cols.resize(pts.size())
+	for i in pts.size():
+		var q := pts[i]
+		if shadow: cols[i] = Color(0, 0, 0, a)
+		else: cols[i] = _arw_col(clampf((q.x - x0) / maxf(1.0, x1 - x0), 0, 1), clampf(q.y / maxf(1.0, hw), -1, 1), a)
+	c.draw_polygon(pts, cols)
+
+## visible world rect (screen bounds mapped back into pitch space), inset by `m` world px
+func _vis_rect(m: float) -> Rect2:
+	var a := to_world(Vector2(0, 0))
+	var b := to_world(Vector2(W, H))
+	var r := Rect2(Vector2(minf(a.x, b.x), minf(a.y, b.y)), (a - b).abs())
+	return r.grow(-m)
+
+## longest distance from p along unit u that stays inside rect r
+static func _ray_room(p: Vector2, u: Vector2, r: Rect2) -> float:
+	var tmax := 1e9
+	if u.x > 1e-4: tmax = minf(tmax, (r.end.x - p.x) / u.x)
+	elif u.x < -1e-4: tmax = minf(tmax, (r.position.x - p.x) / u.x)
+	if u.y > 1e-4: tmax = minf(tmax, (r.end.y - p.y) / u.y)
+	elif u.y < -1e-4: tmax = minf(tmax, (r.position.y - p.y) / u.y)
+	return maxf(0.0, tmax)
+
+## Aim arrow — user's design, drawn in code: gradient (orange/yellow tail -> red tip) arrow head on a wide shaft,
+## with two rounded dash segments behind it (bigger one nearer the shaft). Length and opacity scale with power.
+## The whole arrow is fitted inside the visible screen so it is never clipped at pitch edges or corners.
 func _draw_aim(c: Layer) -> void:
 	var a = e.aim_info()
 	if a == null or a.p <= 0:
@@ -644,54 +737,64 @@ func _draw_aim(c: Layer) -> void:
 		_aim_ux += (a.ux - _aim_ux) * 0.55; _aim_uy += (a.uy - _aim_uy) * 0.55; _aim_p += (a.p - _aim_p) * 0.6
 	var ul := sqrt(_aim_ux * _aim_ux + _aim_uy * _aim_uy)
 	if ul == 0: ul = 1.0
-	var ux := _aim_ux / ul
-	var uy := _aim_uy / ul
-	var pw := _aim_p
+	var u := Vector2(_aim_ux / ul, _aim_uy / ul)
+	var pw := clampf(_aim_p, 0.0, 1.0)
 	var b: NxBody = a.b
 	var i := e.bodies.find(b)
 	var p := pos[i] if i >= 0 else Vector2(b.x, b.y)
 	var r := b.r
-	var L: float
-	var hs: Texture2D = tex_arrow.get("head_s")
-	var he: Texture2D = tex_arrow.get("head_e")
-	var ss: Texture2D = tex_arrow.get("shaft_s")
-	var se: Texture2D = tex_arrow.get("shaft_e")
-	if hs and he and ss and se:
-		var L0 := r + 3
-		L = r + 70 + pw * 110
-		var ae := _sstep(0.66, 0.72, pw)
-		var as_ := 1.0 - _sstep(0.7, 0.75, pw)
-		c.draw_set_transform(p, atan2(uy, ux) + PI / 2, Vector2.ONE)
-		if as_ > 0: _slices(c, hs, ss, ART.s, L0, L, Color(1, 1, 1, as_))
-		if ae > 0:
-			_slices(c, he, se, ART.e, L0, L, Color(1, 1, 1, ae))
-			var pulse := 0.5 + 0.5 * sin(t * (6 + pw * 8))
-			var gk := 1.8 if hq else 1.0
-			_slices(c, he, se, ART.e, L0, L, Color(gk, gk, gk, ae * (0.06 + 0.16 * pulse) * pw))
-		c.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	var d0 := r + 10.0
+	var want := 120.0 + pw * 300.0
+	var room := _ray_room(p, u, _vis_rect(10.0 / maxf(0.01, s))) - d0
+	var T := clampf(minf(want, room), 46.0, want)
+	var sc := clampf(T / want, 0.55, 1.0) if room < want else 1.0
+	var hw := r * (0.86 + 0.22 * pw) * sc         # head width
+	var hl := hw * 1.08                          # head length
+	var sw := hw * 0.64                          # shaft / dash width
+	var al := 0.55 + 0.45 * pw
+	var rest := maxf(0.0, T - hl)
+	# design proportions behind the head: dash2 205 · gap 155 · dash1 310 · gap 175 · shaft 310
+	var k := rest / 1155.0
+	var x := d0
+	var segs := []
+	if rest > sw * 3.2:
+		segs.append([x, x + 205 * k]); x += 360 * k
+		segs.append([x, x + 310 * k]); x += 485 * k
+		segs.append([x, x + 310 * k]); x += 310 * k
 	else:
-		L = r + 34 + pw * 216
-		var nx := -uy
-		var ny := ux
-		var L0b := r + 6
-		var w0 := 9 + pw * 5
-		var w1 := 3.0
-		var hsz := 20 + pw * 8
-		var neck := L - hsz
-		var pts := PackedVector2Array([
-			p + Vector2(ux * L0b + nx * w0, uy * L0b + ny * w0), p + Vector2(ux * neck + nx * w1, uy * neck + ny * w1),
-			p + Vector2(ux * neck + nx * hsz * 0.62, uy * neck + ny * hsz * 0.62), p + Vector2(ux * L, uy * L),
-			p + Vector2(ux * neck - nx * hsz * 0.62, uy * neck - ny * hsz * 0.62), p + Vector2(ux * neck - nx * w1, uy * neck - ny * w1),
-			p + Vector2(ux * L0b - nx * w0, uy * L0b - ny * w0)])
-		c.draw_colored_polygon(pts, _power_col(pw))
-	var pc := _power_col(pw)
-	c.draw_arc(p, r + 9, -PI / 2, -PI / 2 + TAU * pw, maxi(8, int(64 * pw)), Color(pc.r, pc.g, pc.b, 0.9), 4.0, true)
-	var steps := maxi(2, int(roundf((5 + pw * 6) * (NxEngine.aim_preview(float(e.stats_of(b.team).accuracy)) if e.c_stats != null else 1.0))))
-	for k in range(1, steps + 1):
-		var d := L + 8 + k * 22
-		var kk := 1.0 - float(k) / (steps + 1)
-		c.draw_circle(p + Vector2(ux * d, uy * d), 2.2 + 2 * kk, Color(pc.r, pc.g, pc.b, 0.6 * kk), true, -1.0, true)
-	c.draw_line(p - Vector2(ux, uy) * r, p - Vector2(ux, uy) * (r + 18 + pw * 60), Color(1, 1, 1, 0.18), 2.5, true)
+		segs.append([x, x + rest]); x += rest
+	var xn := x
+	var xt := xn + hl
+	var hs := sw * 0.5
+	c.draw_set_transform(p, u.angle(), Vector2.ONE)
+	for pass_i in 2:
+		var shadow := pass_i == 0
+		var off := Vector2(3.0, 4.0).rotated(-u.angle()) * (1.0 if not flipped else -1.0) if shadow else Vector2.ZERO
+		var aa := al * 0.28 if shadow else al
+		# dashes (all but the last segment)
+		for si in segs.size() - 1:
+			var sg: Array = segs[si]
+			var rr := minf(sw * 0.22, (sg[1] - sg[0]) * 0.3)
+			var q := PackedVector2Array([Vector2(sg[0], -hs), Vector2(sg[1], -hs), Vector2(sg[1], hs), Vector2(sg[0], hs)])
+			for qi in q.size(): q[qi] += off
+			_arw_poly(c, _fillet(q, PackedFloat32Array([rr, rr, rr, rr])), d0, xt, hs, aa, shadow)
+		# shaft + head as one rounded outline
+		var sx: float = segs[segs.size() - 1][0]
+		var hh := hw * 0.5
+		var body := PackedVector2Array([Vector2(sx, -hs), Vector2(xn, -hs), Vector2(xn, -hh), Vector2(xt, 0), Vector2(xn, hh), Vector2(xn, hs), Vector2(sx, hs)])
+		for qi in body.size(): body[qi] += off
+		var br := sw * 0.12
+		_arw_poly(c, _fillet(body, PackedFloat32Array([br, br * 0.6, hw * 0.08, hw * 0.07, hw * 0.08, br * 0.6, br])), d0, xt, hh, aa, shadow)
+	# soft highlight along the upper edge of the shaft/head (3D sheen)
+	c.draw_line(Vector2(segs[segs.size() - 1][0] + 4, -hs * 0.55), Vector2(xn - 2, -hs * 0.55), Color(1, 1, 1, 0.16 * al), maxf(1.5, sw * 0.12), true)
+	c.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	# accuracy preview dots beyond the tip, only where they stay on screen
+	var steps := maxi(2, int(roundf((3 + pw * 4) * (NxEngine.aim_preview(float(e.stats_of(b.team).accuracy)) if e.c_stats != null else 1.0))))
+	for kk in range(1, steps + 1):
+		var d := xt + 10 + kk * 20
+		if d > room + d0: break
+		var f := 1.0 - float(kk) / (steps + 1)
+		c.draw_circle(p + u * d, 2.0 + 2.0 * f, Color(ARW_TIP.r, ARW_TIP.g, ARW_TIP.b, 0.55 * f * al), true, -1.0, true)
 
 func _draw_parts(c: Layer) -> void:
 	var ps := e.parts
