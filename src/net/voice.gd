@@ -46,7 +46,8 @@ var _watchdog: SceneTreeTimer = null
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	_check_support()
+	# Lazy: the NexoraLiveKit plugin, LiveKit and the audio stack are not touched at startup;
+	# _check_support() runs on the first supported()/support_reason()/join() call.
 
 
 func _notification(what: int) -> void:

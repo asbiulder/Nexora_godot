@@ -84,3 +84,11 @@ JDK 17, Android SDK (platform 35, build-tools 35.0.0), Gradle ≥ 8.7. Build the
 GDScript must not call `plugin.connect(...)` / `plugin.disconnect()` directly (they collide with `Object.connect/disconnect`); `voice.gd` uses `callv("connectRoom", ...)` and `Signal(plugin, "state").connect(...)`.
 
 Pinned versions: Godot 4.5.1, `org.godotengine:godot:4.5.1.stable` (compileOnly), `io.livekit:livekit-android:2.30.0`, `kotlinx-coroutines-android:1.9.0`, AGP 8.6.1, Kotlin 2.1.20, Gradle 8.11.1, compile/target SDK 35, min SDK 24.
+
+---
+
+## Android signing & CI outputs (updated)
+- **Sideload-testing key (committed on purpose):** `android/keys/nexora-release.keystore` (alias `nexora`, password in `.github/workflows/android.yml` → `NX_KEYSTORE_PASSWORD`). Every CI build is signed with this same key, so a newer APK installs over an older one. **This key is public — for sideload testing only.** Before publishing on Google Play, create a private keystore and set the repo secrets `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_USER`, `ANDROID_KEYSTORE_PASSWORD` (they take precedence), and remove the committed key.
+- کلید امضای داخل مخزن فقط برای تست (نصب دستی) است؛ قبل از انتشار در گوگل‌پلی، keystore خصوصی بسازید و در Secretهای مخزن بگذارید.
+- Each run publishes a Release `v2.0.<run>` with `NEXORA-v2.0.<run>-universal.apk` (armeabi-v7a, arm64-v8a, x86, x86_64), `NEXORA-v2.0.<run>-arm64.apk` and `NEXORA-v2.0.<run>.aab`, after an Android-emulator smoke test (API 30 gating, API 24 best-effort): install, launch, menu, then a quick match via `--nx-start=quickmatch`; logcat + screenshots are uploaded as artifacts.
+- CI-only tweaks (`.github/scripts/ci_prepare.py`): lossy WebP textures, compressed native libs, excludes `tests/ shots/ plugin_src/ *.md`.

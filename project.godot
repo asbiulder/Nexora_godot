@@ -46,7 +46,7 @@ renderer/rendering_method.mobile="gl_compatibility"
 rendering_device/fallback_to_opengl3=true
 textures/vram_compression/import_etc2_astc=true
 2d/snap/snap_2d_transforms_to_pixel=false
-anti_aliasing/quality/msaa_2d=2
+anti_aliasing/quality/msaa_2d=0
 viewport/hdr_2d=true
 environment/defaults/default_clear_color=Color(0.016, 0.02, 0.06, 1)
 

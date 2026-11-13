@@ -1,37 +1,59 @@
 #!/bin/bash
 # Install + launch the APK on the running emulator, collect logcat + screenshots, fail on a crash.
+# Phase 1: normal launch (splash -> intro -> tap -> menu). Phase 2: relaunch straight into a quick match
+# vs the bot (--nx-start=quickmatch, read by src/main.gd) and let it play.
 # usage: emu_test.sh <apk> <outdir>
 set -u
 APK="$1"; OUT="$2"; PKG=com.nexora.game
 mkdir -p "$OUT"
 adb wait-for-device
-adb shell getprop ro.build.version.sdk | tee "$OUT/sdk.txt"
-adb shell getprop ro.product.cpu.abilist | tee -a "$OUT/sdk.txt"
+{ adb shell getprop ro.build.version.sdk; adb shell getprop ro.product.cpu.abilist; } | tee "$OUT/device.txt"
 adb logcat -c || true
 echo "== install"
 adb install -r "$APK" 2>&1 | tee "$OUT/install.txt"
-if ! grep -q Success "$OUT/install.txt"; then echo "::error::adb install failed"; adb logcat -d > "$OUT/logcat.txt"; exit 1; fi
+if ! grep -q Success "$OUT/install.txt"; then echo "::error::adb install failed"; adb logcat -d > "$OUT/logcat_install.txt"; exit 1; fi
 adb shell dumpsys package $PKG | grep -E "versionCode|versionName|primaryCpuAbi|flags=" | tee "$OUT/package.txt"
-echo "== launch"
-adb shell monkey -p $PKG -c android.intent.category.LAUNCHER 1
-sleep 4;  adb exec-out screencap -p > "$OUT/screen_04s.png" || true
-sleep 6;  adb exec-out screencap -p > "$OUT/screen_10s.png" || true
-P1=$(adb shell pidof $PKG | tr -d '\r'); echo "pid@10s=$P1"
-# tap the centre once (intro screens often wait for a tap), then wait
-adb shell input tap 540 1600 || true
-sleep 8;  adb exec-out screencap -p > "$OUT/screen_18s.png" || true
-sleep 10; adb exec-out screencap -p > "$OUT/screen_28s.png" || true
-P2=$(adb shell pidof $PKG | tr -d '\r'); echo "pid@28s=$P2"
-adb shell dumpsys activity activities | grep -E "mResumedActivity|topResumedActivity|ResumedActivity" | tee "$OUT/activity.txt" || true
-adb logcat -d -v threadtime > "$OUT/logcat.txt"
-adb logcat -d -b crash > "$OUT/logcat_crash.txt" 2>/dev/null || true
-echo "================ filtered logcat ================"
-grep -E -i "godot|nexora|AndroidRuntime|FATAL|DEBUG +:|libc +:|SIGSEGV|SIGABRT|livekit|ActivityManager.*(nexora|Process)|SCRIPT ERROR|USER ERROR|Parse Error|OpenGL|GLES|vulkan|crash" "$OUT/logcat.txt" | grep -v -E "chatty" | tail -n 600
-echo "================ crash buffer ================"
-cat "$OUT/logcat_crash.txt" | tail -n 200
+ACT=$(adb shell cmd package resolve-activity --brief $PKG 2>/dev/null | tr -d '\r' | tail -n 1)
+case "$ACT" in */*) ;; *) ACT="$PKG/com.godot.game.GodotApp";; esac
+echo "launcher activity: $ACT"
+
+shot() { adb exec-out screencap -p > "$OUT/$1.png" 2>/dev/null || true; }
+alive() { adb shell pidof $PKG | tr -d '\r'; }
 fail=0
-[ -z "$P2" ] && { echo "::error::process $PKG is not running after 28 s"; fail=1; }
-grep -q "FATAL EXCEPTION" "$OUT/logcat.txt" && { echo "::error::FATAL EXCEPTION in logcat"; fail=1; }
-grep -E -q "Fatal signal|SIGSEGV|SIGABRT" "$OUT/logcat.txt" && { echo "::error::native crash signal in logcat"; fail=1; }
-grep -E -q "SCRIPT ERROR|Parse Error|USER ERROR" "$OUT/logcat.txt" && { echo "::error::Godot script/user errors in logcat (see above)"; fail=1; }
+check_log() {  # $1 = logcat file, $2 = phase name
+  grep -q "FATAL EXCEPTION" "$1" && { echo "::error::[$2] FATAL EXCEPTION in logcat"; fail=1; }
+  grep -E -q "Fatal signal|SIGSEGV|SIGABRT" "$1" && { echo "::error::[$2] native crash signal in logcat"; fail=1; }
+  grep -E -q "SCRIPT ERROR|Parse Error|USER ERROR" "$1" && { echo "::error::[$2] Godot script/user errors in logcat"; fail=1; }
+  echo "================ [$2] filtered logcat ================"
+  grep -E -i "godot|nexora|NX_|AndroidRuntime|FATAL|DEBUG +:|libc +:|SIGSEGV|SIGABRT|livekit|ActivityManager.*(nexora|Process)|SCRIPT ERROR|USER ERROR|Parse Error|OpenGL|GLES|vulkan|crash" "$1" | grep -v chatty | tail -n 400
+}
+
+echo "== phase 1: normal launch"
+adb shell am start -W -n "$ACT"
+sleep 4;  shot p1_04s_splash
+sleep 6;  shot p1_10s
+P=$(alive); echo "pid@10s=$P"
+adb shell input tap 540 1500 || true
+sleep 5;  shot p1_15s_after_tap
+adb shell input tap 540 1500 || true
+sleep 10; shot p1_25s_menu
+P=$(alive); echo "pid@25s=$P"
+[ -z "$P" ] && { echo "::error::[launch] process died within 25 s"; fail=1; }
+adb shell dumpsys activity activities | grep -E "ResumedActivity" | tee "$OUT/p1_activity.txt" || true
+adb logcat -d -v threadtime > "$OUT/logcat_launch.txt"
+adb logcat -d -b crash > "$OUT/logcat_crash_launch.txt" 2>/dev/null || true
+check_log "$OUT/logcat_launch.txt" launch
+
+echo "== phase 2: quick match"
+adb shell am force-stop $PKG; sleep 2; adb logcat -c || true
+adb shell am start -W -n "$ACT" --esa command_line_params --nx-start=quickmatch
+sleep 12; shot p2_12s_match
+sleep 10; shot p2_22s_match
+P=$(alive); echo "pid@match22s=$P"
+[ -z "$P" ] && { echo "::error::[match] process died during the quick match"; fail=1; }
+adb logcat -d -v threadtime > "$OUT/logcat_match.txt"
+adb logcat -d -b crash > "$OUT/logcat_crash_match.txt" 2>/dev/null || true
+grep -q "NX_TEST quick match started" "$OUT/logcat_match.txt" && echo "match hook reached" || echo "::warning::NX_TEST marker not found (cmdline extra not delivered?)"
+check_log "$OUT/logcat_match.txt" match
+echo "result: fail=$fail"
 exit $fail

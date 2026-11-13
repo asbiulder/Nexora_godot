@@ -33,7 +33,16 @@ func _ready() -> void:
 	var first := "intro"
 	if OS.has_environment("NX_START"):
 		first = OS.get_environment("NX_START")
-	Nav.go(first)
+	# test hook (Android emulator smoke test): am start ... --esa command_line_params --nx-start=<screen|quickmatch>
+	for arg in OS.get_cmdline_args() + OS.get_cmdline_user_args():
+		if str(arg).begins_with("--nx-start="):
+			first = str(arg).get_slice("=", 1)
+	print("NX_BOOT main ready, first=", first)
+	if first == "quickmatch":
+		Nav.go("match", Launch.build("quick", UD.p(), {"lvl": 1}))
+		print("NX_TEST quick match started")
+	else:
+		Nav.go(first)
 	# test hook: NX_WALK=1 runs tests/ui_walk.gd (navigates every screen, optional screenshots)
 	if OS.has_environment("NX_WALK") and ResourceLoader.exists("res://tests/ui_walk.gd"):
 		var w = load("res://tests/ui_walk.gd").new()

@@ -41,7 +41,13 @@ class NexoraLiveKit(godot: Godot) : GodotPlugin(godot) {
         const val SIG_ERROR = "error"
     }
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    // Lazy: nothing (coroutines, LiveKit, WebRTC, audio) is touched until the first voice call from Godot.
+    // Godot instantiates v2 plugins at app start, so the constructor must stay trivial.
+    @Volatile private var scopeCreated = false
+    private val scope: CoroutineScope by lazy {
+        scopeCreated = true
+        CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    }
 
     // Everything below is only touched on the Android main thread.
     private var room: Room? = null
@@ -63,9 +69,34 @@ class NexoraLiveKit(godot: Godot) : GodotPlugin(godot) {
 
     // ---------------------------------------------------------------- Godot API
 
+    /** Runs [block] on the plugin scope; any failure (even class-loading) becomes an "error" signal, never a crash. */
+    private fun safeLaunch(what: String, block: suspend () -> Unit) {
+        try {
+            scope.launch {
+                try {
+                    block()
+                } catch (c: CancellationException) {
+                    throw c
+                } catch (t: Throwable) {
+                    Log.w(TAG, "$what failed", t)
+                    safeEmit(SIG_ERROR, "$what: ${t.message}")
+                    safeEmit(SIG_STATE, "error")
+                }
+            }
+        } catch (t: Throwable) {
+            Log.e(TAG, "$what could not start", t)
+            safeEmit(SIG_ERROR, "$what: ${t.message}")
+            safeEmit(SIG_STATE, "error")
+        }
+    }
+
+    private fun safeEmit(sig: String, arg: String) {
+        try { emitSignal(sig, arg) } catch (t: Throwable) { Log.w(TAG, "emit $sig failed", t) }
+    }
+
     @UsedByGodot
     fun connect(url: String, token: String, publish: Boolean) {
-        scope.launch { doConnect(url, token, publish) }
+        safeLaunch("connect") { doConnect(url, token, publish) }
     }
 
     /** Alias that does not collide with Object.connect() on the GDScript side. */
@@ -74,12 +105,12 @@ class NexoraLiveKit(godot: Godot) : GodotPlugin(godot) {
 
     @UsedByGodot
     fun setMic(on: Boolean) {
-        scope.launch { doSetMic(on) }
+        safeLaunch("mic") { doSetMic(on) }
     }
 
     @UsedByGodot
     fun setSpeaker(on: Boolean) {
-        scope.launch {
+        safeLaunch("speaker") {
             speakerOn = on
             room?.let { applySpeaker(it) }
         }
@@ -87,7 +118,8 @@ class NexoraLiveKit(godot: Godot) : GodotPlugin(godot) {
 
     @UsedByGodot
     fun disconnect() {
-        scope.launch {
+        if (!scopeCreated) { safeEmit(SIG_STATE, "off"); return }
+        safeLaunch("disconnect") {
             teardown()
             emitState("off")
             emitSpeakers(emptyList())
@@ -101,12 +133,14 @@ class NexoraLiveKit(godot: Godot) : GodotPlugin(godot) {
     // ---------------------------------------------------------------- lifecycle
 
     override fun onMainDestroy() {
-        try {
-            teardown()
-        } catch (t: Throwable) {
-            Log.w(TAG, "teardown on destroy failed", t)
+        if (scopeCreated) {
+            try {
+                teardown()
+            } catch (t: Throwable) {
+                Log.w(TAG, "teardown on destroy failed", t)
+            }
+            try { scope.cancel() } catch (_: Throwable) { }
         }
-        scope.cancel()
         super.onMainDestroy()
     }
 
@@ -270,16 +304,16 @@ class NexoraLiveKit(godot: Godot) : GodotPlugin(godot) {
 
     private fun emitState(s: String) {
         lastState = s
-        emitSignal(SIG_STATE, s)
+        safeEmit(SIG_STATE, s)
     }
 
     private fun emitSpeakers(ids: List<String>) {
         val a = JSONArray()
         ids.forEach { a.put(it) }
-        emitSignal(SIG_SPEAKERS, a.toString())
+        safeEmit(SIG_SPEAKERS, a.toString())
     }
 
     private fun emitError(msg: String) {
-        emitSignal(SIG_ERROR, msg)
+        safeEmit(SIG_ERROR, msg)
     }
 }

@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: android-godot-${{ github.ref }}
+  group: android-godot-${{ github.sha }}
   cancel-in-progress: true
 
 env:
