@@ -391,6 +391,8 @@ func _formation() -> void:
 	var t := Kit.title("%s · %s" % [fm[0], fm[1]], 47)
 	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	body.add_child(t)
+	# GAME hook: visual formation picker sheet (src/game/formation_picker.gd)
+	body.add_child(padx(Kit.button(FormationPicker.t("form.open", "انتخاب ترکیب"), func(): Nav.sheet(FormationPicker.new()), "primary")))
 	var grid := _grid(3)
 	var j := 0
 	for f in UD.forms():
