@@ -227,12 +227,21 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # gating: API 30 with ANGLE-on-SwiftShader (the plain SwiftShader GLES translator rejects Godot's
+          # canvas shader: "active uniforms exceed GL_MAX_FRAGMENT_UNIFORM_VECTORS (261)", an emulator-only limit)
           - api: 30
             target: google_apis
+            gpu: swangle_indirect
+            gate: true
+          - api: 30
+            target: google_apis
+            gpu: swiftshader_indirect
+            gate: false
           - api: 24
             target: default
-    # API 24 is best-effort (its SwiftShader GPU may only expose GLES 2); API 30 gates the release.
-    continue-on-error: ${{ matrix.api == 24 }}
+            gpu: swiftshader_indirect
+            gate: false
+    continue-on-error: ${{ !matrix.gate }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -244,20 +253,20 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-      - name: Install, launch, check (API ${{ matrix.api }})
+      - name: Install, launch, menu, quick match (API ${{ matrix.api }}, ${{ matrix.gpu }})
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: ${{ matrix.api }}
           target: ${{ matrix.target }}
           arch: x86_64
           force-avd-creation: false
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot -camera-back none
+          emulator-options: -no-window -gpu ${{ matrix.gpu }} -noaudio -no-boot-anim -no-snapshot -camera-back none
           disable-animations: true
           script: bash .github/scripts/emu_test.sh "$(ls dist/*-universal.apk | head -1)" emu-out
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: emulator-api${{ matrix.api }}
+          name: emulator-api${{ matrix.api }}-${{ matrix.gpu }}
           path: emu-out/
           if-no-files-found: warn
 
