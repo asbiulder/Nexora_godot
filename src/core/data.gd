@@ -46,7 +46,20 @@ const CATS := [["lux", "Luxury", ["Lamborghini", "Ferrari", "Porsche", "Mercedes
 const NX8_CATS := ["lux", "club", "nat", "spt", "gal"]
 const CAT_ORDER := ["lux", "club", "nat", "spt", "gal", "vip", "car", "elite", "emb", "leg", "chrome"]
 const CAT_FA := {"lux": "لوکس", "club": "باشگاه", "nat": "ملی", "spt": "ورزشی", "gal": "بانوان", "vip": "VIP", "car": "خودرو", "elite": "الیت", "emb": "نشان", "leg": "افسانه", "chrome": "کروم"}
-const FORMS := [["1-2-2", "Balanced", [[0.09, 1.0], [0.22, 2.0], [0.36, 2.0]]], ["2-2-1", "Cautious", [[0.1, 2.0], [0.24, 2.0], [0.37, 1.0]]], ["3-1-1", "Wall", [[0.1, 3.0], [0.25, 1.0], [0.37, 1.0]]], ["2-1-2", "Diamond", [[0.1, 2.0], [0.24, 1.0], [0.37, 2.0]]], ["1-3-1", "Midfield", [[0.09, 1.0], [0.23, 3.0], [0.37, 1.0]]], ["1-1-3", "Attack", [[0.09, 1.0], [0.22, 1.0], [0.36, 3.0]]]]
+## Formations (user's 9-formation sheet). Entry: [name_fa, name_en, rows (legacy, unused), pts]
+## pts: [depth, lateral] per disc — depth 0 = own goal line … 1 = halfway line; lateral 0..1 across the pitch
+## (left->right for the bottom side; the top side is the mirror image). Spaced for PR 62 discs (fm check: min gap >= 13 px).
+const FORMS := [
+	["الماس", "Diamond", [], [[0.14, 0.5], [0.39, 0.20], [0.39, 0.80], [0.76, 0.36], [0.76, 0.64]]],
+	["عقاب", "Eagle", [], [[0.14, 0.5], [0.36, 0.20], [0.36, 0.80], [0.56, 0.5], [0.86, 0.5]]],
+	["موج", "Wave", [], [[0.30, 0.27], [0.30, 0.73], [0.62, 0.06], [0.62, 0.5], [0.62, 0.94]]],
+	["ماه", "Moon", [], [[0.18, 0.5], [0.38, 0.18], [0.38, 0.82], [0.64, 0.04], [0.64, 0.96]]],
+	["دیوانه", "Crazy", [], [[0.62, 0.5], [0.86, 0.0], [0.86, 0.31], [0.86, 0.69], [0.86, 1.0]]],
+	["لبه", "Edge", [], [[0.11, 0.5], [0.37, 0.5], [0.63, 0.5], [0.86, 0.12], [0.86, 0.88]]],
+	["نیش", "Sting", [], [[0.13, 0.5], [0.50, 0.08], [0.50, 0.92], [0.88, 0.08], [0.88, 0.92]]],
+	["بازو", "Arm", [], [[0.13, 0.5], [0.56, 0.12], [0.56, 0.5], [0.56, 0.88], [0.88, 0.88]]],
+	["حمله همه جانبه", "All-out Attack", [], [[0.13, 0.5], [0.72, 0.30], [0.72, 0.70], [0.88, 0.04], [0.88, 0.96]]],
+]
 const TRAILS := [
 	{"k": "bolt", "c": ["#19b4ff", "#8fe6ff", "#ffffff"]},
 	{"k": "prism", "c": ["#ff7bd5", "#7bd7ff", "#ffffff"]},
@@ -180,9 +193,15 @@ static func field_price(i: int) -> int:
 	return 0 if i < 5 else 80 + ((i - 1) % 5) * 20
 
 ## formation slots: Array of [nx, ny] (float64 — Vector2 is float32 and would break physics parity)
+## nx = lateral 0..1 (engine insets it by the disc radius), ny = distance from own goal line as a fraction of the pitch length.
 static func slots(fi: int) -> Array:
 	var o: Array = []
-	for row in FORMS[fi][2]:
+	var fm: Array = FORMS[clampi(fi, 0, FORMS.size() - 1)]
+	if fm.size() > 3:
+		for pt in fm[3]:
+			o.append([float(pt[1]), 0.045 + float(pt[0]) * 0.40])
+		return o
+	for row in fm[2]:
 		var ny: float = row[0]
 		var c: int = int(row[1])
 		for i in c:

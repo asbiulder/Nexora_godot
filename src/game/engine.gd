@@ -15,10 +15,11 @@ extends RefCounted
 
 const D := preload("res://src/core/data.gd")
 const K := 1.27
-const PR := 42.0           # nx8 piece radius
+const PR := 62.0           # piece radius (Godot build: 1.48x the nx8 42 px — user asked for clearly bigger discs)
 const PR_V4 := 49.0
 const POST_R8 := 5.0
-const BR := 25.5
+const BR := 31.0           # ball radius (1.22x nx8 25.5)
+const BR8 := 25.5
 const RC := 70.0
 const LMAX := 210.0
 const STEP := 1.0 / 240.0
@@ -45,6 +46,12 @@ const LAUNCH_T := 0.075     # s, ball launch ramp duration
 const LAUNCH_MIN := 0.6     # fraction of travel speed at the instant of the strike
 const ROLL_VIS := 0.35
 const SPIN_VIS := 0.25
+# --- Godot feel (nx8 model) ---
+const PM := 7.0             # disc mass (heavier than nx8's 5 -> more momentum into the ball)
+const BM := 1.5             # ball mass
+const SHOT_V0 := 280.0      # shot speed at zero power (K-units)
+const SHOT_V1 := 1320.0     # extra shot speed at full power (nx8 1085 -> stronger max shots)
+const CORNER_NUDGE := 70.0  # px/s push out of a sharp corner for a body resting against both walls
 
 const GOAL_COLS := [Color("#ffd23a"), Color("#ffffff"), Color("#3bd0ff"), Color("#ff4a7a"), Color("#7bff5a")]
 const HIT_COLS := [Color("#ffffff"), Color("#9fe8ff"), Color("#5cb6ff")]
@@ -179,10 +186,11 @@ func reset(kick_team: int) -> void:
 		for i in sl.size():
 			var nx: float = sl[i][0]
 			var ny: float = sl[i][1]
-			var x := Fl + pr + 10 + nx * (Fw - 2 * (pr + 10))
+			var ins := pr + (10.0 if v4 else 6.0)
+			var x := Fl + ins + nx * (Fw - 2 * ins)
 			var y := (Ft + ny * Fh) if cm else (Fb - ny * Fh)
-			bodies.append(_mk(x, y, cm, pr, 5, cm * 20 + i))
-	ball = _mk(CX, KY, 2, BR, 1.5, 99)
+			bodies.append(_mk(x, y, cm, pr, 5.0 if v4 else PM, cm * 20 + i))
+	ball = _mk(CX, KY, 2, BR if not v4 else 25.5, BM, 99)
 	bodies.append(ball)
 	turn = kick_team; phase = "aim"; drag = null; pause = 0.0; idle = 0.0; shots = 0
 	tleft = c_turn_time; ai_t = 0.0; ai_plan = null
@@ -236,7 +244,7 @@ func fire(b: NxBody, dx: float, dy: float, l: float, human := false) -> void:
 	var p := minf(l, LMAX) / LMAX
 	var team := b.team
 	last_power = p
-	var v := (260 + 1085 * pow(p, 0.8)) * K * 1.32
+	var v := ((260 + 1085 * pow(p, 0.8)) if v4 else (SHOT_V0 + SHOT_V1 * pow(p, 0.85))) * K * 1.32
 	if c_stats != null: v *= power_mul(float(stats_of(team).power))
 	elif c_vip[team]: v *= 1.16
 	var ux := dx / l
@@ -250,7 +258,8 @@ func fire(b: NxBody, dx: float, dy: float, l: float, human := false) -> void:
 	var vy := uy * v
 	b.tvx = vx * 1.02; b.tvy = vy * 1.02; b.ramp = 0.06; b.vx = vx * 0.5; b.vy = vy * 0.5; b.boost = 0.22
 	if not v4 and b.team != turn: turn = b.team
-	phase = "move"; idle = 0.0; shots += 1; drag = null; cam = maxf(cam, 0.18)
+	phase = "move"; idle = 0.0; shots += 1; drag = null
+	if v4: cam = maxf(cam, 0.18)   # nx8/Godot: no camera kick on shots (crisp, no shake)
 	last_who = b.team
 	events.append({"t": "shot", "team": b.team})
 
@@ -308,7 +317,10 @@ func _walls(b: NxBody) -> void:
 			b.y = g.y - g.d * r
 			if g.d * b.vy > 0: b.vy = -g.d * absf(b.vy) * _eN(bl, absf(b.vy))
 			b.spin += g.d * b.vx / r * 0.05
-	# corners (only near the four rounded corners)
+	if not v4:
+		_corner_nudge(b)
+		return
+	# corners (only near the four rounded corners) — v4 reference model only; nx8/Godot pitch has sharp 90° corners
 	if b.x > _cxl and b.x < _cxr: return
 	if b.y > _cyt and b.y < _cyb: return
 	for ci in 4:
@@ -329,6 +341,22 @@ func _walls(b: NxBody) -> void:
 				if vn > 0:
 					var ec := _eN(bl, vn)
 					b.vx -= (1 + ec) * vn * nx; b.vy -= (1 + ec) * vn * ny
+
+## sharp corners: the side walls and goal-line walls meet at 90°. A body resting jammed into a corner
+## (touching both walls, nearly still) gets a small push along the inward diagonal so it never sticks there.
+func _corner_nudge(b: NxBody) -> void:
+	var r := b.r
+	var gap := 1.5
+	var at_l := b.x - r <= Fl + gap
+	var at_r := b.x + r >= Fr - gap
+	if not (at_l or at_r): return
+	var at_t: bool = b.y - r <= Ft + gap and (b.x < goals[0].x1 or b.x > goals[0].x2)
+	var at_b: bool = b.y + r >= Fb - gap and (b.x < goals[1].x1 or b.x > goals[1].x2)
+	if not (at_t or at_b): return
+	if b.vx * b.vx + b.vy * b.vy > 90.0 * 90.0: return
+	var nx := 1.0 if at_l else -1.0
+	var ny := 1.0 if at_t else -1.0
+	b.vx = nx * CORNER_NUDGE; b.vy = ny * CORNER_NUDGE
 
 func _post(b: NxBody, px: float, py: float) -> void:
 	var dx := b.x - px
@@ -395,7 +423,7 @@ func _hit(a: NxBody, b: NxBody) -> void:
 			a.sq = maxf(a.sq, q); b.sq = maxf(b.sq, q)
 		if isB and v4 and not classic: ball.lt = LAUNCH_T
 	if isB:
-		ball.spin += (1.0 if ball == b else -1.0) * (-ny * (b.vx - a.vx) + nx * (b.vy - a.vy)) / ball.r * 0.3
+		ball.spin += (1.0 if ball == b else -1.0) * (-ny * (b.vx - a.vx) + nx * (b.vy - a.vy)) / ball.r * (0.3 if v4 else 0.42)
 		ball.spin = clampf(ball.spin, -34, 34)
 		var pw := minf(1, -vn / (1700 * K))
 		if pw > 0.2:
@@ -404,7 +432,12 @@ func _hit(a: NxBody, b: NxBody) -> void:
 				ball.sq = maxf(ball.sq, pw); o.sq = maxf(o.sq, pw * 0.7); cam = maxf(cam, pw * 0.4)
 				burst((a.x + b.x) / 2, (a.y + b.y) / 2, int(roundf(6 + pw * 10)), 260 + pw * 300, HIT_COLS, 0.35, 2)
 			else:
-				ball.sq = maxf(ball.sq, pw); cam = maxf(cam, pw * 0.4); o.sq = maxf(o.sq, pw)
+				ball.sq = maxf(ball.sq, pw * 0.6); o.sq = maxf(o.sq, pw * 0.5)
+	if not v4:
+		# off-centre contacts make discs spin (visual + tiny; opposite senses for the two bodies)
+		var tv := -ny * (b.vx - a.vx) + nx * (b.vy - a.vy)
+		if a != ball: a.spin = clampf(a.spin - tv / a.r * 0.12, -18, 18)
+		if b != ball: b.spin = clampf(b.spin - tv / b.r * 0.12, -18, 18)
 
 func _rotate(b: NxBody, wx: float, wy: float, wz: float, dt: float) -> void:
 	var w := sqrt(wx * wx + wy * wy + wz * wz)
@@ -458,7 +491,6 @@ func _post8(b: NxBody, px: float, py: float) -> void:
 		b.vx -= kp * vn * nx; b.vy -= kp * vn * ny
 		if b == ball:
 			events.append({"t": "post", "power": -vn / 1800})
-			if -vn > 900 * K: cam = maxf(cam, 0.18)
 
 ## nx8 sub-step (game.js sim())
 func _sim8(dt: float) -> void:
@@ -498,11 +530,12 @@ func _sim8(dt: float) -> void:
 					b.vx *= k3; b.vy *= k3
 		if bl:
 			var sp2 := sqrt(b.vx * b.vx + b.vy * b.vy)
-			b.spin *= 1 - (1.05 if sp2 > 0 else 3.2) * dt
+			b.spin *= 1 - (1.25 if sp2 > 0 else 3.2) * dt
 			if absf(b.spin) < 0.02: b.spin = 0.0
 			b.sq *= 1 - 9 * dt
-			var roll := 0.95 / b.r
-			var wz := b.spin * 0.55
+			# true rolling: |w| = speed / radius about the axis perpendicular to the motion; side spin about the vertical
+			var roll := 1.0 / b.r
+			var wz := b.spin * 0.8
 			if sp2 > 0 or wz != 0: _rotate(b, -b.vy * roll, b.vx * roll, wz, dt)
 			b.ang += b.spin * dt
 		else:

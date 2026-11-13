@@ -20,7 +20,7 @@ func _initialize() -> void:
 	var steps_total := 0
 	var errors := 0
 	for m in range(from, from + n):
-		var cfg := {"field": m % D.FIELDS.size(), "ball": m % 36, "forms": [m % 6, (m * 7 + 3) % 6], "ai": true, "ai_lvl": m % 3,
+		var cfg := {"field": m % D.FIELDS.size(), "ball": m % 36, "forms": [m % D.FORMS.size(), (m * 7 + 3) % D.FORMS.size()], "ai": true, "ai_lvl": m % 3,
 			"limit": 3, "match_time": 180 if m % 4 == 3 else 0, "turn_time": 15, "vip": [false, m % 5 == 0], "first": m % 2,
 			"stats": [{"power": 5.0, "accuracy": 5.0}, {"power": 8.0, "accuracy": 8.0}], "seed": 1000 + m, "classic": classic, "model": "v4" if classic else "nx8"}
 		var e := NxEngine.new(cfg)
