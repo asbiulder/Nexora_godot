@@ -112,12 +112,15 @@ jobs:
             -dname "CN=Android Debug,O=Android,C=US" -noprompt
           if [ -n "${KS_B64:-}" ] && [ -n "${KS_USER:-}" ] && [ -n "${KS_PASS:-}" ]; then
             echo "$KS_B64" | base64 -d > ~/keys/release.keystore
-            echo "Using the release keystore from repo secrets"
+            echo "Using the release keystore from repo secrets (ANDROID_KEYSTORE_*)"
             KU="$KS_USER"; KP="$KS_PASS"
-          else
-            echo "No keystore secrets: using the committed sideload-testing keystore ($NX_KEYSTORE_PATH)"
+          elif [ -f "$NX_KEYSTORE_PATH" ]; then
+            echo "::warning::No ANDROID_KEYSTORE_* secrets: signing with the committed sideload keystore ($NX_KEYSTORE_PATH). It is public; set the secrets and delete it."
             cp "$NX_KEYSTORE_PATH" ~/keys/release.keystore
             KU="$NX_KEYSTORE_ALIAS"; KP="$NX_KEYSTORE_PASSWORD"
+          else
+            echo "::error::No release keystore: set the ANDROID_KEYSTORE_BASE64 / _USER / _PASSWORD repo secrets"
+            exit 1
           fi
           keytool -list -v -keystore ~/keys/release.keystore -storepass "$KP" | grep -E "Alias|SHA256|Valid" | head -5
           {
@@ -195,6 +198,10 @@ jobs:
             echo "--- permissions:"; "$bt/aapt2" dump permissions "$a" || true
             echo "--- services/receivers:"; "$bt/aapt2" dump xmltree --file AndroidManifest.xml "$a" | grep -E -A2 "E: (service|receiver)" | grep -E "E: |name" || true
             if "$bt/aapt2" dump permissions "$a" | grep -E -q "CAMERA|FOREGROUND_SERVICE|POST_NOTIFICATIONS|SYSTEM_ALERT_WINDOW"; then echo "::error::$a still declares camera/foreground-service/notification permissions"; exit 1; fi
+            if "$bt/aapt2" dump permissions "$a" | grep -E -q "BLUETOOTH_CONNECT|BLUETOOTH_SCAN"; then echo "::error::$a still declares bluetooth runtime permissions"; exit 1; fi
+            if "$bt/aapt2" dump permissions "$a" | grep -E -q "READ_PHONE_STATE|ACCESS_FINE_LOCATION|ACCESS_COARSE_LOCATION|READ_EXTERNAL_STORAGE|WRITE_EXTERNAL_STORAGE"; then echo "::warning::$a declares a dangerous permission beyond RECORD_AUDIO (see list above)"; fi
+            "$bt/aapt2" dump badging "$a" | grep -E -q "targetSdkVersion:'35'" || { echo "::error::$a targetSdk is not 35"; exit 1; }
+            "$bt/apksigner" verify --print-certs "$a" | grep -q "CN=Android Debug" && { echo "::error::$a is signed with a debug key"; exit 1; } || true
           done
           echo "=== AAB"; unzip -l build/NEXORA.aab | grep -E "/lib/" | awk '{print $1, $4}'
           jarsigner -verify build/NEXORA.aab | tail -2 || true

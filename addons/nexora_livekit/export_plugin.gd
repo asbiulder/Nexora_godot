@@ -54,7 +54,7 @@ func _get_android_dependencies_maven_repos(_platform: EditorExportPlatform, _deb
 	return MAVEN_REPOS
 
 
-# LiveKit's AAR declares permissions for camera + screen-share (foreground service). NEXORA is voice-only and
+# LiveKit's AAR declares permissions for camera + screen-share (foreground service) + bluetooth. NEXORA is voice-only and
 # never starts a foreground service, so strip them (and notifications) from the merged manifest. The mic
 # (RECORD_AUDIO) is requested only when the user joins voice (src/net/voice.gd); nothing is requested at launch.
 const REMOVED_PERMISSIONS: PackedStringArray = [
@@ -64,6 +64,12 @@ const REMOVED_PERMISSIONS: PackedStringArray = [
 	"android.permission.FOREGROUND_SERVICE_MICROPHONE",
 	"android.permission.POST_NOTIFICATIONS",
 	"android.permission.SYSTEM_ALERT_WINDOW",
+	# Bluetooth headset routing (AudioSwitch) is optional: BLUETOOTH_CONNECT is a runtime "nearby devices"
+	# permission that makes installers (MIUI / Play Protect) flag the app; voice works over speaker/wired without it.
+	"android.permission.BLUETOOTH",
+	"android.permission.BLUETOOTH_ADMIN",
+	"android.permission.BLUETOOTH_CONNECT",
+	"android.permission.BLUETOOTH_SCAN",
 ]
 
 
