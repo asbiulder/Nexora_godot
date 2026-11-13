@@ -65,10 +65,23 @@ func _fill() -> void:
 	wrap.add_child(hero)
 	var logo := Kit.img(UD.menu("logo"), Vector2(600, 290))
 	Kit.put(hero, logo, W * 0.5, 145)
+	logo.modulate.a = 0.0
+	var lw := logo.create_tween().set_parallel(true)
+	lw.tween_property(logo, "modulate:a", 1.0, 0.5).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	lw.tween_property(logo, "position:y", 145.0, 0.55).from(190.0).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	var pulse := Kit.pulse(hw * 0.9, Color(0.31, 0.55, 1.0, 0.5))
 	Kit.put(hero, pulse, W * 0.5, hh - 360)
+	var pa := pulse.modulate.a
+	pulse.modulate.a = 0.0
+	var pw2 := pulse.create_tween()
+	pw2.tween_interval(0.08)
+	pw2.tween_property(pulse, "modulate:a", pa, 0.45)
 	var ped := Kit.img(UD.menu("pedestal"), Vector2(hw * 1.5, hw * 1.5 * 0.42))
 	Kit.put(hero, ped, W * 0.5, hh - hw * 0.315)
+	ped.modulate.a = 0.0
+	var pdw := ped.create_tween()
+	pdw.tween_interval(0.12)
+	pdw.tween_property(ped, "modulate:a", 1.0, 0.45)
 	# mascot drifting on the left
 	var mtex := UD.ui2("mascot")
 	if mtex:  # the sheet crop carries a sliver of the next sprite on its right edge
@@ -78,6 +91,10 @@ func _fill() -> void:
 		mtex = at
 	var mas := Kit.img(mtex, Vector2(240, 350))
 	Kit.put(hero, mas, 150, hh - 300)
+	mas.modulate.a = 0.0
+	var mw := mas.create_tween()
+	mw.tween_interval(0.18)
+	mw.tween_property(mas, "modulate:a", 1.0, 0.45)
 	Kit.bob(mas, 14, 2.4, 0.4)
 	Kit.tap(mas, func(): UD.sfx("ui"); _mascot_say(I18n.t("home.hi_captain_ready_to_play")), 0.9)
 	# hovering disc
@@ -91,6 +108,10 @@ func _fill() -> void:
 	dimg.position = Vector2(13, 13)
 	disc.add_child(dimg)
 	Kit.put(hero, disc, W * 0.5, 300 + dsz * 0.5)
+	disc.modulate.a = 0.0
+	var dw2 := disc.create_tween()
+	dw2.tween_interval(0.22)
+	dw2.tween_property(disc, "modulate:a", 1.0, 0.45)
 	Kit.bob(disc, 14, 2.8)
 	var tilt := disc.create_tween().set_loops()
 	tilt.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
@@ -143,8 +164,16 @@ func _fill() -> void:
 			b.position = Vector2(20, 14)
 			c.add_child(b)
 			b.top_level = false
-		Kit.tap(c, q[2], 0.94)
-		qrow.add_child(c)
+		var cc := c
+		cc.resized.connect(func(): cc.pivot_offset = cc.size * 0.5)
+		cc.mouse_entered.connect(func():
+			var twq := cc.create_tween()
+			twq.tween_property(cc, "scale", Vector2(1.045, 1.045), 0.14).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT))
+		cc.mouse_exited.connect(func():
+			var twq := cc.create_tween()
+			twq.tween_property(cc, "scale", Vector2.ONE, 0.2).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT))
+		Kit.tap(cc, q[2], 0.94)
+		qrow.add_child(cc)
 	body.add_child(ent(Kit.margin(qrow, 30, 10, 30, 0), 2))
 
 	# ---------------- game mode rail

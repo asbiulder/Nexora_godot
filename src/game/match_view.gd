@@ -375,18 +375,24 @@ func _process(delta: float) -> void:
 	var al := e.alpha()
 	var n := e.bodies.size()
 	if pos.size() != n: pos.resize(n)
+	# temporal smoothing: blend the rendered position toward the interpolated physics target, so
+	# fast/spiky motion reads softer instead of jumping (user: movements feel too sharp)
+	var smk := clampf(delta * 18.0, 0.08, 1.0)
 	var ov: Array = override if override is Array else []
 	for i in n:
 		var b: NxBody = e.bodies[i]
-		if i < ov.size() and ov[i] is Vector2: pos[i] = ov[i]
-		else: pos[i] = Vector2(b.px + (b.x - b.px) * al + b.vox, b.py + (b.y - b.py) * al + b.voy)
+		var tgt: Vector2
+		if i < ov.size() and ov[i] is Vector2: tgt = ov[i]
+		else: tgt = Vector2(b.px + (b.x - b.px) * al + b.vox, b.py + (b.y - b.py) * al + b.voy)
+		pos[i] = tgt if pos[i] == Vector2.ZERO else pos[i].lerp(tgt, smk)
 	if not hq and e.parts.size() > 40: e.parts.resize(40)
 	var k := W / 415.0
 	var shk := Vector2.ZERO
 	if e.cam > 0.05 and (e.v4 or e.flash > 0):
 		# nx8/Godot: shots and hits never shake the camera — only the goal celebration does
-		shk = Vector2(randf() - 0.5, randf() - 0.5) * e.cam * 7.0 * k
-	_place(shk, 0.012 * minf(e.cam, 1.4) if hq else 0.0)
+		# (softened so the celebration feels smooth instead of jittery)
+		shk = Vector2(randf() - 0.5, randf() - 0.5) * e.cam * 4.2 * k
+	_place(shk, 0.007 * minf(e.cam, 1.4) if hq else 0.0)
 	var bl: NxBody = e.ball
 	if bl:
 		ball_mat.set_shader_parameter("c0", Vector3(bl.r0, bl.r3, bl.r6))

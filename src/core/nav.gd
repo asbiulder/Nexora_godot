@@ -182,6 +182,7 @@ func _swap(name: String, params: Dictionary, c: Control, quick: bool) -> void:
 			to.tween_property(old, "modulate:a", 0.0, 0.12)
 			to.tween_callback(old.queue_free)
 		_mount(name, params, c)
+		_screen_pop_in(c)
 		c.modulate.a = 0.0
 		c.position.y = 36
 		var tw := c.create_tween().set_parallel(true)
@@ -198,7 +199,8 @@ func _swap(name: String, params: Dictionary, c: Control, quick: bool) -> void:
 		if old:
 			_leave(old)
 			old.queue_free()
-		_mount(name, params, c))
+		_mount(name, params, c)
+		_screen_pop_in(c))
 	tw2.tween_property(veil, "color:a", 0.0, 0.34).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	tw2.tween_callback(func():
 		veil.visible = false
@@ -208,6 +210,18 @@ func _swap(name: String, params: Dictionary, c: Control, quick: bool) -> void:
 func _leave(s: Control) -> void:
 	if is_instance_valid(s) and s.has_method("leave"):
 		s.leave()
+
+## subtle zoom-in on freshly mounted screens (menu quality): scale 0.965 → 1 with a soft cubic ease
+func _screen_pop_in(c: Control) -> void:
+	var tw := c.create_tween()
+	tw.tween_interval(0.02)
+	tw.tween_callback(func():
+		if not is_instance_valid(c):
+			return
+		c.pivot_offset = c.size * 0.5
+		c.scale = Vector2(0.965, 0.965)
+		var tw2 := c.create_tween()
+		tw2.tween_property(c, "scale", Vector2.ONE, 0.45).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT))
 
 func _mount(name: String, params: Dictionary, c: Control) -> void:
 	current = name

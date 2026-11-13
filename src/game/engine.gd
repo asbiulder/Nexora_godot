@@ -47,8 +47,8 @@ const LAUNCH_MIN := 0.6     # fraction of travel speed at the instant of the str
 const ROLL_VIS := 0.35
 const SPIN_VIS := 0.25
 # --- Godot feel (nx8 model) ---
-const PM := 7.0             # disc mass (heavier than nx8's 5 -> more momentum into the ball)
-const BM := 1.5             # ball mass
+const PM := 5.5             # disc mass (lighter: so the ball can shove discs instead of merely bouncing off them)
+const BM := 3.0             # ball mass (heavier: carries momentum into disc collisions — user asked for ball weight)
 const SHOT_V0 := 280.0      # shot speed at zero power (K-units)
 const SHOT_V1 := 1320.0     # extra shot speed at full power (nx8 1085 -> stronger max shots)
 const CORNER_NUDGE := 70.0  # px/s push out of a sharp corner for a body resting against both walls
