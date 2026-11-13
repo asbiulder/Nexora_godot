@@ -4,11 +4,11 @@ extends Control
 ## + floating animated bottom tab bar (Home, Team, Play, Shop, Profile).
 
 const TABS := [
-	["home", "خانه", "ic_home"],
-	["team", "تیم", "shield_star"],
-	["play", "بازی", "ic_play"],
-	["shop", "فروشگاه", "ic_shop"],
-	["profile", "پروفایل", "ic_trophy"],
+	["home", "chrome.tab_home", "ic_home"],
+	["team", "chrome.tab_team", "shield_star"],
+	["play", "chrome.tab_play", "ic_play"],
+	["shop", "chrome.tab_shop", "ic_shop"],
+	["profile", "chrome.tab_profile", "ic_trophy"],
 ]
 
 var hud: Control
@@ -98,7 +98,7 @@ func _build_hud() -> void:
 	name_l.custom_minimum_size.x = 210  # room for a 10-char pilot name at the larger text size
 	name_l.clip_text = true
 	name_l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	name_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	name_l.horizontal_alignment = I18n.AR
 	col.add_child(name_l)
 	xp_bar = NxBar.new(0.0, NX.CYAN, NX.CYAN, 13)
 	xp_bar.custom_minimum_size = Vector2(210, 13)
@@ -209,7 +209,7 @@ func _build_tabbar() -> void:
 		var ic := Kit.img(UD.menu(TABS[i][2]), 80)
 		ic.pivot_offset = Vector2(40, 40)
 		b.add_child(ic)
-		var l := Kit.label(TABS[i][1], 26, NX.DIM, true)
+		var l := Kit.label(I18n.t(TABS[i][1]), 26, NX.DIM, true)
 		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		b.add_child(l)
 		var bd := Kit.badge_dot(true)
@@ -234,8 +234,10 @@ func _bar_w() -> float:
 	return minf(size.x - 52, 1352)
 
 func _cell_x(i: int) -> float:
-	# RTL: home is the right-most cell
+	# RTL (fa): home is the right-most cell; LTR (en): left-most
 	var cw := _bar_w() / TABS.size()
+	if I18n.is_en():
+		return cw * i
 	return _bar_w() - cw * (i + 1)
 
 func _layout() -> void:

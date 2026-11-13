@@ -23,12 +23,12 @@ func setup(_p: Dictionary) -> void:
 func _ready() -> void:
 	Nav.chrome(false)
 	set_anchors_preset(Control.PRESET_FULL_RECT)
-	layout_direction = Control.LAYOUT_DIRECTION_RTL
+	layout_direction = I18n.LD
 	OUI.boot()
 	var root := OUI.vbox(0)
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(root)
-	root.add_child(OUI.header("آرنا", "ARENA LADDER", func() -> void: Nav.back(), null, OUI.VIOLET, _load))
+	root.add_child(OUI.header(I18n.t("arena.arena"), "ARENA LADDER", func() -> void: Nav.back(), null, OUI.VIOLET, _load))
 	vl = OUI.VList.new(58, Ranks.make_lb_row, _bind, 6)
 	root.add_child(vl)
 	hdr = _make_header()
@@ -56,31 +56,31 @@ func _make_header() -> Control:
 	h.add_child(OUI.img(OUI.ui2("x_crown"), 64))
 	var mv := OUI.vbox(0)
 	mv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	mv.add_child(OUI.lbl("امتیاز آرنا", OUI.TS_SMALL, OUI.DIM))
+	mv.add_child(OUI.lbl(I18n.t("arena.arena_rating"), OUI.TS_SMALL, OUI.DIM))
 	pts_l = OUI.lbl("", 32, Color("#e2c8ff"), "title")
 	mv.add_child(pts_l)
 	h.add_child(mv)
 	var sv := OUI.vbox(0)
 	streak_l = OUI.lbl("", 18, OUI.ORANGE, "title", HORIZONTAL_ALIGNMENT_CENTER)
 	sv.add_child(streak_l)
-	sv.add_child(OUI.lbl("برد پیاپی", OUI.TS_TINY, OUI.DIM, "body", HORIZONTAL_ALIGNMENT_CENTER))
+	sv.add_child(OUI.lbl(I18n.t("arena.win_streak"), OUI.TS_TINY, OUI.DIM, "body", HORIZONTAL_ALIGNMENT_CENTER))
 	best_l = OUI.lbl("", OUI.TS_TINY, OUI.DIM2, "body", HORIZONTAL_ALIGNMENT_CENTER)
 	sv.add_child(best_l)
 	h.add_child(sv)
 	pv.add_child(h)
-	pv.add_child(OUI.lbl("برد: ۳۰+ و ۵+ برای هر برد پیاپی · باخت: ۲۰−", OUI.TS_CAP, OUI.DIM, "body", HORIZONTAL_ALIGNMENT_RIGHT, true, 2))
+	pv.add_child(OUI.lbl(I18n.t("arena.win_30_and_5_per"), OUI.TS_CAP, OUI.DIM, "body", I18n.AR, true, 2))
 	var bh := OUI.hbox(OUI.S_S)
 	var styles := ["violet", "primary", "gold"]
 	for k in 3:
 		var m: String = OUI.MODES[k]
-		var b := OUI.btn(m.to_upper(), func() -> void: _find(m), styles[k], true, "یافتن حریف")
+		var b := OUI.btn(m.to_upper(), func() -> void: _find(m), styles[k], true, I18n.t("arena.find_opponent"))
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		btns[m] = b
 		bh.add_child(b)
 	pv.add_child(bh)
 	p.add_child(pv)
 	v.add_child(p)
-	v.add_child(OUI.section_title("نردبان آرنا"))
+	v.add_child(OUI.section_title(I18n.t("arena.arena_ladder")))
 	_on_profile(OUI.profile)
 	return OUI.margin(v, OUI.S_L, OUI.S_M, OUI.S_L, 0)
 
@@ -90,7 +90,7 @@ func _on_profile(p: Dictionary) -> void:
 		return
 	pts_l.text = OUI.fa(OUI.i(p.get("arena_points")))
 	streak_l.text = "🔥 %s" % OUI.fa(OUI.i(p.get("win_streak")))
-	best_l.text = "بهترین %s" % OUI.fa(OUI.i(p.get("best_streak")))
+	best_l.text = I18n.t("arena.best_x") % OUI.fa(OUI.i(p.get("best_streak")))
 
 
 func _load() -> void:
@@ -119,13 +119,13 @@ func _apply() -> void:
 	elif not loaded:
 		vl.set_empty(OUI.skeleton(6, 58))
 	else:
-		vl.set_empty(OUI.empty(OUI.ui2("x_crown"), "هنوز کسی امتیاز آرنا ندارد", "اولین برد آرنا مال تو باشد!"))
+		vl.set_empty(OUI.empty(OUI.ui2("x_crown"), I18n.t("arena.no_one_has_an_arena"), I18n.t("arena.be_the_first_to_win")))
 
 
 func _bind(c: Control, item: Variant, _i: int) -> void:
 	var it := OUI.d(item)
 	var id := OUI.s(it.get("id"))
-	Ranks.bind_lb_row(c, it, id == OUI.uid(), func() -> void: Nav.go("public_profile", {"id": id}), OUI.i(it.get("arena_points")), "آرنا")
+	Ranks.bind_lb_row(c, it, id == OUI.uid(), func() -> void: Nav.go("public_profile", {"id": id}), OUI.i(it.get("arena_points")), I18n.t("arena.arena"))
 
 
 func _find(m: String) -> void:
@@ -134,13 +134,13 @@ func _find(m: String) -> void:
 	busy = m
 	for k in btns:
 		(btns[k] as Button).disabled = true
-		(btns[k] as Button).text = ("…" if k == m else k.to_upper()) + "\nیافتن حریف"
+		(btns[k] as Button).text = ("…" if k == m else k.to_upper()) + I18n.t("arena.nfind_opponent")
 	var e: String = await OUI.quick_match(m, "arena")
 	if not is_inside_tree():
 		return
 	busy = ""
 	for k in btns:
 		(btns[k] as Button).disabled = false
-		(btns[k] as Button).text = k.to_upper() + "\nیافتن حریف"
+		(btns[k] as Button).text = k.to_upper() + I18n.t("arena.nfind_opponent")
 	if e != "":
 		OUI.toast_err(e)

@@ -79,7 +79,7 @@ func _fill() -> void:
 	var mas := Kit.img(mtex, Vector2(240, 350))
 	Kit.put(hero, mas, 150, hh - 300)
 	Kit.bob(mas, 14, 2.4, 0.4)
-	Kit.tap(mas, func(): UD.sfx("ui"); _mascot_say("سلام کاپیتان! آماده‌ی بازی هستی؟"), 0.9)
+	Kit.tap(mas, func(): UD.sfx("ui"); _mascot_say(I18n.t("home.hi_captain_ready_to_play")), 0.9)
 	# hovering disc
 	var dsz := hw * 0.78
 	var disc := Panel.new()
@@ -99,7 +99,7 @@ func _fill() -> void:
 	Kit.tap(disc, func(): Nav.go("team"), 0.93)
 	body.add_child(wrap)
 
-	var link := Kit.label("%s  ·  تغییر تیم ›" % me["name"], 31, NX.DIM, true)
+	var link := Kit.label(I18n.t("home.x_change_team") % me["name"], 31, NX.DIM, true)
 	link.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	link.custom_minimum_size.y = 100
 	link.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -107,7 +107,7 @@ func _fill() -> void:
 	body.add_child(link)
 
 	# ---------------- play button (shine sweep)
-	var play := NxButton.new("شروع بازی", func(): Nav.go("setup", {"mode": "quick"}), "primary", false, UD.menu("ic_play"), "QUICK MATCH")
+	var play := NxButton.new(I18n.t("lobby.start_match"), func(): Nav.go("setup", {"mode": "quick"}), "primary", false, UD.menu("ic_play"), "QUICK MATCH")
 	play.custom_minimum_size.y = 176
 	play.lbl.add_theme_font_size_override("font_size", 60)
 	var sh := play.create_tween().set_loops()
@@ -121,10 +121,10 @@ func _fill() -> void:
 	# ---------------- quick actions (max 4)
 	var qrow := Kit.hbox(18, true)
 	var quick := [
-		[UD.menu("ic_friends"), "آنلاین", func(): Nav.online("hub"), false],
-		[UD.menu("ic_trophy"), "جام نکسورا", func(): Nav.go("setup", {"mode": "cup"}), false],
-		[UD.menu("shield_star"), "تیم من", func(): Nav.go("team"), false],
-		[UD.menu("ic_gift"), "صندوقچه", func(): Nav.open_chest(false), UD.chest_ready()],
+		[UD.menu("ic_friends"), I18n.t("hub.online"), func(): Nav.online("hub"), false],
+		[UD.menu("ic_trophy"), I18n.t("home.nexora_cup"), func(): Nav.go("setup", {"mode": "cup"}), false],
+		[UD.menu("shield_star"), I18n.t("kb.my_team"), func(): Nav.go("team"), false],
+		[UD.menu("ic_gift"), I18n.t("kb.chest"), func(): Nav.open_chest(false), UD.chest_ready()],
 	]
 	for q in quick:
 		var c := PanelContainer.new()
@@ -148,7 +148,7 @@ func _fill() -> void:
 	body.add_child(ent(Kit.margin(qrow, 30, 10, 30, 0), 2))
 
 	# ---------------- game mode rail
-	body.add_child(Kit.section("حالت‌های بازی", "GAME MODES", NX.VIOLET, "همه ›", func(): Nav.go("play")))
+	body.add_child(Kit.section(I18n.t("home.game_modes"), "GAME MODES", NX.VIOLET, I18n.t("home.all"), func(): Nav.go("play")))
 	var hs := Kit.hscroll(24)
 	var rail: HBoxContainer = hs[1]
 	(hs[0] as ScrollContainer).custom_minimum_size.y = 420
@@ -159,24 +159,24 @@ func _fill() -> void:
 	body.add_child(ent(hs[0], 3))
 
 	# ---------------- command deck plates
-	body.add_child(Kit.section("مرکز فرمان", "COMMAND DECK", NX.CYAN))
+	body.add_child(Kit.section(I18n.t("home.command_deck"), "COMMAND DECK", NX.CYAN))
 	var grid := GridContainer.new()
 	grid.columns = 2
 	grid.add_theme_constant_override("h_separation", 22)
 	grid.add_theme_constant_override("v_separation", 22)
-	grid.layout_direction = Control.LAYOUT_DIRECTION_RTL
+	grid.layout_direction = I18n.LD
 	var plates := [
-		["portal_globe", "آنلاین", "۱ به ۱، ۲ به ۲، ۳ به ۳", NX.CYAN, func(): Nav.online("hub")],
-		["portal_friends", "اجتماعی", "دوستان، کلاب، گفتگو", NX.PINK, func(): Nav.go("social")],
-		["portal_shop", "فروشگاه", "صندوقچه و پیشنهاد روز", NX.GOLD, func(): Nav.go("shop")],
-		["portal_profile", "رده‌بندی", "بهترین‌های نکسورا", NX.VIOLET, func(): Nav.online("ranks")],
+		["portal_globe", I18n.t("hub.online"), I18n.t("home.1v1_2v2_3v3"), NX.CYAN, func(): Nav.online("hub")],
+		["portal_friends", I18n.t("home.social"), I18n.t("home.friends_clubs_chat"), NX.PINK, func(): Nav.go("social")],
+		["portal_shop", I18n.t("kb.shop"), I18n.t("home.chests_and_today_s_deal"), NX.GOLD, func(): Nav.go("shop")],
+		["portal_profile", I18n.t("hub.leaderboard"), I18n.t("home.nexora_s_best"), NX.VIOLET, func(): Nav.online("ranks")],
 	]
 	for pl in plates:
 		grid.add_child(_plate(pl))
 	body.add_child(ent(padx(grid), 4))
 
 	# ---------------- daily reward
-	body.add_child(Kit.section("جایزه‌ی روزانه", "DAILY REWARD", NX.GOLD))
+	body.add_child(Kit.section(I18n.t("daily.daily_reward"), "DAILY REWARD", NX.GOLD))
 	var dr := UD.daily_ready()
 	var dp := Kit.glass(NX.GOLD if dr else Color.TRANSPARENT, dr)
 	dp.set_pad(32, 26)
@@ -185,10 +185,10 @@ func _fill() -> void:
 	var dc := Kit.vbox(2)
 	dc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	dc.alignment = BoxContainer.ALIGNMENT_CENTER
-	dc.add_child(Kit.label("جایزه‌ی امروز آماده‌ست!" if dr else "روز %s از ۷" % NX.fa(int(p.get("streak", 0))), 36, NX.TEXT, true))
-	dc.add_child(Kit.label("سکه و الماس رایگان؛ هر روز بزرگ‌تر" if dr else "فردا دوباره سر بزن", 29, NX.DIM))
+	dc.add_child(Kit.label(I18n.t("home.today_s_reward_is_ready") if dr else I18n.t("home.day_x_of_7") % NX.fa(int(p.get("streak", 0))), 36, NX.TEXT, true))
+	dc.add_child(Kit.label(I18n.t("home.free_coins_and_gems_bigger") if dr else I18n.t("home.come_back_tomorrow"), 29, NX.DIM))
 	dh.add_child(dc)
-	var cta := Kit.chip("دریافت" if dr else "جزئیات", NX.GOLD if dr else NX.DIM, dr)
+	var cta := Kit.chip(I18n.t("challenges.claim") if dr else I18n.t("home.details"), NX.GOLD if dr else NX.DIM, dr)
 	cta.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	dh.add_child(cta)
 	dp.add_child(dh)
@@ -196,11 +196,11 @@ func _fill() -> void:
 	body.add_child(ent(padx(dp), 5))
 
 	# ---------------- loadout
-	body.add_child(Kit.section("تجهیزات", "LOADOUT", NX.GREEN, "تغییر ›", func(): Nav.go("team")))
+	body.add_child(Kit.section(I18n.t("home.loadout"), "LOADOUT", NX.GREEN, I18n.t("home.change"), func(): Nav.go("team")))
 	body.add_child(ent(padx(_loadout(p, me)), 6))
 
 	# ---------------- missions
-	body.add_child(Kit.section("مأموریت‌ها", "MISSIONS", NX.GREEN, "چالش‌ها ›", func(): Nav.online("challenges")))
+	body.add_child(Kit.section(I18n.t("home.missions"), "MISSIONS", NX.GREEN, I18n.t("home.challenges"), func(): Nav.online("challenges")))
 	var mv := Kit.vbox(18)
 	var shown := 0
 	for a in UD.ACHS:
@@ -211,11 +211,11 @@ func _fill() -> void:
 		if shown >= 3:
 			break
 	if shown == 0:
-		mv.add_child(Kit.para("همه‌ی مأموریت‌ها رو انجام دادی، اسطوره!", 31, NX.DIM, HORIZONTAL_ALIGNMENT_CENTER))
+		mv.add_child(Kit.para(I18n.t("home.you_ve_completed_every_mission"), 31, NX.DIM, HORIZONTAL_ALIGNMENT_CENTER))
 	var occ := _challenges_card()
 	if occ:
 		mv.add_child(occ)
-	var ch := Kit.list_row(UD.ui2("c_calendar"), "چالش‌های امروز", "چالش‌های روزانه‌ی آنلاین · الماس جایزه", Kit.img(UD.menu("g_chevrons"), 60), func(): Nav.online("challenges"))
+	var ch := Kit.list_row(UD.ui2("c_calendar"), I18n.t("challenges.today_s_challenges"), I18n.t("home.daily_online_challenges_gem_rewards"), Kit.img(UD.menu("g_chevrons"), 60), func(): Nav.online("challenges"))
 	mv.add_child(ch)
 	body.add_child(ent(padx(mv), 7))
 
@@ -231,7 +231,7 @@ func _league_strip(p: Dictionary) -> Control:
 	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	col.alignment = BoxContainer.ALIGNMENT_CENTER
 	var top := Kit.hbox(12, true)
-	top.add_child(Kit.label("لیگ %s" % UD.LEAGUE_FA[lg["name"]], 38, NX.TEXT, true))
+	top.add_child(Kit.label(I18n.t("ranks.x_league") % UD.LEAGUE_FA[lg["name"]], 38, NX.TEXT, true))
 	var sp := Control.new(); sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL; top.add_child(sp)
 	top.add_child(Kit.label("%s / %s" % [NX.fa(tr), NX.fa(lg["to"])], 29, NX.GOLD))
 	col.add_child(top)
@@ -307,10 +307,10 @@ func _loadout(p: Dictionary, me: Dictionary) -> Control:
 	var fi := int(p.get("field", 0))
 	var fo := int(p.get("form", 0))
 	var items := [
-		[UD.team_tex(me), "دیسک", me["name"], false],
-		[UD.ball_tex(bi), "توپ", UD.ball_name(bi), false],
-		[UD.field_thumb(fi), "زمین", UD.field(fi)["name"], true],
-		[UD.menu("g_chevrons"), "ترکیب", UD.forms()[fo][0], false],
+		[UD.team_tex(me), I18n.t("home.disc"), me["name"], false],
+		[UD.ball_tex(bi), I18n.t("home.ball"), UD.ball_name(bi), false],
+		[UD.field_thumb(fi), I18n.t("hub.field"), UD.field(fi)["name"], true],
+		[UD.menu("g_chevrons"), I18n.t("kb.formation"), UD.forms()[fo][0], false],
 	]
 	for it in items:
 		var v := Kit.vbox(6)
@@ -358,7 +358,7 @@ func _mission(a: Dictionary, p: Dictionary) -> Control:
 	h.add_child(v)
 	if done:
 		var id: String = a["id"]
-		var b := Kit.button_small("دریافت", func(): UD.claim_ach(id), "green")
+		var b := Kit.button_small(I18n.t("challenges.claim"), func(): UD.claim_ach(id), "green")
 		b.custom_minimum_size.x = 200
 		b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		h.add_child(b)

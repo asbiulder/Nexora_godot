@@ -55,7 +55,7 @@ func setup(p: Dictionary) -> void:
 
 
 func _ready() -> void:
-	layout_direction = Control.LAYOUT_DIRECTION_RTL
+	layout_direction = I18n.LD
 	add_theme_constant_override("separation", OUI.px(OUI.S_S))
 	OUI.boot()
 	OUI.ebus().profile_changed.connect(_on_profile)
@@ -64,7 +64,7 @@ func _ready() -> void:
 	if not embedded:
 		Nav.chrome(false)
 		set_anchors_preset(Control.PRESET_FULL_RECT)
-		add_child(OUI.header("حساب آنلاین", "ACCOUNT", func() -> void: Nav.back()))
+		add_child(OUI.header(I18n.t("account.online_account"), "ACCOUNT", func() -> void: Nav.back()))
 		var sc := OUI.scroll()
 		sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		add_child(sc)
@@ -133,26 +133,26 @@ func _render_account() -> void:
 		h.add_child(OUI.img(OUI.ui2("c_profile"), 44))
 	var tv := OUI.vbox(1)
 	tv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	tv.add_child(OUI.lbl("حساب آنلاین", 15, OUI.TEXT, "bold"))
-	var st := "وارد نشده‌ای" if u == "" else ("مهمان · %s" % OUI.s(prof.get("username")) if guest else "%s · %s" % [OUI.email(), OUI.s(prof.get("username"))])
+	tv.add_child(OUI.lbl(I18n.t("account.online_account"), 15, OUI.TEXT, "bold"))
+	var st := I18n.t("account.not_signed_in") if u == "" else (I18n.t("account.guest_x") % OUI.s(prof.get("username")) if guest else "%s · %s" % [OUI.email(), OUI.s(prof.get("username"))])
 	tv.add_child(OUI.lbl(st, OUI.TS_CAP, OUI.DIM))
 	h.add_child(tv)
 	if not prof.is_empty():
-		h.add_child(OUI.lbl("سطح %s" % OUI.fa(OUI.i(prof.get("level"), 1)), OUI.TS_CAP, OUI.GOLD, "bold"))
+		h.add_child(OUI.lbl(I18n.t("hub.level_x") % OUI.fa(OUI.i(prof.get("level"), 1)), OUI.TS_CAP, OUI.GOLD, "bold"))
 	v.add_child(h)
 	# username
 	if not prof.is_empty():
 		if edit_name:
-			var nf := OUI.field("نام کاربری جدید (۳ تا ۲۰ کاراکتر)", "", 20)
+			var nf := OUI.field(I18n.t("account.new_username_3_to_20"), "", 20)
 			var le: LineEdit = nf.get_meta("input")
 			le.text = name_v
 			le.text_changed.connect(func(t: String) -> void: name_v = t)
 			v.add_child(nf)
 			var bh := OUI.hbox(OUI.S_S)
-			var sb := OUI.btn("…" if busy else "ذخیره", _save_name, "primary", true)
+			var sb := OUI.btn("…" if busy else I18n.t("lobby.save"), _save_name, "primary", true)
 			sb.disabled = busy
 			sb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			var cb := OUI.btn("انصراف", func() -> void:
+			var cb := OUI.btn(I18n.t("nav.cancel"), func() -> void:
 				edit_name = false
 				err_msg = ""
 				_render_account(), "dark", true)
@@ -161,7 +161,7 @@ func _render_account() -> void:
 			bh.add_child(cb)
 			v.add_child(bh)
 		else:
-			var t := OUI.tap(OUI.lbl("✎ تغییر نام کاربری", OUI.TS_SMALL, OUI.CYAN), func() -> void:
+			var t := OUI.tap(OUI.lbl(I18n.t("account.change_username"), OUI.TS_SMALL, OUI.CYAN), func() -> void:
 				name_v = OUI.s(OUI.profile.get("username"))
 				edit_name = true
 				_render_account())
@@ -171,16 +171,16 @@ func _render_account() -> void:
 		var sp := PanelContainer.new()
 		sp.add_theme_stylebox_override("panel", OUI.sb(Color(61 / 255.0, 1, 168 / 255.0, 0.08), 14, Color(OUI.GREEN, 0.33), 1, OUI.S_M))
 		var sv := OUI.vbox(OUI.S_S)
-		var msg := "لینک تغییر رمز به ایمیلت فرستاده شد. لینک را روی همین گوشی باز کن تا رمز جدید را این‌جا وارد کنی." if sent == "reset" else ("لینک تأیید به ایمیلت فرستاده شد. بعد از باز کردن لینک، حساب مهمانت با همه‌ی پیشرفت‌ها به ایمیل وصل می‌شود." if sent == "upgrade" else "حسابت ساخته شد! لینک تأیید را در ایمیلت باز کن، سپس وارد شو.")
-		sv.add_child(OUI.lbl(msg, OUI.TS_SMALL, OUI.TEXT, "body", HORIZONTAL_ALIGNMENT_RIGHT, true, 0))
+		var msg := I18n.t("account.a_password_reset_link_was") if sent == "reset" else (I18n.t("account.a_confirmation_link_was_sent") if sent == "upgrade" else I18n.t("account.your_account_was_created_open"))
+		sv.add_child(OUI.lbl(msg, OUI.TS_SMALL, OUI.TEXT, "body", I18n.AR, true, 0))
 		var sh := OUI.hbox(OUI.S_S)
 		if sent == "confirm":
-			var rb := OUI.btn("ارسال دوباره", func() -> void:
+			var rb := OUI.btn(I18n.t("account.resend"), func() -> void:
 				var r: Dictionary = await Supa.resend(email_v)
-				_done(r, "دوباره فرستاده شد"), "dark", true)
+				_done(r, I18n.t("account.sent_again")), "dark", true)
 			rb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			sh.add_child(rb)
-		var okb := OUI.btn("باشه", func() -> void:
+		var okb := OUI.btn(I18n.t("account.ok"), func() -> void:
 			if sent == "confirm":
 				mode = "in"
 			sent = ""
@@ -191,66 +191,66 @@ func _render_account() -> void:
 		sp.add_child(sv)
 		v.add_child(sp)
 	elif not signed_email:
-		v.add_child(OUI.segment([["up", "ثبت ایمیل" if guest else "ثبت‌نام"], ["in", "ورود"], ["forgot", "فراموشی رمز"]], mode, func(x: Variant) -> void:
+		v.add_child(OUI.segment([["up", I18n.t("account.register_email") if guest else I18n.t("tournaments.sign_up")], ["in", I18n.t("hub.join")], ["forgot", I18n.t("account.forgot_password")]], mode, func(x: Variant) -> void:
 			mode = str(x)
 			err_msg = ""
 			_render_account()))
 		var hint := ""
 		if mode == "up":
-			hint = "با ثبت ایمیل، پیشرفت حساب مهمان حفظ می‌شود و روی هر گوشی وارد می‌شوی." if guest else "حساب بساز تا پیشرفتت روی سرور ذخیره شود."
+			hint = I18n.t("account.register_an_email_to_keep") if guest else I18n.t("account.create_an_account_to_save")
 		elif mode == "in":
-			hint = "ورود به حساب دیگر، حساب مهمان فعلی را کنار می‌گذارد." if guest else "با ایمیل و رمز وارد شو."
+			hint = I18n.t("account.signing_in_to_another_account") if guest else I18n.t("account.sign_in_with_email_and")
 		else:
-			hint = "ایمیلت را وارد کن تا لینک تغییر رمز برایت ارسال شود."
-		v.add_child(OUI.lbl(hint, OUI.TS_CAP, OUI.DIM, "body", HORIZONTAL_ALIGNMENT_RIGHT, true, 3))
-		var ef := OUI.line_edit("ایمیل", 120, false, true)
+			hint = I18n.t("account.enter_your_email_and_we")
+		v.add_child(OUI.lbl(hint, OUI.TS_CAP, OUI.DIM, "body", I18n.AR, true, 3))
+		var ef := OUI.line_edit(I18n.t("kb.email"), 120, false, true)
 		ef.text = email_v
 		ef.virtual_keyboard_type = LineEdit.KEYBOARD_TYPE_EMAIL_ADDRESS
 		ef.text_changed.connect(func(t: String) -> void: email_v = t)
 		v.add_child(ef)
 		if mode != "forgot":
-			var pf := OUI.line_edit("رمز عبور", 72, true, true)
+			var pf := OUI.line_edit(I18n.t("account.password"), 72, true, true)
 			pf.text = pass_v
 			pf.text_changed.connect(func(t: String) -> void: pass_v = t)
 			v.add_child(pf)
 		if mode == "up":
-			var p2 := OUI.line_edit("تکرار رمز عبور", 72, true, true)
+			var p2 := OUI.line_edit(I18n.t("account.repeat_password"), 72, true, true)
 			p2.text = pass2_v
 			p2.text_changed.connect(func(t: String) -> void: pass2_v = t)
 			v.add_child(p2)
 		if err_msg != "":
-			v.add_child(OUI.lbl(err_msg, OUI.TS_SMALL, OUI.RED, "body", HORIZONTAL_ALIGNMENT_RIGHT, true, 3))
-		var label := "ارسال لینک"
+			v.add_child(OUI.lbl(err_msg, OUI.TS_SMALL, OUI.RED, "body", I18n.AR, true, 3))
+		var label := I18n.t("account.send_link")
 		if mode == "up":
-			label = "ثبت ایمیل و حفظ پیشرفت" if guest else "ساخت حساب"
+			label = I18n.t("account.register_email_keep_progress") if guest else I18n.t("account.create_account")
 		elif mode == "in":
-			label = "ورود"
+			label = I18n.t("hub.join")
 		if busy:
-			label = "لطفاً صبر کن…"
+			label = I18n.t("account.please_wait")
 		var go := OUI.btn(label, _submit, "primary" if mode == "in" else "green", true)
 		go.disabled = busy
 		v.add_child(go)
 		if u == "":
-			var gb := OUI.btn("ادامه به‌عنوان مهمان", func() -> void:
+			var gb := OUI.btn(I18n.t("account.continue_as_guest"), func() -> void:
 				busy = true
 				_render_account()
 				var id: String = await OUI.ensure()
 				busy = false
-				Nav.toast("به‌عنوان مهمان وارد شدی" if id != "" else "اتصال برقرار نشد", "ok" if id != "" else "err")
+				Nav.toast(I18n.t("account.you_re_signed_in_as") if id != "" else I18n.t("account.couldn_t_connect"), "ok" if id != "" else "err")
 				_render_all(), "dark", true)
 			gb.disabled = busy
 			v.add_child(gb)
 	elif err_msg != "":
-		v.add_child(OUI.lbl(err_msg, OUI.TS_SMALL, OUI.RED, "body", HORIZONTAL_ALIGNMENT_RIGHT, true, 3))
+		v.add_child(OUI.lbl(err_msg, OUI.TS_SMALL, OUI.RED, "body", I18n.AR, true, 3))
 	if u != "":
-		var ob := OUI.btn(("پیشرفت مهمان از دست می‌رود! دوباره بزن" if guest else "مطمئنی؟ دوباره بزن") if sure_out else "خروج از حساب", func() -> void:
+		var ob := OUI.btn((I18n.t("account.guest_progress_will_be_lost") if guest else I18n.t("account.are_you_sure_tap_again")) if sure_out else I18n.t("account.sign_out"), func() -> void:
 			if not sure_out:
 				sure_out = true
 				_render_account()
 				return
 			sure_out = false
 			await OUI.sign_out()
-			Nav.toast("از حساب خارج شدی", "ok")
+			Nav.toast(I18n.t("account.you_signed_out"), "ok")
 			_render_all(), "red", true)
 		v.add_child(OUI.spacer(OUI.S_XS))
 		v.add_child(ob)
@@ -264,9 +264,9 @@ static func _email_ok(e: String) -> bool:
 
 func _done(r: Dictionary, ok_msg: String = "") -> bool:
 	if not r.get("ok", false):
-		err_msg = OUI.s(r.get("error"), "خطا")
+		err_msg = OUI.s(r.get("error"), I18n.t("kb.error"))
 		if err_msg == "":
-			err_msg = "خطا"
+			err_msg = I18n.t("kb.error")
 		OUI.buzz("heavy")
 		return false
 	err_msg = ""
@@ -279,15 +279,15 @@ func _done(r: Dictionary, ok_msg: String = "") -> bool:
 func _submit() -> void:
 	err_msg = ""
 	if not _email_ok(email_v):
-		err_msg = "ایمیل معتبر نیست"
+		err_msg = I18n.t("account.invalid_email")
 		_render_account()
 		return
 	if mode != "forgot" and pass_v.length() < 6:
-		err_msg = "رمز عبور حداقل ۶ کاراکتر"
+		err_msg = I18n.t("account.password_must_be_at_least")
 		_render_account()
 		return
 	if mode == "up" and pass_v != pass2_v:
-		err_msg = "تکرار رمز عبور یکسان نیست"
+		err_msg = I18n.t("account.passwords_don_t_match")
 		_render_account()
 		return
 	busy = true
@@ -297,7 +297,7 @@ func _submit() -> void:
 		if _done(await Supa.reset_password(em)):
 			sent = "reset"
 	elif mode == "in":
-		if _done(await Supa.sign_in_email(em, pass_v), "وارد شدی"):
+		if _done(await Supa.sign_in_email(em, pass_v), I18n.t("account.signed_in")):
 			pass_v = ""
 	elif OUI.uid() != "" and OUI.is_guest():
 		if _done(await Supa.upgrade(em, pass_v)):
@@ -317,7 +317,7 @@ func _save_name() -> void:
 	_render_account()
 	var r: Dictionary = await OUI.set_username(name_v)
 	busy = false
-	if _done(r, "نام کاربری تغییر کرد"):
+	if _done(r, I18n.t("account.username_changed")):
 		edit_name = false
 	if is_inside_tree():
 		_render_account()
@@ -334,17 +334,17 @@ func _render_profile() -> void:
 		h.add_child(OUI.img(OUI.ui("portal_globe"), 56))
 		var tv := OUI.vbox(2)
 		tv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		tv.add_child(OUI.lbl("پروفایل آنلاین", OUI.TS_H, OUI.TEXT, "bold"))
-		tv.add_child(OUI.lbl("سطح، لیگ و آمار آنلاین بعد از ورود نمایش داده می‌شود", OUI.TS_CAP, OUI.DIM, "body", HORIZONTAL_ALIGNMENT_RIGHT, true, 2))
+		tv.add_child(OUI.lbl(I18n.t("account.online_profile"), OUI.TS_H, OUI.TEXT, "bold"))
+		tv.add_child(OUI.lbl(I18n.t("account.level_league_and_online_stats"), OUI.TS_CAP, OUI.DIM, "body", I18n.AR, true, 2))
 		h.add_child(tv)
 		var holder: Array = [null]
-		var b := OUI.btn("ورود", func() -> void:
+		var b := OUI.btn(I18n.t("hub.join"), func() -> void:
 			var bb: Button = holder[0]
 			if is_instance_valid(bb):
 				bb.text = "…"
 			var id: String = await OUI.ensure()
 			if id == "":
-				OUI.toast_err("اتصال برقرار نشد")
+				OUI.toast_err(I18n.t("account.couldn_t_connect"))
 			_render_all(), "primary", true)
 		holder[0] = b
 		b.custom_minimum_size.x = OUI.px(80)
@@ -384,17 +384,17 @@ func _render_profile() -> void:
 	iv.add_child(OUI.lbl(OUI.s(prof.get("username")), 18, OUI.TEXT, "title"))
 	var bf := HFlowContainer.new()
 	bf.add_theme_constant_override("h_separation", OUI.px(4))
-	bf.add_child(OUI.badge("سطح %s" % OUI.fa(lp["level"]), OUI.GOLD))
+	bf.add_child(OUI.badge(I18n.t("hub.level_x") % OUI.fa(lp["level"]), OUI.GOLD))
 	if cur != null:
 		bf.add_child(OUI.badge(OUI.s(cur.get("name_fa")), cc))
 	if OUI.is_guest():
-		bf.add_child(OUI.badge("مهمان", OUI.DIM))
+		bf.add_child(OUI.badge(I18n.t("kb.guest"), OUI.DIM))
 	iv.add_child(bf)
 	if OUI.s(prof.get("avatar_url")) != "":
-		var rp := OUI.tap(OUI.lbl("حذف عکس", OUI.TS_TINY, OUI.DIM), func() -> void:
+		var rp := OUI.tap(OUI.lbl(I18n.t("account.remove_photo"), OUI.TS_TINY, OUI.DIM), func() -> void:
 			await OUI.patch("profiles?id=eq." + OUI.uid(), {"avatar_url": null})
 			OUI.profile["avatar_url"] = null
-			OUI.toast("عکس حذف شد؛ دیسک فعال نمایش داده می‌شود", "ok")
+			OUI.toast(I18n.t("account.photo_removed_your_active_disc"), "ok")
 			_render_all())
 		rp.custom_minimum_size.y = OUI.px(32)
 		iv.add_child(rp)
@@ -402,7 +402,7 @@ func _render_profile() -> void:
 	v.add_child(h2)
 	# bio
 	if edit_bio:
-		var ta := OUI.text_area("چند کلمه درباره‌ی خودت…", 72)
+		var ta := OUI.text_area(I18n.t("account.a_few_words_about_yourself"), 72)
 		ta.text = bio_v
 		ta.text_changed.connect(func() -> void:
 			if ta.text.length() > 160:
@@ -410,9 +410,9 @@ func _render_profile() -> void:
 			bio_v = ta.text)
 		v.add_child(ta)
 		var bh := OUI.hbox(OUI.S_S)
-		var sb := OUI.btn("ذخیره", _save_bio, "primary", true)
+		var sb := OUI.btn(I18n.t("lobby.save"), _save_bio, "primary", true)
 		sb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		var cb := OUI.btn("انصراف", func() -> void:
+		var cb := OUI.btn(I18n.t("nav.cancel"), func() -> void:
 			edit_bio = false
 			_render_profile(), "dark", true)
 		cb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -421,16 +421,16 @@ func _render_profile() -> void:
 		v.add_child(bh)
 	else:
 		var bio := OUI.s(prof.get("bio"))
-		var bt := OUI.tap(OUI.lbl(bio if bio != "" else "✎ افزودن بیو", OUI.TS_SMALL, Color("#d6e6ff") if bio != "" else OUI.CYAN, "body", HORIZONTAL_ALIGNMENT_RIGHT, true, 3), func() -> void:
+		var bt := OUI.tap(OUI.lbl(bio if bio != "" else I18n.t("account.add_bio"), OUI.TS_SMALL, Color("#d6e6ff") if bio != "" else OUI.CYAN, "body", I18n.AR, true, 3), func() -> void:
 			bio_v = OUI.s(OUI.profile.get("bio"))
 			edit_bio = true
 			_render_profile())
 		bt.custom_minimum_size.y = OUI.px(44)
 		v.add_child(bt)
 	v.add_child(OUI.bar(lp["frac"], OUI.CYAN, OUI.VIOLET, 10))
-	v.add_child(OUI.lbl("%s / %s XP تا سطح %s" % [OUI.fa(lp["cur"]), OUI.fa(lp["need"]), OUI.fa(lp["level"] + 1)], OUI.TS_TINY, OUI.DIM, "body", HORIZONTAL_ALIGNMENT_CENTER))
+	v.add_child(OUI.lbl(I18n.t("account.x_x_xp_to_level") % [OUI.fa(lp["cur"]), OUI.fa(lp["need"]), OUI.fa(lp["level"] + 1)], OUI.TS_TINY, OUI.DIM, "body", HORIZONTAL_ALIGNMENT_CENTER))
 	var sh := OUI.hbox(0)
-	for it in [[OUI.fa(rating), "امتیاز"], [OUI.fa(OUI.i(prof.get("arena_points"))), "آرنا"], ["🔥%s" % OUI.fa(OUI.i(prof.get("win_streak"))), "برد پیاپی"], [OUI.fa(played), "بازی آنلاین"]]:
+	for it in [[OUI.fa(rating), I18n.t("online_result.rating")], [OUI.fa(OUI.i(prof.get("arena_points"))), I18n.t("arena.arena")], ["🔥%s" % OUI.fa(OUI.i(prof.get("win_streak"))), I18n.t("arena.win_streak")], [OUI.fa(played), I18n.t("account.online_play")]]:
 		var sv := OUI.vbox(0)
 		sv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		sv.add_child(OUI.lbl(it[0], 15, OUI.TEXT, "title", HORIZONTAL_ALIGNMENT_CENTER))
@@ -446,19 +446,19 @@ func _render_profile() -> void:
 		lh.add_child(OUI.img(OUI.league_tex(cur.get("id")), 52))
 		var lv := OUI.vbox(OUI.S_XS)
 		lv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		lv.add_child(OUI.lbl("لیگ %s" % OUI.s(cur.get("name_fa")), OUI.TS_BODY, cc, "bold"))
+		lv.add_child(OUI.lbl(I18n.t("ranks.x_league") % OUI.s(cur.get("name_fa")), OUI.TS_BODY, cc, "bold"))
 		var frac := 1.0
 		if nxt != null:
 			frac = float(rating - OUI.i(cur.get("min_rating"))) / float(maxi(1, OUI.i(nxt.get("min_rating")) - OUI.i(cur.get("min_rating"))))
 		lv.add_child(OUI.bar(frac, cc, OUI.INDIGO, 6))
-		lv.add_child(OUI.lbl(("%s امتیاز تا %s" % [OUI.fa(OUI.i(nxt.get("min_rating")) - rating), OUI.s(nxt.get("name_fa"))]) if nxt != null else "بالاترین لیگ!", OUI.TS_TINY, OUI.DIM))
+		lv.add_child(OUI.lbl((I18n.t("account.x_rating_to_x") % [OUI.fa(OUI.i(nxt.get("min_rating")) - rating), OUI.s(nxt.get("name_fa"))]) if nxt != null else I18n.t("account.top_league"), OUI.TS_TINY, OUI.DIM))
 		lh.add_child(lv)
 		lpn.add_child(lh)
 		prof_box.add_child(OUI.tap(lpn, func() -> void: Nav.go("ranks", {"tab": "leagues"})))
 	# xp history
 	var th := OUI.vbox(0)
 	th.add_child(OUI.lbl("RECENT XP", 9, OUI.CYAN, "head"))
-	th.add_child(OUI.lbl("تاریخچه‌ی XP", OUI.TS_H, OUI.TEXT, "title"))
+	th.add_child(OUI.lbl(I18n.t("account.xp_history"), OUI.TS_H, OUI.TEXT, "title"))
 	prof_box.add_child(OUI.margin(th, 0, OUI.S_M, 0, OUI.S_XS))
 	var ev_box := OUI.vbox(0)
 	prof_box.add_child(ev_box)
@@ -466,7 +466,7 @@ func _render_profile() -> void:
 		ev_box.add_child(OUI.spinner())
 		_load_events()
 	elif (events as Array).is_empty():
-		ev_box.add_child(OUI.lbl("هنوز XP آنلاینی نگرفتی؛ یک مسابقه‌ی سریع بزن!", OUI.TS_SMALL, OUI.DIM, "body", HORIZONTAL_ALIGNMENT_CENTER, true, 2))
+		ev_box.add_child(OUI.lbl(I18n.t("account.no_online_xp_yet_play"), OUI.TS_SMALL, OUI.DIM, "body", HORIZONTAL_ALIGNMENT_CENTER, true, 2))
 	else:
 		for e in events:
 			var eh := OUI.hbox(OUI.S_S)
@@ -476,7 +476,7 @@ func _render_profile() -> void:
 			eh.add_child(OUI.flbl(REASON_FA.get(reason, reason), OUI.TS_SMALL))
 			eh.add_child(OUI.lbl(OUI.time_ago(e.get("created_at")), OUI.TS_TINY, OUI.DIM))
 			var amt := OUI.i(e.get("amount"))
-			var al := OUI.lbl("%s%s XP" % ["+" if amt >= 0 else "", OUI.fa(amt)], OUI.TS_SMALL, OUI.GREEN if amt >= 0 else OUI.RED, "bold", HORIZONTAL_ALIGNMENT_LEFT)
+			var al := OUI.lbl("%s%s XP" % ["+" if amt >= 0 else "", OUI.fa(amt)], OUI.TS_SMALL, OUI.GREEN if amt >= 0 else OUI.RED, "bold", I18n.AL)
 			al.custom_minimum_size.x = OUI.px(64)
 			eh.add_child(al)
 			ev_box.add_child(eh)
@@ -504,7 +504,7 @@ func _save_bio() -> void:
 		return
 	OUI.profile["bio"] = b if b != "" else null
 	edit_bio = false
-	OUI.toast("ذخیره شد", "ok")
+	OUI.toast(I18n.t("account.saved"), "ok")
 	if is_inside_tree():
 		_render_profile()
 
@@ -519,7 +519,7 @@ func _upload() -> void:
 			var pr: Dictionary = await OUI.patch("profiles?id=eq." + OUI.uid(), {"avatar_url": r.get("url")})
 			if OUI.ok(pr):
 				OUI.profile["avatar_url"] = r.get("url")
-				OUI.toast("عکس پروفایل به‌روز شد", "ok")
+				OUI.toast(I18n.t("account.profile_photo_updated"), "ok")
 				OUI.buzz("success")
 			else:
 				OUI.toast_err(OUI.err(pr))
@@ -537,7 +537,7 @@ func _preset_picker() -> void:
 	var sc := OUI.scroll()
 	var v := OUI.vbox(OUI.S_S)
 	sc.add_child(OUI.margin(v, OUI.S_L, 0, OUI.S_L, OUI.S_XL))
-	v.add_child(OUI.lbl("انتخاب عکس روی این دستگاه ممکن نیست؛ یکی از نشان‌ها را به‌عنوان آواتار انتخاب کن.", OUI.TS_SMALL, OUI.DIM, "body", HORIZONTAL_ALIGNMENT_RIGHT, true, 3))
+	v.add_child(OUI.lbl(I18n.t("account.choosing_a_photo_isn_t"), OUI.TS_SMALL, OUI.DIM, "body", I18n.AR, true, 3))
 	var grid := HFlowContainer.new()
 	grid.add_theme_constant_override("h_separation", OUI.px(8))
 	grid.add_theme_constant_override("v_separation", OUI.px(8))
@@ -558,12 +558,12 @@ func _preset_picker() -> void:
 				OUI.profile["avatar"] = kk
 				OUI.profile["avatar_url"] = null
 				OUI.ebus().profile_changed.emit(OUI.profile)
-				OUI.toast("آواتار به‌روز شد", "ok")
+				OUI.toast(I18n.t("account.avatar_updated"), "ok")
 				Nav.close_sheet()
 			else:
 				OUI.toast_err(OUI.err(r))))
 	v.add_child(grid)
-	OUI.open_sheet("انتخاب آواتار", "AVATAR", sc, OUI.CYAN, 0.7)
+	OUI.open_sheet(I18n.t("account.choose_avatar"), "AVATAR", sc, OUI.CYAN, 0.7)
 
 
 # ================================================================ online entry card (Home / Play)
@@ -576,7 +576,7 @@ class OnlineCard extends VBoxContainer:
 	var card: PanelContainer
 	var shine: ColorRect
 	func _ready() -> void:
-		layout_direction = Control.LAYOUT_DIRECTION_RTL
+		layout_direction = I18n.LD
 		add_theme_constant_override("separation", OUI.px(8))
 		card = PanelContainer.new()
 		var st := OUI.sb(Color("#1b2f8f"), 24, Color(160 / 255.0, 220 / 255.0, 1, 0.55), 1.5)
@@ -619,7 +619,7 @@ class OnlineCard extends VBoxContainer:
 		v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		v.alignment = BoxContainer.ALIGNMENT_CENTER
 		var th := OUI.hbox(8)
-		var tl := OUI.lbl("آنلاین", 24, Color.WHITE, "title")
+		var tl := OUI.lbl(I18n.t("hub.online"), 24, Color.WHITE, "title")
 		tl.add_theme_color_override("font_shadow_color", Color(OUI.CYAN, 0.8))
 		tl.add_theme_constant_override("shadow_outline_size", OUI.px(6))
 		th.add_child(tl)
@@ -641,7 +641,7 @@ class OnlineCard extends VBoxContainer:
 		th.add_child(live)
 		th.add_child(OUI.expand())
 		v.add_child(th)
-		v.add_child(OUI.lbl("مسابقه با بازیکن‌های واقعی · ۱ به ۱، ۲ به ۲، ۳ به ۳", 12, Color("#d6e6ff"), "body", HORIZONTAL_ALIGNMENT_RIGHT, true, 2))
+		v.add_child(OUI.lbl(I18n.t("account.play_real_players_1v1_2v2"), 12, Color("#d6e6ff"), "body", I18n.AR, true, 2))
 		info_l = OUI.lbl("", 11, OUI.GOLD, "bold")
 		v.add_child(info_l)
 		h.add_child(v)
@@ -651,7 +651,7 @@ class OnlineCard extends VBoxContainer:
 			Nav.go("hub", {}))
 		add_child(t)
 		var links := OUI.hbox(8)
-		for it in [["arena", "آرنا", "x_crown", {}], ["tournaments", "تورنمنت", "x_trophy", {}], ["ranks", "لیگ", "x_medal", {"tab": "leagues"}], ["challenges", "چالش", "c_calendar", {}]]:
+		for it in [["arena", I18n.t("arena.arena"), "x_crown", {}], ["tournaments", I18n.t("hub.tournament"), "x_trophy", {}], ["ranks", I18n.t("tournaments.league"), "x_medal", {"tab": "leagues"}], ["challenges", I18n.t("kb.challenge"), "c_calendar", {}]]:
 			var pc := PanelContainer.new()
 			pc.add_theme_stylebox_override("panel", OUI.sb(Color(10 / 255.0, 16 / 255.0, 44 / 255.0, 0.85), 14, OUI.LINE, 1))
 			pc.custom_minimum_size.y = OUI.px(44)
@@ -675,7 +675,7 @@ class OnlineCard extends VBoxContainer:
 		if not is_instance_valid(info_l):
 			return
 		info_l.visible = not p.is_empty()
-		info_l.text = "امتیاز %s · 💎 %s" % [OUI.fa(OUI.i(p.get("rating"))), OUI.fa(OUI.i(p.get("gems")))]
+		info_l.text = I18n.t("account.rating_x_x") % [OUI.fa(OUI.i(p.get("rating"))), OUI.fa(OUI.i(p.get("gems")))]
 
 
 # ================================================================ password recovery (RN RecoveryModal)
@@ -684,27 +684,27 @@ static func show_recovery() -> void:
 	var st := {"p1": "", "p2": "", "busy": false}
 	var v := OUI.vbox(OUI.S_S)
 	var m := OUI.margin(v, OUI.S_L, OUI.S_L, OUI.S_L, OUI.S_L)
-	v.add_child(OUI.lbl("رمز عبور جدید", 20, OUI.TEXT, "title", HORIZONTAL_ALIGNMENT_CENTER))
-	var f1 := OUI.line_edit("رمز جدید", 72, true, true)
+	v.add_child(OUI.lbl(I18n.t("account.new_password_2"), 20, OUI.TEXT, "title", HORIZONTAL_ALIGNMENT_CENTER))
+	var f1 := OUI.line_edit(I18n.t("account.new_password"), 72, true, true)
 	f1.text_changed.connect(func(t: String) -> void: st["p1"] = t)
 	v.add_child(f1)
-	var f2 := OUI.line_edit("تکرار رمز جدید", 72, true, true)
+	var f2 := OUI.line_edit(I18n.t("account.repeat_new_password"), 72, true, true)
 	f2.text_changed.connect(func(t: String) -> void: st["p2"] = t)
 	v.add_child(f2)
-	var el := OUI.lbl("", OUI.TS_SMALL, OUI.RED, "body", HORIZONTAL_ALIGNMENT_RIGHT, true, 3)
+	var el := OUI.lbl("", OUI.TS_SMALL, OUI.RED, "body", I18n.AR, true, 3)
 	el.visible = false
 	v.add_child(el)
-	var save := OUI.btn("ذخیره", Callable(), "primary")
+	var save := OUI.btn(I18n.t("lobby.save"), Callable(), "primary")
 	save.pressed.connect(func() -> void:
 		if st["busy"]:
 			return
 		var p1: String = st["p1"]
 		if p1.length() < 6:
-			el.text = "رمز عبور حداقل ۶ کاراکتر"
+			el.text = I18n.t("account.password_must_be_at_least")
 			el.visible = true
 			return
 		if p1 != st["p2"]:
-			el.text = "تکرار رمز یکسان نیست"
+			el.text = I18n.t("account.passwords_don_t_match_2")
 			el.visible = true
 			return
 		st["busy"] = true
@@ -713,15 +713,15 @@ static func show_recovery() -> void:
 		st["busy"] = false
 		if not is_instance_valid(save):
 			return
-		save.text = "ذخیره"
+		save.text = I18n.t("lobby.save")
 		if not OUI.ok(r):
 			el.text = OUI.err(r)
 			el.visible = true
 			return
-		Nav.toast("رمز عبور تغییر کرد", "ok")
+		Nav.toast(I18n.t("account.password_changed"), "ok")
 		Nav.close_modal())
 	v.add_child(save)
-	v.add_child(OUI.btn("بعداً", func() -> void:
+	v.add_child(OUI.btn(I18n.t("account.later"), func() -> void:
 		Supa.recovery = false
 		Nav.close_modal(), "dark", true))
 	Nav.modal(m, OUI.CYAN, 0.86)

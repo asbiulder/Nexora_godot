@@ -102,6 +102,8 @@ static func is_fa(s: String) -> bool:
 ## Persian digits (like String.replace in faNum)
 static func fa_num(v) -> String:
 	var s := str(v)
+	if I18n.is_en():
+		return s
 	var o := ""
 	for ch in s:
 		var c := ch.unicode_at(0)
@@ -118,7 +120,7 @@ static func fa(n) -> String:
 		o = s[i] + o
 		cnt += 1
 		if cnt % 3 == 0 and i > 0:
-			o = "٬" + o
+			o = ("," if I18n.is_en() else "٬") + o
 	return ("-" if neg else "") + fa_num(o)
 
 static func en_num(n) -> String:

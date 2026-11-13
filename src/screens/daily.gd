@@ -26,16 +26,16 @@ func _ready() -> void:
 	Kit.put(cs, cal, 125, 125)
 	Kit.bob(cal, 8, 1.8)
 	v.add_child(cs)
-	var t := Kit.title("جایزه‌ی روزانه", 55)
+	var t := Kit.title(I18n.t("daily.daily_reward"), 55)
 	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(t)
-	var s := Kit.label("هر روز سر بزن، جایزه‌ها بزرگ‌تر می‌شن", 31, NX.DIM)
+	var s := Kit.label(I18n.t("daily.check_in_every_day_the"), 31, NX.DIM)
 	s.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(s)
 	v.add_child(Kit.gap(20))
 	var daily: Array = UD.dget("DAILY", UD.DAILY)
 	var flow := HFlowContainer.new()
-	flow.layout_direction = Control.LAYOUT_DIRECTION_RTL
+	flow.layout_direction = I18n.LD
 	flow.alignment = FlowContainer.ALIGNMENT_CENTER
 	flow.add_theme_constant_override("h_separation", 14)
 	flow.add_theme_constant_override("v_separation", 14)
@@ -52,11 +52,11 @@ func _ready() -> void:
 		c.add_theme_stylebox_override("panel", sb)
 		c.custom_minimum_size = Vector2(344 if day == 7 else 161, 0)
 		var cv := Kit.vbox(2)
-		var dl := Kit.label("روز %s" % NX.fa(day), 26, NX.GOLD if cur else NX.DIM)
+		var dl := Kit.label(I18n.t("daily.day_x") % NX.fa(day), 26, NX.GOLD if cur else NX.DIM)
 		dl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		cv.add_child(dl)
 		cv.add_child(Kit.center(Kit.img(UD.ui2("x_chest") if day == 7 else (UD.ui2("x_gem") if int(d.get("gems", 0)) else UD.ui2("c_coin")), 88)))
-		var amt := "%s + %s الماس" % [NX.fa(d["coins"]), NX.fa(d["gems"])] if int(d.get("gems", 0)) else NX.fa(d["coins"])
+		var amt := I18n.t("daily.x_x_gems") % [NX.fa(d["coins"]), NX.fa(d["gems"])] if int(d.get("gems", 0)) else NX.fa(d["coins"])
 		var al := Kit.label(amt, 27, NX.TEXT, true)
 		al.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		cv.add_child(al)
@@ -81,6 +81,6 @@ func _ready() -> void:
 	v.add_child(flow)
 	v.add_child(Kit.gap(30))
 	if ready_:
-		v.add_child(Kit.button("دریافت جایزه‌ی روز %s" % NX.fa(next), func(): Nav.claim_daily(), "gold"))
+		v.add_child(Kit.button(I18n.t("daily.claim_day_x_reward") % NX.fa(next), func(): Nav.claim_daily(), "gold"))
 	else:
-		v.add_child(Kit.button_small("جایزه‌ی بعدی: %sس %sد" % [NX.fa(h), NX.fa(m)], func(): Nav.close_modal(), "dark"))
+		v.add_child(Kit.button_small(I18n.t("daily.next_reward_xh_xm") % [NX.fa(h), NX.fa(m)], func(): Nav.close_modal(), "dark"))

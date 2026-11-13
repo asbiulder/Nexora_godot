@@ -31,7 +31,7 @@ func setup(p: Dictionary) -> void:
 func _ready() -> void:
 	Nav.chrome(false)
 	OUI.boot()
-	var pg := OUI.page(self, "باشگاه", "CLUB", func() -> void: Nav.back(), null, OUI.GOLD, _load)
+	var pg := OUI.page(self, I18n.t("data.club"), "CLUB", func() -> void: Nav.back(), null, OUI.GOLD, _load)
 	body = pg["body"]
 	title_l = pg["header"].get_meta("title")
 	var cc := CenterContainer.new()
@@ -69,7 +69,7 @@ func _load() -> void:
 		return
 	var cd: Variant = OUI.one(c)
 	if not OUI.ok(c) or cd == null:
-		err_msg = OUI.err(c) if not OUI.ok(c) else "باشگاه پیدا نشد"
+		err_msg = OUI.err(c) if not OUI.ok(c) else I18n.t("club.club_not_found")
 		OUI.clear(body)
 		body.add_child(OUI.error_state(err_msg, _load))
 		return
@@ -135,8 +135,8 @@ func _render() -> void:
 	if OUI.s(club.get("description")) != "":
 		hv.add_child(OUI.lbl(OUI.s(club.get("description")), OUI.TS_SMALL, Color("#d9e6ff"), "body", HORIZONTAL_ALIGNMENT_CENTER, true, 0))
 	var sh := OUI.hbox(0)
-	var pol_fa := "آزاد" if policy == "open" else ("درخواست" if policy == "request" else "دعوت")
-	for it in [["%s/%s" % [OUI.fa(OUI.i(club.get("members"))), OUI.fa(OUI.i(club.get("max_members")))], "اعضا"], [OUI.fa(OUI.i(club.get("power"))), "قدرت"], [pol_fa, "عضوگیری"], [OUI.fa(OUI.i(club.get("min_level"), 1)), "حداقل سطح"]]:
+	var pol_fa := I18n.t("club.open") if policy == "open" else (I18n.t("club.request") if policy == "request" else I18n.t("club.invite"))
+	for it in [["%s/%s" % [OUI.fa(OUI.i(club.get("members"))), OUI.fa(OUI.i(club.get("max_members")))], I18n.t("club.members")], [OUI.fa(OUI.i(club.get("power"))), I18n.t("oui.power")], [pol_fa, I18n.t("club.recruiting")], [OUI.fa(OUI.i(club.get("min_level"), 1)), I18n.t("tournaments.minimum_level")]]:
 		var sv := OUI.vbox(0)
 		sv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		sv.add_child(OUI.lbl(it[0], OUI.TS_BODY, OUI.TEXT, "bold", HORIZONTAL_ALIGNMENT_CENTER))
@@ -150,40 +150,40 @@ func _render() -> void:
 		var ah := OUI.hbox(OUI.S_S)
 		var conv_id := OUI.s(club.get("conversation_id"))
 		if conv_id != "":
-			var cb := OUI.btn("چت باشگاه", func() -> void: Nav.go("chat", {"id": conv_id}), "green", true)
+			var cb := OUI.btn(I18n.t("club.club_chat"), func() -> void: Nav.go("chat", {"id": conv_id}), "green", true)
 			cb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			ah.add_child(cb)
-		var lb := OUI.btn("مطمئنی؟" if sure_leave else "ترک باشگاه", func() -> void:
+		var lb := OUI.btn(I18n.t("club.are_you_sure") if sure_leave else I18n.t("club.leave_club"), func() -> void:
 			if not sure_leave:
 				sure_leave = true
 				_render()
 				return
-			var r: Dictionary = await _run("leave", func() -> Dictionary: return await Supa.call_rpc("leave_club", {}), "از باشگاه خارج شدی")
+			var r: Dictionary = await _run("leave", func() -> Dictionary: return await Supa.call_rpc("leave_club", {}), I18n.t("club.you_left_the_club"))
 			if OUI.ok(r):
 				Nav.back(), "red", true)
 		lb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		ah.add_child(lb)
 		body.add_child(ah)
 	elif OUI.s(OUI.profile.get("club_id")) != "":
-		body.add_child(OUI.lbl("تو عضو باشگاه دیگری هستی", OUI.TS_BODY, OUI.DIM, "body", HORIZONTAL_ALIGNMENT_CENTER))
+		body.add_child(OUI.lbl(I18n.t("club.you_re_already_in_another"), OUI.TS_BODY, OUI.DIM, "body", HORIZONTAL_ALIGNMENT_CENTER))
 	elif OUI.s(my_req.get("kind")) == "request":
-		body.add_child(OUI.lbl("درخواست عضویتت در انتظار بررسی است", OUI.TS_BODY, OUI.CYAN, "body", HORIZONTAL_ALIGNMENT_CENTER))
+		body.add_child(OUI.lbl(I18n.t("club.your_membership_request_is_pending"), OUI.TS_BODY, OUI.CYAN, "body", HORIZONTAL_ALIGNMENT_CENTER))
 	elif policy == "invite" and OUI.s(my_req.get("kind")) != "invite":
-		body.add_child(OUI.lbl("این باشگاه فقط با دعوت عضو می‌گیرد", OUI.TS_BODY, OUI.DIM, "body", HORIZONTAL_ALIGNMENT_CENTER))
+		body.add_child(OUI.lbl(I18n.t("club.this_club_is_invite_only"), OUI.TS_BODY, OUI.DIM, "body", HORIZONTAL_ALIGNMENT_CENTER))
 	else:
 		var invited := OUI.s(my_req.get("kind")) == "invite"
 		if policy == "request" and not invited:
-			var mf := OUI.field("پیام برای رهبر (اختیاری)", "", 120)
+			var mf := OUI.field(I18n.t("club.message_to_the_leader_optional"), "", 120)
 			var le: LineEdit = mf.get_meta("input")
 			le.text = msg
 			le.text_changed.connect(func(t: String) -> void: msg = t)
 			body.add_child(mf)
-		var jb := OUI.btn("…" if busy == "join" else ("پذیرفتن دعوت" if invited else ("پیوستن" if policy == "open" else "ارسال درخواست")), _join, "gold")
+		var jb := OUI.btn("…" if busy == "join" else (I18n.t("club.accept_invite") if invited else (I18n.t("chat.join") if policy == "open" else I18n.t("club.send_request"))), _join, "gold")
 		jb.disabled = busy != ""
 		body.add_child(jb)
 	# requests (officers)
 	if officer and requests.size() > 0:
-		body.add_child(OUI.section_title("درخواست‌ها (%s)" % OUI.fa(requests.size())))
+		body.add_child(OUI.section_title(I18n.t("club.requests_x") % OUI.fa(requests.size())))
 		for r in requests:
 			var ru := OUI.s(r.get("user_id"))
 			var pp := OUI.d(r.get("profiles"))
@@ -195,17 +195,17 @@ func _render() -> void:
 			v.alignment = BoxContainer.ALIGNMENT_CENTER
 			v.add_child(OUI.lbl(OUI.s(pp.get("username"), "…"), OUI.TS_BODY, OUI.TEXT, "bold"))
 			if OUI.s(r.get("message")) != "":
-				v.add_child(OUI.lbl(OUI.s(r.get("message")), OUI.TS_CAP, OUI.DIM, "body", HORIZONTAL_ALIGNMENT_RIGHT, true, 2))
+				v.add_child(OUI.lbl(OUI.s(r.get("message")), OUI.TS_CAP, OUI.DIM, "body", I18n.AR, true, 2))
 			h.add_child(v)
-			h.add_child(OUI.pill("✓", func() -> void: _run("d" + ru, func() -> Dictionary: return await Supa.call_rpc("club_decide", {"p_club": id, "p_user": ru, "p_accept": true}), "پذیرفته شد"), OUI.GREEN, 40, 44))
+			h.add_child(OUI.pill("✓", func() -> void: _run("d" + ru, func() -> Dictionary: return await Supa.call_rpc("club_decide", {"p_club": id, "p_user": ru, "p_accept": true}), I18n.t("club.accepted")), OUI.GREEN, 40, 44))
 			h.add_child(OUI.pill("✕", func() -> void: _run("d" + ru, func() -> Dictionary: return await Supa.call_rpc("club_decide", {"p_club": id, "p_user": ru, "p_accept": false})), OUI.RED, 40, 44))
 			row.add_child(h)
 			body.add_child(row)
 	# invite (officers)
 	if officer:
-		body.add_child(OUI.section_title("دعوت بازیکن"))
+		body.add_child(OUI.section_title(I18n.t("club.invite_player")))
 		var old := inv_edit.text if is_instance_valid(inv_edit) else ""
-		inv_edit = OUI.line_edit("نام کاربری…", 30)
+		inv_edit = OUI.line_edit(I18n.t("chat.username"), 30)
 		inv_edit.text = old
 		inv_edit.text_changed.connect(func(_t: String) -> void: inv_timer.start())
 		body.add_child(inv_edit)
@@ -214,7 +214,7 @@ func _render() -> void:
 		if old.strip_edges().length() >= 2:
 			_search_invite()
 	# members
-	body.add_child(OUI.section_title("اعضا (%s)" % OUI.fa(members.size())))
+	body.add_child(OUI.section_title(I18n.t("chat.members_x") % OUI.fa(members.size())))
 	for m in members:
 		var mu := OUI.s(m.get("user_id"))
 		var mrole := OUI.s(m.get("role"))
@@ -227,19 +227,19 @@ func _render() -> void:
 		var v := OUI.vbox(2)
 		v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		v.alignment = BoxContainer.ALIGNMENT_CENTER
-		v.add_child(OUI.lbl(OUI.s(pp.get("username"), "…") + (" (تو)" if mu == u else ""), OUI.TS_BODY, OUI.TEXT, "bold"))
+		v.add_child(OUI.lbl(OUI.s(pp.get("username"), "…") + (I18n.t("ranks.you") if mu == u else ""), OUI.TS_BODY, OUI.TEXT, "bold"))
 		var bh := OUI.hbox(OUI.S_XS)
 		bh.add_child(OUI.badge(rf[0], rf[1]))
-		bh.add_child(OUI.badge("سطح %s" % OUI.fa(OUI.i(pp.get("level"), 1)), OUI.SKY))
+		bh.add_child(OUI.badge(I18n.t("hub.level_x") % OUI.fa(OUI.i(pp.get("level"), 1)), OUI.SKY))
 		bh.add_child(OUI.expand())
 		v.add_child(bh)
 		h.add_child(v)
 		if role == "leader" and mu != u:
 			var up := mrole == "officer"
 			h.add_child(OUI.pill("⬇" if up else "⬆", func() -> void: _run("a" + mu, func() -> Dictionary: return await Supa.call_rpc("club_member_action", {"p_club": id, "p_user": mu, "p_action": "demote" if up else "promote"})), OUI.CYAN, 40, 44))
-			h.add_child(OUI.pill("👑", func() -> void: _run("a" + mu, func() -> Dictionary: return await Supa.call_rpc("club_member_action", {"p_club": id, "p_user": mu, "p_action": "transfer"}), "رهبری منتقل شد"), OUI.GOLD, 40, 44))
+			h.add_child(OUI.pill("👑", func() -> void: _run("a" + mu, func() -> Dictionary: return await Supa.call_rpc("club_member_action", {"p_club": id, "p_user": mu, "p_action": "transfer"}), I18n.t("club.leadership_transferred")), OUI.GOLD, 40, 44))
 		if officer and mu != u and (mrole == "member" or (role == "leader" and mrole == "officer")):
-			h.add_child(OUI.pill("✕", func() -> void: _run("a" + mu, func() -> Dictionary: return await Supa.call_rpc("club_member_action", {"p_club": id, "p_user": mu, "p_action": "kick"}), "اخراج شد"), OUI.RED, 40, 44))
+			h.add_child(OUI.pill("✕", func() -> void: _run("a" + mu, func() -> Dictionary: return await Supa.call_rpc("club_member_action", {"p_club": id, "p_user": mu, "p_action": "kick"}), I18n.t("club.kicked")), OUI.RED, 40, 44))
 		row.add_child(h)
 		body.add_child(row)
 
@@ -249,9 +249,9 @@ func _join() -> void:
 	if OUI.ok(r):
 		if OUI.s(r.get("data")) == "joined":
 			OUI.sfx("win")
-			OUI.toast("به باشگاه پیوستی!", "ok")
+			OUI.toast(I18n.t("club.you_joined_the_club"), "ok")
 		else:
-			OUI.toast("درخواستت ارسال شد", "ok")
+			OUI.toast(I18n.t("club.request_sent"), "ok")
 
 
 func _search_invite() -> void:
@@ -271,8 +271,8 @@ func _search_invite() -> void:
 		var h := OUI.hbox(OUI.S_S)
 		h.add_child(NetImg.avatar(f.get("avatar"), f.get("avatar_url"), 36))
 		h.add_child(OUI.flbl(OUI.s(f.get("username")), OUI.TS_BODY))
-		h.add_child(OUI.pill("دعوت", func() -> void:
-			_run("inv", func() -> Dictionary: return await Supa.call_rpc("club_invite", {"p_club": id, "p_user": fid}), "دعوت فرستاده شد")
+		h.add_child(OUI.pill(I18n.t("club.invite"), func() -> void:
+			_run("inv", func() -> Dictionary: return await Supa.call_rpc("club_invite", {"p_club": id, "p_user": fid}), I18n.t("club.invite_sent"))
 			if is_instance_valid(inv_edit):
 				inv_edit.text = ""
 			OUI.clear(inv_found), OUI.GOLD, 56, 44))

@@ -39,7 +39,7 @@ func _free_in() -> int:
 static func _fmt(ms: int) -> String:
 	var m := int(ceil(ms / 60000.0))
 	var h := m / 60
-	return "%sس %sد" % [NX.fa(h), NX.fa(m % 60)] if h else "%s دقیقه" % NX.fa(m)
+	return I18n.t("shop.xh_xm") % [NX.fa(h), NX.fa(m % 60)] if h else I18n.t("oui.x_min") % NX.fa(m)
 
 func _fill() -> void:
 	var p := UD.p()
@@ -62,11 +62,11 @@ func _fill() -> void:
 	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	col.alignment = BoxContainer.ALIGNMENT_CENTER
 	var en := Kit.caps("LEGENDARY DISCS", 23, NX.hdr(NX.GOLD, 1.3), 8)
-	en.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	en.horizontal_alignment = I18n.AR
 	col.add_child(en)
-	col.add_child(Kit.title("دیسک‌های افسانه‌ای", 50))
-	col.add_child(Kit.label("قدرت و دقت بالا · با الماس", 29, Color("#e8d7ad")))
-	var tg := Kit.tag("محدود", NX.GOLD, Color("#1b0e00"), 29)
+	col.add_child(Kit.title(I18n.t("shop.legendary_discs"), 50))
+	col.add_child(Kit.label(I18n.t("shop.high_power_and_accuracy_with"), 29, Color("#e8d7ad")))
+	var tg := Kit.tag(I18n.t("shop.limited"), NX.GOLD, Color("#1b0e00"), 29)
 	tg.size_flags_horizontal = Control.SIZE_SHRINK_END
 	col.add_child(tg)
 	bh.add_child(col)
@@ -103,7 +103,7 @@ func _fill() -> void:
 		n.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		v.add_child(n)
 		if own:
-			var o := Kit.label("✓ داری", 29, NX.GREEN)
+			var o := Kit.label(I18n.t("shop.owned"), 29, NX.GREEN)
 			o.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 			v.add_child(o)
 		else:
@@ -121,7 +121,7 @@ func _fill() -> void:
 	body.add_child(hs[0])
 
 	# ---------------- chests
-	body.add_child(Kit.section("صندوقچه‌ها", "SUPPLY CHESTS", NX.VIOLET))
+	body.add_child(Kit.section(I18n.t("shop.chests"), "SUPPLY CHESTS", NX.VIOLET))
 	var crow := Kit.hbox(20, true)
 	var free_in := _free_in()
 	var fc := Kit.glass(NX.CYAN, free_in == 0)
@@ -133,13 +133,13 @@ func _fill() -> void:
 	if free_in == 0:
 		Kit.wiggle(fimg)
 	fv.add_child(Kit.center(fs))
-	var ft := Kit.label("صندوقچه‌ی رایگان", 34, NX.TEXT, true)
+	var ft := Kit.label(I18n.t("chest.free_chest"), 34, NX.TEXT, true)
 	ft.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	fv.add_child(ft)
-	var fsub := Kit.label("هر ۴ ساعت", 26, NX.DIM)
+	var fsub := Kit.label(I18n.t("shop.every_4_hours"), 26, NX.DIM)
 	fsub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	fv.add_child(fsub)
-	_timer_btn = Kit.button_small(_fmt(free_in) if free_in else "باز کن", func(): Nav.open_chest(false), "primary")
+	_timer_btn = Kit.button_small(_fmt(free_in) if free_in else I18n.t("shop.open"), func(): Nav.open_chest(false), "primary")
 	_timer_btn.set_disabled(free_in > 0)
 	fv.add_child(Kit.gap(6))
 	fv.add_child(_timer_btn)
@@ -153,16 +153,16 @@ func _fill() -> void:
 	Kit.put(rs, rimg, 125, 125)
 	Kit.wiggle(rimg, 6.0, 2.2)
 	rv.add_child(Kit.center(rs))
-	var rt := Kit.label("صندوقچه‌ی سلطنتی", 34, NX.TEXT, true)
+	var rt := Kit.label(I18n.t("chest.royal_chest"), 34, NX.TEXT, true)
 	rt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	rv.add_child(rt)
-	var rsub := Kit.label("آیتم کمیاب تضمینی‌تر", 26, NX.DIM)
+	var rsub := Kit.label(I18n.t("shop.better_odds_of_a_rare"), 26, NX.DIM)
 	rsub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	rv.add_child(rsub)
 	rv.add_child(Kit.gap(6))
-	rv.add_child(Kit.button_small("۶۰۰ سکه", func():
+	rv.add_child(Kit.button_small(I18n.t("shop.600_coins"), func():
 		if int(UD.pv("coins", 0)) < 600:
-			toast("۶۰۰ سکه لازمه", "err")
+			toast(I18n.t("nav.you_need_600_coins"), "err")
 			return
 		Nav.open_chest(true), "violet", UD.ui2("c_coin")))
 	rcst.add_child(rv)
@@ -172,10 +172,10 @@ func _fill() -> void:
 	# ---------------- daily deals
 	var deals: Array = UD.callv_safe("Data", "daily_deals", [p], null) if UD.has("Data", "daily_deals") else UD.daily_deals(p)
 	if deals.size():
-		body.add_child(Kit.section("پیشنهاد امروز", "DAILY DEALS · -30%", NX.GREEN))
+		body.add_child(Kit.section(I18n.t("shop.today_s_deal"), "DAILY DEALS · -30%", NX.GREEN))
 		var dg := GridContainer.new()
 		dg.columns = 2
-		dg.layout_direction = Control.LAYOUT_DIRECTION_RTL
+		dg.layout_direction = I18n.LD
 		dg.add_theme_constant_override("h_separation", 20)
 		dg.add_theme_constant_override("v_separation", 20)
 		var i := 0
@@ -185,7 +185,7 @@ func _fill() -> void:
 		body.add_child(padx(dg))
 
 	# ---------------- gem exchange
-	body.add_child(Kit.section("تبدیل الماس", "GEM EXCHANGE", NX.CYAN))
+	body.add_child(Kit.section(I18n.t("shop.convert_gems"), "GEM EXCHANGE", NX.CYAN))
 	var ex := Kit.hbox(18, true)
 	var gems := int(p.get("gems", 0))
 	for e in EXCHANGE:
@@ -197,7 +197,7 @@ func _fill() -> void:
 		var amt := Kit.title("+%s" % NX.en_num(e[1]), 36, NX.GOLD, "head")
 		amt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		v2.add_child(amt)
-		var cl := Kit.label("سکه", 26, NX.DIM)
+		var cl := Kit.label(I18n.t("kb.coins"), 26, NX.DIM)
 		cl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		v2.add_child(cl)
 		v2.add_child(Kit.price_tag(e[0], true))
@@ -208,20 +208,20 @@ func _fill() -> void:
 	body.add_child(padx(ex))
 
 	# ---------------- catalogue
-	body.add_child(Kit.section("همه‌ی تجهیزات", "CATALOGUE"))
-	var seg := Kit.tabs(["دیسک", "توپ", "زمین"], func(i):
+	body.add_child(Kit.section(I18n.t("shop.all_gear"), "CATALOGUE"))
+	var seg := Kit.tabs([I18n.t("home.disc"), I18n.t("home.ball"), I18n.t("hub.field")], func(i):
 		kind = i
 		rebuild(_fill), kind, NX.GOLD)
 	body.add_child(padx(seg))
 	var cell := (1080.0 - NX.PAD * 2 - 2 * 20) / 3.0
 	var grid := GridContainer.new()
 	grid.columns = 3
-	grid.layout_direction = Control.LAYOUT_DIRECTION_RTL
+	grid.layout_direction = I18n.LD
 	grid.add_theme_constant_override("h_separation", 20)
 	grid.add_theme_constant_override("v_separation", 20)
 	if kind == 0:
 		if UD.online_profile().is_empty():
-			body.add_child(padx(Kit.para("قیمت دیسک‌ها به الماس است؛ با ورود آنلاین (حتی مهمان) ۱۵۰ الماس هدیه می‌گیری.", 29, NX.DIM)))
+			body.add_child(padx(Kit.para(I18n.t("shop.discs_are_priced_in_gems"), 29, NX.DIM)))
 		var gd := UD.gem_discs()
 		var n := 0
 		for d in gd:
@@ -239,7 +239,7 @@ func _fill() -> void:
 		for it in list.slice(0, 60):
 			grid.add_child(_item_card(it, cell))
 		if list.is_empty():
-			body.add_child(Kit.para("همه‌چیز این بخش رو داری، اسطوره!", 33, NX.DIM, HORIZONTAL_ALIGNMENT_CENTER))
+			body.add_child(Kit.para(I18n.t("shop.you_own_everything_in_this"), 33, NX.DIM, HORIZONTAL_ALIGNMENT_CENTER))
 	body.add_child(padx(grid))
 
 func _deal(it: Dictionary) -> Control:
@@ -253,11 +253,11 @@ func _deal(it: Dictionary) -> Control:
 	var v := Kit.vbox(4)
 	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var n := Kit.label(it["name"], 31, NX.TEXT, true)
-	n.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	n.horizontal_alignment = I18n.AR
 	n.clip_text = true
 	n.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	v.add_child(n)
-	var off := Kit.tag("-۳۰٪", NX.hdr(NX.GREEN, 1.1), Color("#03140c"), 25)
+	var off := Kit.tag(I18n.t("shop.30"), NX.hdr(NX.GREEN, 1.1), Color("#03140c"), 25)
 	off.size_flags_horizontal = Control.SIZE_SHRINK_END
 	v.add_child(off)
 	var pt := Kit.price_tag(int(it["price"]))
@@ -320,7 +320,7 @@ func _disc_card(d: Dictionary, cell: float) -> Control:
 func _buy(it: Dictionary) -> void:
 	var p := UD.p()
 	if int(p.get("coins", 0)) < int(it["price"]):
-		toast("سکه کافی نداری", "err")
+		toast(I18n.t("shop.not_enough_coins"), "err")
 		UD.haptic("medium")
 		return
 	var patch := UD.grant(it, p)
@@ -328,17 +328,17 @@ func _buy(it: Dictionary) -> void:
 	UD.set_p(patch)
 	UD.sfx("goal")
 	UD.haptic("success")
-	toast("%s باز شد!" % it["name"], "ok")
+	toast(I18n.t("shop.x_unlocked") % it["name"], "ok")
 
 func _exchange(gems: int, coins: int) -> void:
 	var p := UD.p()
 	if int(p.get("gems", 0)) < gems:
-		toast("%s الماس کم داری" % NX.fa(gems - int(p.get("gems", 0))), "err")
+		toast(I18n.t("shop.you_need_x_more_gems") % NX.fa(gems - int(p.get("gems", 0))), "err")
 		UD.haptic("medium")
 		return
-	Nav.confirm("%s الماس به %s سکه تبدیل شود؟" % [NX.fa(gems), NX.fa(coins)], func():
+	Nav.confirm(I18n.t("shop.convert_x_gems_into_x") % [NX.fa(gems), NX.fa(coins)], func():
 		var q := UD.p()
 		UD.set_p({"gems": int(q.get("gems", 0)) - gems, "coins": int(q.get("coins", 0)) + coins})
 		UD.sfx("goal")
 		UD.haptic("success")
-		toast("+%s سکه" % NX.fa(coins), "ok"))
+		toast(I18n.t("nav.x_coins") % NX.fa(coins), "ok"))

@@ -27,7 +27,7 @@ func setup(p: Dictionary) -> void:
 func _ready() -> void:
 	Nav.chrome(false)
 	set_anchors_preset(Control.PRESET_FULL_RECT)
-	layout_direction = Control.LAYOUT_DIRECTION_RTL
+	layout_direction = I18n.LD
 	# params from online_match / online_result: {room_id, link, skip_match, why}
 	var pl: Variant = params.get("link")
 	if pl != null and is_instance_valid(pl) and not bool(pl.get("dead")):
@@ -120,7 +120,7 @@ func _on_change(_x: Variant = null) -> void:
 		return
 	var room := _room()
 	if bool(st.get("gone", false)):
-		OUI.toast("از اتاق خارج شدی" if not room.is_empty() else "اتاق بسته شد", "err")
+		OUI.toast(I18n.t("lobby.you_left_the_room") if not room.is_empty() else I18n.t("lobby.the_room_was_closed"), "err")
 		OUI.drop_link()
 		Nav.go("hub", {})
 		OUI.prune_history()
@@ -220,12 +220,12 @@ func _render() -> void:
 	var ih := OUI.hbox(OUI.S_S)
 	var cv := OUI.vbox(0)
 	cv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	cv.add_child(OUI.lbl("کد اتاق", OUI.TS_CAP, OUI.DIM))
+	cv.add_child(OUI.lbl(I18n.t("lobby.room_code"), OUI.TS_CAP, OUI.DIM))
 	var code_l := OUI.lbl(OUI.s(room.get("code")), 24, OUI.CYAN, "title")
 	cv.add_child(code_l)
 	ih.add_child(cv)
-	ih.add_child(OUI.pill("کپی", _copy, OUI.CYAN, 64, 44))
-	ih.add_child(OUI.pill("اشتراک", _share, OUI.CYAN, 64, 44))
+	ih.add_child(OUI.pill(I18n.t("lobby.copy"), _copy, OUI.CYAN, 64, 44))
+	ih.add_child(OUI.pill(I18n.t("lobby.share"), _share, OUI.CYAN, 64, 44))
 	iv.add_child(ih)
 	var bf := HFlowContainer.new()
 	bf.add_theme_constant_override("h_separation", OUI.px(4))
@@ -233,13 +233,13 @@ func _render() -> void:
 	bf.add_child(OUI.badge(OUI.rule_label(settings), OUI.VIOLET))
 	bf.add_child(OUI.badge(OUI.field_name(OUI.i(settings.get("field"))), OUI.SKY))
 	var ranked := bool(room.get("ranked", false))
-	bf.add_child(OUI.badge("رتبه‌ای" if ranked else "دوستانه", OUI.GOLD if ranked else OUI.GREEN))
+	bf.add_child(OUI.badge(I18n.t("hub.ranked") if ranked else I18n.t("lobby.friendly"), OUI.GOLD if ranked else OUI.GREEN))
 	if bool(room.get("is_private", false)):
-		bf.add_child(OUI.badge("خصوصی", OUI.PINK))
+		bf.add_child(OUI.badge(I18n.t("hub.private"), OUI.PINK))
 	if OUI.s(room.get("tournament_match_id")) != "":
-		bf.add_child(OUI.badge("تورنمنت", OUI.ORANGE))
+		bf.add_child(OUI.badge(I18n.t("hub.tournament"), OUI.ORANGE))
 	if playing:
-		bf.add_child(OUI.badge("در حال بازی", OUI.RED, true))
+		bf.add_child(OUI.badge(I18n.t("lobby.in_game"), OUI.RED, true))
 	iv.add_child(bf)
 	info.add_child(iv)
 	body.add_child(info)
@@ -252,7 +252,7 @@ func _render() -> void:
 		var th := PanelContainer.new()
 		th.add_theme_stylebox_override("panel", OUI.sb(Color(col, 0.18), 12, Color(col, 0.4), 1))
 		th.custom_minimum_size.y = OUI.px(36)
-		th.add_child(OUI.lbl("تیم آبی" if t == 0 else "تیم قرمز", OUI.TS_BODY, col, "bold", HORIZONTAL_ALIGNMENT_CENTER))
+		th.add_child(OUI.lbl(I18n.t("lobby.blue_team") if t == 0 else I18n.t("lobby.red_team"), OUI.TS_BODY, col, "bold", HORIZONTAL_ALIGNMENT_CENTER))
 		tv.add_child(th)
 		for k in n:
 			var p: Variant = seats[t][k]
@@ -273,7 +273,7 @@ func _render() -> void:
 				else:
 					var eh := OUI.hbox(OUI.S_XS, BoxContainer.ALIGNMENT_CENTER)
 					eh.add_child(OUI.lbl("+", 18, OUI.DIM, "title"))
-					eh.add_child(OUI.lbl("نشستن", OUI.TS_CAP, OUI.DIM))
+					eh.add_child(OUI.lbl(I18n.t("lobby.sit"), OUI.TS_CAP, OUI.DIM))
 					ep.add_child(eh)
 				var tb := OUI.tap(ep, func() -> void: _sit(team, slot))
 				tb.disabled = playing or busy != ""
@@ -284,9 +284,9 @@ func _render() -> void:
 	var sp := OUI.panel(null)
 	var sv := OUI.vbox(OUI.S_S)
 	var sh := OUI.hbox(OUI.S_S)
-	sh.add_child(OUI.flbl("تماشاگرها (%s)" % OUI.fa(specs.size()), OUI.TS_SMALL, OUI.TEXT, "bold"))
+	sh.add_child(OUI.flbl(I18n.t("lobby.spectators_x") % OUI.fa(specs.size()), OUI.TS_SMALL, OUI.TEXT, "bold"))
 	if am_player and not playing:
-		sh.add_child(OUI.pill("فقط تماشا", _watch, OUI.SKY, 44, 36))
+		sh.add_child(OUI.pill(I18n.t("lobby.spectate_only"), _watch, OUI.SKY, 44, 36))
 	sv.add_child(sh)
 	if specs.size() > 0:
 		var hs := OUI.hscroll()
@@ -303,13 +303,13 @@ func _render() -> void:
 		hs.add_child(hh)
 		sv.add_child(hs)
 	else:
-		sv.add_child(OUI.lbl("کسی تماشا نمی‌کند", OUI.TS_CAP, OUI.DIM2))
+		sv.add_child(OUI.lbl(I18n.t("lobby.no_one_is_watching"), OUI.TS_CAP, OUI.DIM2))
 	sp.add_child(sv)
 	body.add_child(sp)
 	# ---- voice
 	var vp := OUI.panel(null)
 	var vv := OUI.vbox(OUI.S_S)
-	vv.add_child(OUI.lbl("چت صوتی", OUI.TS_SMALL, OUI.TEXT, "bold"))
+	vv.add_child(OUI.lbl(I18n.t("hub.voice_chat"), OUI.TS_SMALL, OUI.TEXT, "bold"))
 	vv.add_child(NetImg.VoiceBar.new(OUI.s(room.get("id")), bool(room.get("voice", true)), false))
 	vp.add_child(vv)
 	body.add_child(vp)
@@ -320,9 +320,9 @@ func _render() -> void:
 	chh.add_child(OUI.img(OUI.ui2("c_bell"), 32))
 	var ctv := OUI.vbox(2)
 	ctv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	ctv.add_child(OUI.lbl("گفتگوی اتاق", OUI.TS_SMALL, OUI.TEXT, "bold"))
+	ctv.add_child(OUI.lbl(I18n.t("lobby.room_chat"), OUI.TS_SMALL, OUI.TEXT, "bold"))
 	var last := OUI.d(chat.back()) if chat.size() > 0 else {}
-	ctv.add_child(OUI.lbl(("%s: %s" % [OUI.s(last.get("name")), OUI.s(last.get("text"))]) if chat.size() > 0 else "برای نوشتن پیام لمس کن", OUI.TS_CAP, OUI.DIM))
+	ctv.add_child(OUI.lbl(("%s: %s" % [OUI.s(last.get("name")), OUI.s(last.get("text"))]) if chat.size() > 0 else I18n.t("lobby.tap_to_type_a_message"), OUI.TS_CAP, OUI.DIM))
 	chh.add_child(ctv)
 	var unread := OUI.i(st.get("unread"))
 	if unread > 0:
@@ -330,28 +330,28 @@ func _render() -> void:
 	cp.add_child(chh)
 	body.add_child(OUI.tap(cp, _open_chat))
 	if is_host and not playing and OUI.s(room.get("tournament_match_id")) == "":
-		body.add_child(OUI.btn("تنظیمات اتاق", _open_settings, "dark", true))
+		body.add_child(OUI.btn(I18n.t("lobby.room_settings"), _open_settings, "dark", true))
 	# ---- action bar
 	OUI.clear(bar_slot)
 	if playing:
-		bar_slot.add_child(OUI.btn("ورود به بازی زنده", _watch_live, "red"))
+		bar_slot.add_child(OUI.btn(I18n.t("lobby.join_live_match"), _watch_live, "red"))
 	elif kind == "quick" or kind == "arena":
 		var np := players.filter(func(p: Variant) -> bool: return OUI.s(p.get("role")) == "player").size()
-		bar_slot.add_child(OUI.lbl("آماده‌ی شروع…" if full else "در جستجوی حریف… (%s/%s)" % [OUI.fa(np), OUI.fa(n * 2)], OUI.TS_BODY, OUI.CYAN, "bold", HORIZONTAL_ALIGNMENT_CENTER))
+		bar_slot.add_child(OUI.lbl(I18n.t("lobby.ready_to_start") if full else I18n.t("lobby.searching_for_opponents_x_x") % [OUI.fa(np), OUI.fa(n * 2)], OUI.TS_BODY, OUI.CYAN, "bold", HORIZONTAL_ALIGNMENT_CENTER))
 	elif is_host:
-		var reason := "منتظر پر شدن جایگاه‌ها…" if not full else ("منتظر آماده شدن %s بازیکن…" % OUI.fa(not_ready.size()) if not_ready.size() > 0 else "")
+		var reason := I18n.t("lobby.waiting_for_slots_to_fill") if not full else (I18n.t("lobby.waiting_for_x_player_s") % OUI.fa(not_ready.size()) if not_ready.size() > 0 else "")
 		if reason != "":
 			bar_slot.add_child(OUI.lbl(reason, OUI.TS_CAP, OUI.DIM, "body", HORIZONTAL_ALIGNMENT_CENTER))
-		var sb := OUI.btn("در حال شروع…" if busy == "start" else "شروع بازی", _start, "gold" if can_start else "dark")
+		var sb := OUI.btn(I18n.t("lobby.starting") if busy == "start" else I18n.t("lobby.start_match"), _start, "gold" if can_start else "dark")
 		sb.disabled = not can_start or busy != ""
 		bar_slot.add_child(sb)
 	elif am_player:
 		var rd := bool(meP.get("ready", false))
-		var rb := OUI.btn("آماده‌ام ✓" if rd else "اعلام آمادگی", _ready_toggle, "green" if rd else "primary")
+		var rb := OUI.btn(I18n.t("lobby.i_m_ready") if rd else I18n.t("lobby.ready_up"), _ready_toggle, "green" if rd else "primary")
 		rb.disabled = busy != ""
 		bar_slot.add_child(rb)
 	else:
-		bar_slot.add_child(OUI.lbl("برای بازی روی یک جایگاه خالی بزن", OUI.TS_SMALL, OUI.DIM, "body", HORIZONTAL_ALIGNMENT_CENTER))
+		bar_slot.add_child(OUI.lbl(I18n.t("lobby.tap_an_empty_slot_to"), OUI.TS_SMALL, OUI.DIM, "body", HORIZONTAL_ALIGNMENT_CENTER))
 	# ---- quick / arena: as soon as every seat is filled (players are auto-ready) the host starts after 3-2-1
 	var auto := (kind == "quick" or kind == "arena") and OUI.s(room.get("status")) == "waiting" and full and not_ready.is_empty()
 	if auto and not counting:
@@ -386,7 +386,7 @@ func _seat(p: Dictionary, me: String, host: String, online: bool, talking: bool,
 	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	v.add_child(OUI.lbl(("👑 " if is_h else "") + OUI.s(pr.get("username"), "…"), OUI.TS_SMALL, OUI.TEXT, "bold"))
 	var rd := bool(p.get("ready", false))
-	v.add_child(OUI.lbl("میزبان" if is_h else ("آماده ✓" if rd else "آماده نیست"), OUI.TS_TINY, OUI.GOLD if is_h else (OUI.GREEN if rd else OUI.DIM2)))
+	v.add_child(OUI.lbl(I18n.t("lobby.host") if is_h else (I18n.t("lobby.ready") if rd else I18n.t("lobby.not_ready")), OUI.TS_TINY, OUI.GOLD if is_h else (OUI.GREEN if rd else OUI.DIM2)))
 	var ds := OUI.disc_stats(OUI.s(p.get("disc_id")) if OUI.s(p.get("disc_id")) != "" else pr.get("equipped_disc"))
 	v.add_child(OUI.stat_bars(ds["power"], ds["accuracy"], true))
 	h.add_child(v)
@@ -452,7 +452,7 @@ func _start() -> void:
 
 
 func _kick(u: String) -> void:
-	_run("kick" + u, func() -> Dictionary: return await Supa.call_rpc("kick", {"p_room": _rid(), "p_user": u}), "بازیکن اخراج شد")
+	_run("kick" + u, func() -> Dictionary: return await Supa.call_rpc("kick", {"p_room": _rid(), "p_user": u}), I18n.t("lobby.player_kicked"))
 
 
 func _watch() -> void:
@@ -461,14 +461,14 @@ func _watch() -> void:
 
 func _copy() -> void:
 	DisplayServer.clipboard_set(OUI.s(_room().get("code")))
-	OUI.toast("کد اتاق کپی شد", "ok")
+	OUI.toast(I18n.t("lobby.room_code_copied"), "ok")
 	OUI.buzz("light")
 
 
 ## no native share sheet in Godot core: copy the invite text instead
 func _share() -> void:
-	DisplayServer.clipboard_set("بیا NEXORA بازی کنیم! 🚀\nکد اتاق: %s" % OUI.s(_room().get("code")))
-	OUI.toast("متن دعوت کپی شد؛ برای دوستت بفرست")
+	DisplayServer.clipboard_set(I18n.t("lobby.let_s_play_nexora_nroom") % OUI.s(_room().get("code")))
+	OUI.toast(I18n.t("lobby.invite_text_copied_send_it"))
 
 
 # ---------------------------------------------------------------- auto start 3-2-1
@@ -518,7 +518,7 @@ func _show_count() -> void:
 		n.add_theme_constant_override("shadow_outline_size", OUI.px(8))
 		n.name = "N"
 		v.add_child(n)
-		v.add_child(OUI.lbl("بازی شروع می‌شود", OUI.TS_H, OUI.CYAN, "bold", HORIZONTAL_ALIGNMENT_CENTER))
+		v.add_child(OUI.lbl(I18n.t("lobby.the_match_is_starting"), OUI.TS_H, OUI.CYAN, "bold", HORIZONTAL_ALIGNMENT_CENTER))
 		cc.add_child(v)
 		overlay.add_child(cc)
 		add_child(overlay)
@@ -536,11 +536,11 @@ func _ask_leave() -> void:
 	if confirm and is_instance_valid(confirm):
 		return
 	var v := OUI.vbox(OUI.S_S)
-	v.add_child(OUI.lbl("خروج از اتاق؟", 20, OUI.TEXT, "title", HORIZONTAL_ALIGNMENT_CENTER))
-	v.add_child(OUI.lbl("جایگاهت آزاد می‌شود و از لابی خارج می‌شوی.", OUI.TS_SMALL, OUI.DIM, "body", HORIZONTAL_ALIGNMENT_CENTER, true, 3))
+	v.add_child(OUI.lbl(I18n.t("lobby.leave_the_room"), 20, OUI.TEXT, "title", HORIZONTAL_ALIGNMENT_CENTER))
+	v.add_child(OUI.lbl(I18n.t("lobby.your_slot_will_be_freed"), OUI.TS_SMALL, OUI.DIM, "body", HORIZONTAL_ALIGNMENT_CENTER, true, 3))
 	v.add_child(OUI.spacer(OUI.S_S))
-	v.add_child(OUI.btn("ماندن", _close_confirm, "primary"))
-	v.add_child(OUI.btn("خروج", func() -> void:
+	v.add_child(OUI.btn(I18n.t("nav.stay"), _close_confirm, "primary"))
+	v.add_child(OUI.btn(I18n.t("nav.quit"), func() -> void:
 		_close_confirm()
 		Voice.leave()
 		OUI.leave_room(true), "red", true))
@@ -556,7 +556,7 @@ func _close_confirm() -> void:
 # ---------------------------------------------------------------- sheets
 func _open_chat() -> void:
 	var cpn := NetImg.ChatPanel.new(link, false)
-	OUI.open_sheet("گفتگو", "ROOM CHAT", cpn, OUI.CYAN, 0.72)
+	OUI.open_sheet(I18n.t("lobby.chat"), "ROOM CHAT", cpn, OUI.CYAN, 0.72)
 
 
 func _open_settings() -> void:
@@ -566,20 +566,20 @@ func _open_settings() -> void:
 	var sc := OUI.scroll()
 	var v := OUI.vbox(OUI.S_XS)
 	sc.add_child(OUI.margin(v, OUI.S_L, 0, OUI.S_L, OUI.S_XL))
-	var nf := OUI.field("نام اتاق", "", 40)
+	var nf := OUI.field(I18n.t("hub.room_name"), "", 40)
 	(nf.get_meta("input") as LineEdit).text = OUI.s(room.get("name"))
 	v.add_child(nf)
-	v.add_child(OUI.cap_label("قانون بازی"))
+	v.add_child(OUI.cap_label(I18n.t("lobby.match_rule")))
 	v.add_child(OUI.segment(OUI.RULES, st["rule"], func(x: Variant) -> void: st["rule"] = x, OUI.VIOLET))
-	v.add_child(OUI.cap_label("زمان هر نوبت"))
+	v.add_child(OUI.cap_label(I18n.t("hub.turn_time")))
 	v.add_child(OUI.segment(OUI.TURNS, st["turn"], func(x: Variant) -> void: st["turn"] = x, OUI.GREEN))
-	v.add_child(OUI.cap_label("زمین"))
+	v.add_child(OUI.cap_label(I18n.t("hub.field")))
 	v.add_child(preload("res://src/online/hub.gd").field_picker(st["field"], func(i: int) -> void: st["field"] = i))
 	v.add_child(OUI.spacer(OUI.S_L))
-	var save := OUI.btn("ذخیره", Callable(), "primary")
+	var save := OUI.btn(I18n.t("lobby.save"), Callable(), "primary")
 	save.pressed.connect(func() -> void:
 		save.disabled = true
-		save.text = "در حال ذخیره…"
+		save.text = I18n.t("lobby.saving")
 		var ns := settings.duplicate()
 		ns.merge(OUI.rule_to_settings(str(st["rule"])), true)
 		ns["turn"] = st["turn"]
@@ -588,12 +588,12 @@ func _open_settings() -> void:
 		if OUI.ok(r):
 			link.ping()
 			await link.refresh()
-			OUI.toast("تنظیمات ذخیره شد", "ok")
+			OUI.toast(I18n.t("lobby.settings_saved"), "ok")
 			Nav.close_sheet()
 		else:
 			OUI.toast_err(OUI.err(r))
 			if is_instance_valid(save):
 				save.disabled = false
-				save.text = "ذخیره")
+				save.text = I18n.t("lobby.save"))
 	v.add_child(save)
-	OUI.open_sheet("تنظیمات اتاق", "ROOM SETTINGS", sc, OUI.CYAN, 0.8)
+	OUI.open_sheet(I18n.t("lobby.room_settings"), "ROOM SETTINGS", sc, OUI.CYAN, 0.8)

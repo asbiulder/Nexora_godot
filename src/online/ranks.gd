@@ -32,7 +32,7 @@ func setup(p: Dictionary) -> void:
 func _ready() -> void:
 	Nav.chrome(false)
 	set_anchors_preset(Control.PRESET_FULL_RECT)
-	layout_direction = Control.LAYOUT_DIRECTION_RTL
+	layout_direction = I18n.LD
 	OUI.boot()
 	tick = Timer.new()
 	tick.wait_time = 30.0
@@ -56,9 +56,9 @@ func _build() -> void:
 		root = OUI.vbox(0)
 		root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		add_child(root)
-	hdr = OUI.header("رده‌بندی" if tab == "top" else "لیگ‌ها و فصل", "LEADERBOARD" if tab == "top" else "LEAGUES · SEASON", func() -> void: Nav.back(), null, OUI.GOLD, _reload)
+	hdr = OUI.header(I18n.t("hub.leaderboard") if tab == "top" else I18n.t("ranks.leagues_season"), "LEADERBOARD" if tab == "top" else "LEAGUES · SEASON", func() -> void: Nav.back(), null, OUI.GOLD, _reload)
 	root.add_child(hdr)
-	root.add_child(OUI.margin(OUI.segment([["top", "برترین‌ها"], ["leagues", "لیگ‌ها"]], tab, func(v: Variant) -> void:
+	root.add_child(OUI.margin(OUI.segment([["top", I18n.t("ranks.top_players")], ["leagues", I18n.t("ranks.leagues")]], tab, func(v: Variant) -> void:
 		tab = str(v)
 		_build()), OUI.S_L, OUI.S_S, OUI.S_L, OUI.S_S))
 	if tab == "top":
@@ -124,7 +124,7 @@ func _apply_lb() -> void:
 	elif not lb_loaded:
 		vl.set_empty(OUI.skeleton(8, 60))
 	else:
-		vl.set_empty(OUI.empty(OUI.ui2("x_ball"), "هنوز کسی در رده‌بندی نیست"))
+		vl.set_empty(OUI.empty(OUI.ui2("x_ball"), I18n.t("ranks.no_one_is_on_the")))
 	var _u := u
 
 
@@ -183,7 +183,7 @@ static func make_lb_row() -> Control:
 	mv.custom_minimum_size.x = OUI.px(56)
 	mv.alignment = BoxContainer.ALIGNMENT_CENTER
 	b.metric_l = OUI.lbl("", 14, OUI.GOLD, "title", HORIZONTAL_ALIGNMENT_CENTER)
-	b.metric_cap = OUI.lbl("امتیاز", 9, OUI.DIM, "body", HORIZONTAL_ALIGNMENT_CENTER)
+	b.metric_cap = OUI.lbl(I18n.t("online_result.rating"), 9, OUI.DIM, "body", HORIZONTAL_ALIGNMENT_CENTER)
 	mv.add_child(b.metric_l)
 	mv.add_child(b.metric_cap)
 	h.add_child(mv)
@@ -212,11 +212,11 @@ static func bind_lb_row(c: Control, r: Dictionary, mine: bool, cb: Callable, met
 	b.rank_l.text = OUI.fa(rank)
 	b.rank_l.add_theme_color_override("font_color", medal if medal is Color else OUI.DIM)
 	b.av.set_data(r.get("avatar"), r.get("avatar_url"), medal if medal is Color else OUI.LINE)
-	b.name_l.text = OUI.s(r.get("username")) + (" (تو)" if mine else "")
-	b.sub_l.text = "سطح %s · %s برد" % [OUI.fa(OUI.i(r.get("level"), 1)), OUI.fa(OUI.i(r.get("wins")))]
+	b.name_l.text = OUI.s(r.get("username")) + (I18n.t("ranks.you") if mine else "")
+	b.sub_l.text = I18n.t("ranks.level_x_x_wins") % [OUI.fa(OUI.i(r.get("level"), 1)), OUI.fa(OUI.i(r.get("wins")))]
 	b.lg.texture = OUI.league_tex(r.get("league"))
 	b.metric_l.text = OUI.fa(metric if metric != null else OUI.i(r.get("rating")))
-	b.metric_cap.text = metric_label if metric_label != "" else "امتیاز"
+	b.metric_cap.text = metric_label if metric_label != "" else I18n.t("online_result.rating")
 
 
 # ---------------------------------------------------------------- leagues + season
@@ -244,7 +244,7 @@ func _season_text() -> String:
 	var left := maxf(0.0, OUI.iso_to_unix(season.get("ends_at")) - OUI.now_s())
 	var dd := int(floor(left / 86400.0))
 	var hh := int(floor(fmod(left, 86400.0) / 3600.0))
-	return "%s روز و %s ساعت تا پایان فصل" % [OUI.fa(dd), OUI.fa(hh)]
+	return I18n.t("ranks.x_days_x_hours_until") % [OUI.fa(dd), OUI.fa(hh)]
 
 
 func _upd_season() -> void:
@@ -261,13 +261,13 @@ func _render_leagues(list0: Array) -> void:
 	sh.add_child(OUI.img(OUI.ui2("c_calendar"), 48))
 	var stv := OUI.vbox(2)
 	stv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	stv.add_child(OUI.lbl(OUI.s(season.get("name"), "فصل جاری") if not season.is_empty() else "فصل جاری", OUI.TS_H, OUI.TEXT, "title"))
+	stv.add_child(OUI.lbl(OUI.s(season.get("name"), I18n.t("ranks.current_season")) if not season.is_empty() else I18n.t("ranks.current_season"), OUI.TS_H, OUI.TEXT, "title"))
 	season_l = OUI.lbl(_season_text(), OUI.TS_CAP, OUI.DIM)
 	stv.add_child(season_l)
 	sh.add_child(stv)
 	sv.add_child(sh)
-	sv.add_child(OUI.lbl("در پایان هر فصل بر اساس لیگت الماس می‌گیری. جایزه‌ی فصل قبل را این‌جا دریافت کن.", OUI.TS_CAP, OUI.DIM, "body", HORIZONTAL_ALIGNMENT_RIGHT, true, 3))
-	var cb := OUI.btn("دریافت جایزه‌ی فصل قبل", Callable(), "violet", true)
+	sv.add_child(OUI.lbl(I18n.t("ranks.at_the_end_of_each"), OUI.TS_CAP, OUI.DIM, "body", I18n.AR, true, 3))
+	var cb := OUI.btn(I18n.t("ranks.claim_last_season_s_reward"), Callable(), "violet", true)
 	cb.pressed.connect(func() -> void:
 		if claim_busy:
 			return
@@ -277,14 +277,14 @@ func _render_leagues(list0: Array) -> void:
 		var r: Dictionary = await Supa.call_rpc("claim_season_reward", {})
 		claim_busy = false
 		if is_instance_valid(cb):
-			cb.text = "دریافت جایزه‌ی فصل قبل"
+			cb.text = I18n.t("ranks.claim_last_season_s_reward")
 			cb.disabled = false
 		if OUI.ok(r):
 			OUI.sfx("win")
 			OUI.buzz("success")
 			var g := OUI.i(OUI.d(r.get("data")).get("gems"))
-			OUI.toast("+%s الماس جایزه‌ی فصل" % OUI.fa(g), "ok")
-			OracleCoach.react("reward", "%s الماس" % OUI.fa(g))
+			OUI.toast(I18n.t("ranks.x_gems_season_reward") % OUI.fa(g), "ok")
+			OracleCoach.react("reward", I18n.t("ranks.x_gems") % OUI.fa(g))
 		else:
 			OUI.toast_err(OUI.err(r)))
 	sv.add_child(cb)
@@ -304,16 +304,16 @@ func _render_leagues(list0: Array) -> void:
 		ch.add_child(OUI.img(OUI.league_tex(cur.get("id")), 56))
 		var cv := OUI.vbox(OUI.S_XS)
 		cv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		cv.add_child(OUI.lbl("لیگ %s" % OUI.s(cur.get("name_fa")), OUI.TS_H, cc, "title"))
+		cv.add_child(OUI.lbl(I18n.t("ranks.x_league") % OUI.s(cur.get("name_fa")), OUI.TS_H, cc, "title"))
 		var frac := 1.0
 		if nxt != null:
 			frac = float(rating - OUI.i(cur.get("min_rating"))) / float(maxi(1, OUI.i(nxt.get("min_rating")) - OUI.i(cur.get("min_rating"))))
 		cv.add_child(OUI.bar(frac, cc, OUI.INDIGO))
-		cv.add_child(OUI.lbl(("%s / %s تا لیگ %s" % [OUI.fa(rating), OUI.fa(OUI.i(nxt.get("min_rating"))), OUI.s(nxt.get("name_fa"))]) if nxt != null else "%s · بالاترین لیگ!" % OUI.fa(rating), OUI.TS_CAP, OUI.DIM))
+		cv.add_child(OUI.lbl((I18n.t("ranks.x_x_to_x_league") % [OUI.fa(rating), OUI.fa(OUI.i(nxt.get("min_rating"))), OUI.s(nxt.get("name_fa"))]) if nxt != null else I18n.t("ranks.x_top_league") % OUI.fa(rating), OUI.TS_CAP, OUI.DIM))
 		ch.add_child(cv)
 		cp.add_child(ch)
 		content.add_child(cp)
-	content.add_child(OUI.section_title("نردبان لیگ‌ها"))
+	content.add_child(OUI.section_title(I18n.t("ranks.league_ladder")))
 	if list.is_empty():
 		content.add_child(OUI.skeleton(7, 64))
 		return
@@ -331,17 +331,17 @@ func _render_leagues(list0: Array) -> void:
 		v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		v.alignment = BoxContainer.ALIGNMENT_CENTER
 		v.add_child(OUI.lbl(OUI.s(l.get("name_fa")), OUI.TS_BODY, col if reached else OUI.DIM, "bold"))
-		v.add_child(OUI.lbl("از %s امتیاز" % OUI.fa(OUI.i(l.get("min_rating"))), OUI.TS_TINY, OUI.DIM))
+		v.add_child(OUI.lbl(I18n.t("ranks.from_x_rating") % OUI.fa(OUI.i(l.get("min_rating"))), OUI.TS_TINY, OUI.DIM))
 		h.add_child(v)
 		if on:
-			var bd := OUI.badge("لیگ تو", col)
+			var bd := OUI.badge(I18n.t("ranks.your_league"), col)
 			bd.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 			h.add_child(bd)
 		var rv := OUI.vbox(0)
 		rv.custom_minimum_size.x = OUI.px(64)
 		rv.alignment = BoxContainer.ALIGNMENT_CENTER
 		rv.add_child(OUI.lbl("💎 %s" % OUI.fa(int(rewards.get(OUI.s(l.get("id")), 0))), OUI.TS_SMALL, OUI.GEM_BLUE, "bold", HORIZONTAL_ALIGNMENT_CENTER))
-		rv.add_child(OUI.lbl("جایزه‌ی فصل", 9, OUI.DIM, "body", HORIZONTAL_ALIGNMENT_CENTER))
+		rv.add_child(OUI.lbl(I18n.t("ranks.season_reward"), 9, OUI.DIM, "body", HORIZONTAL_ALIGNMENT_CENTER))
 		h.add_child(rv)
 		row.add_child(h)
 		content.add_child(row)

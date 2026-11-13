@@ -25,7 +25,7 @@ func _ready() -> void:
 	for k in ["margin_left", "margin_right", "margin_top", "margin_bottom"]:
 		add_theme_constant_override(k, 58)
 	add_child(v)
-	var t := Kit.title("صندوقچه‌ی سلطنتی" if premium else "صندوقچه‌ی رایگان", 52)
+	var t := Kit.title(I18n.t("chest.royal_chest") if premium else I18n.t("chest.free_chest"), 52)
 	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(t)
 	stage = Kit.stage(800, 572)
@@ -51,7 +51,7 @@ func _ready() -> void:
 	else:
 		Kit.put(prize_box, Kit.img(UD.ui2("x_coins"), 390), 200, 200)
 	v.add_child(Kit.center(stage))
-	opening_l = Kit.label("در حال باز شدن...", 36, NX.DIM)
+	opening_l = Kit.label(I18n.t("chest.opening"), 36, NX.DIM)
 	opening_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(opening_l)
 	info = Kit.vbox(8)
@@ -61,13 +61,13 @@ func _ready() -> void:
 		n.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		info.add_child(n)
 	var parts := []
-	if it is Dictionary: parts.append("آیتم جدید باز شد!")
-	if int(prize.get("coins", 0)) > 0: parts.append("+%s سکه" % NX.fa(prize["coins"]))
-	if int(prize.get("gems", 0)) > 0: parts.append("+%s الماس" % NX.fa(prize["gems"]))
+	if it is Dictionary: parts.append(I18n.t("chest.new_item_unlocked"))
+	if int(prize.get("coins", 0)) > 0: parts.append(I18n.t("nav.x_coins") % NX.fa(prize["coins"]))
+	if int(prize.get("gems", 0)) > 0: parts.append(I18n.t("chest.x_gems") % NX.fa(prize["gems"]))
 	var l := Kit.para(" · ".join(parts), 36, NX.DIM, HORIZONTAL_ALIGNMENT_CENTER)
 	info.add_child(l)
 	info.add_child(Kit.gap(20))
-	info.add_child(Kit.button("عالیه!", func(): Nav.close_modal(), "gold"))
+	info.add_child(Kit.button(I18n.t("chest.awesome"), func(): Nav.close_modal(), "gold"))
 	info.visible = false
 	v.add_child(info)
 	# shake → open

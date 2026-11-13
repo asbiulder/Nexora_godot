@@ -29,7 +29,7 @@ func _fill() -> void:
 	# ---------------- online account card
 	body.add_child(ent(padx(_account_card()), 0))
 
-	body.add_child(Kit.section("پروفایل آفلاین", "OFFLINE CAREER", rose))
+	body.add_child(Kit.section(I18n.t("profile.offline_profile"), "OFFLINE CAREER", rose))
 	# ---------------- career card
 	var pn := Kit.glass(rose, true)
 	var v := Kit.vbox(8)
@@ -55,7 +55,7 @@ func _fill() -> void:
 	ai.position = Vector2(15, 15)
 	av.add_child(ai)
 	Kit.put(avw, av, 156, 150)
-	var lvt := Kit.tag("سطح %s" % NX.fa(lv["level"]), NX.GOLD, Color("#1b0e00"), 29)
+	var lvt := Kit.tag(I18n.t("hub.level_x") % NX.fa(lv["level"]), NX.GOLD, Color("#1b0e00"), 29)
 	avw.add_child(lvt)
 	lvt.ready.connect(func(): lvt.position = Vector2(156 - lvt.size.x * 0.5, 262))
 	st.add_child(avw)
@@ -85,7 +85,7 @@ func _fill() -> void:
 	name_edit.text_submitted.connect(func(_t): _commit())
 	name_edit.focus_exited.connect(_commit)
 	v.add_child(name_edit)
-	var hint := Kit.label("برای تغییر نام لمس کن", 26, NX.DIM2)
+	var hint := Kit.label(I18n.t("profile.tap_to_change_name"), 26, NX.DIM2)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(hint)
 	v.add_child(Kit.gap(10))
@@ -107,9 +107,9 @@ func _fill() -> void:
 	var lc := Kit.vbox(10)
 	lc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	lc.alignment = BoxContainer.ALIGNMENT_CENTER
-	lc.add_child(Kit.title("لیگ %s" % UD.LEAGUE_FA[lg["name"]], 44))
+	lc.add_child(Kit.title(I18n.t("ranks.x_league") % UD.LEAGUE_FA[lg["name"]], 44))
 	lc.add_child(Kit.progress(float(tr - int(lg["from"])) / maxf(1.0, float(int(lg["to"]) - int(lg["from"]))), NX.GOLD, NX.ORANGE))
-	lc.add_child(Kit.label("%s از %s جام" % [NX.fa(tr), NX.fa(lg["to"])], 29, NX.DIM))
+	lc.add_child(Kit.label(I18n.t("profile.x_of_x_trophies") % [NX.fa(tr), NX.fa(lg["to"])], 29, NX.DIM))
 	lh.add_child(lc)
 	lp.add_child(lh)
 	body.add_child(ent(padx(lp), 2))
@@ -121,10 +121,10 @@ func _fill() -> void:
 	var rl := Kit.vbox(0)
 	rl.alignment = BoxContainer.ALIGNMENT_CENTER
 	rl.set_anchors_preset(Control.PRESET_FULL_RECT)
-	var pc := Kit.title("%s٪" % NX.fa(wr), 47)
+	var pc := Kit.title(I18n.t("profile.x") % NX.fa(wr), 47)
 	pc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	rl.add_child(pc)
-	var pcl := Kit.label("درصد برد", 23, NX.DIM)
+	var pcl := Kit.label(I18n.t("profile.win_rate"), 23, NX.DIM)
 	pcl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	rl.add_child(pcl)
 	ring.add_child(rl)
@@ -132,7 +132,7 @@ func _fill() -> void:
 	var rows := Kit.vbox(0)
 	rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var gd := int(p.get("goalsFor", 0)) - int(p.get("goalsAgainst", 0))
-	for r in [["بهترین رکورد برد پیاپی", NX.fa(int(p.get("bestStreak", 0)))], ["برد پیاپی فعلی", NX.fa(int(p.get("winStreak", 0)))], ["تفاضل گل", ("+" if gd >= 0 else "") + NX.fa(gd)], ["دیسک‌های باز شده", NX.fa((p.get("ownedTeams", []) as Array).size())]]:
+	for r in [[I18n.t("profile.best_win_streak"), NX.fa(int(p.get("bestStreak", 0)))], [I18n.t("profile.current_win_streak"), NX.fa(int(p.get("winStreak", 0)))], [I18n.t("profile.goal_difference"), ("+" if gd >= 0 else "") + NX.fa(gd)], [I18n.t("profile.discs_unlocked"), NX.fa((p.get("ownedTeams", []) as Array).size())]]:
 		var row := Kit.hbox(10, true)
 		row.custom_minimum_size.y = 74
 		row.add_child(Kit.label(r[0], 31, NX.DIM))
@@ -151,10 +151,10 @@ func _fill() -> void:
 	# ---------------- stat tiles
 	var grid := GridContainer.new()
 	grid.columns = 3
-	grid.layout_direction = Control.LAYOUT_DIRECTION_RTL
+	grid.layout_direction = I18n.LD
 	grid.add_theme_constant_override("h_separation", 20)
 	grid.add_theme_constant_override("v_separation", 20)
-	var stats := [["x_ball", "بازی", played], ["x_medal", "برد", wins], ["x_shield", "باخت", int(p.get("losses", 0))], ["x_star", "مساوی", int(p.get("draws", 0))], ["x_statue", "گل زده", int(p.get("goalsFor", 0))], ["x_trophy", "جام قهرمانی", int(p.get("cupsWon", 0))]]
+	var stats := [["x_ball", I18n.t("tournaments.match"), played], ["x_medal", I18n.t("profile.wins"), wins], ["x_shield", I18n.t("profile.losses"), int(p.get("losses", 0))], ["x_star", I18n.t("profile.draws"), int(p.get("draws", 0))], ["x_statue", I18n.t("profile.goals_scored"), int(p.get("goalsFor", 0))], ["x_trophy", I18n.t("profile.cups_won"), int(p.get("cupsWon", 0))]]
 	var i := 0
 	for s in stats:
 		var tp := Kit.glass()
@@ -174,7 +174,7 @@ func _fill() -> void:
 	body.add_child(padx(grid))
 
 	# ---------------- achievements
-	body.add_child(Kit.section("دستاوردها", "ACHIEVEMENTS", NX.GREEN))
+	body.add_child(Kit.section(I18n.t("profile.achievements"), "ACHIEVEMENTS", NX.GREEN))
 	var achs: Array = UD.ACHS
 	var claimed: Array = p.get("claimedAch", [])
 	var j := 0
@@ -209,12 +209,12 @@ func _ach(a: Dictionary, p: Dictionary, claimed: bool) -> Control:
 	rv.alignment = BoxContainer.ALIGNMENT_CENTER
 	rv.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	if claimed:
-		var l := Kit.label("✓ دریافت شد", 26, NX.GREEN)
+		var l := Kit.label(I18n.t("profile.claimed"), 26, NX.GREEN)
 		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		rv.add_child(l)
 	elif done:
 		var id: String = a["id"]
-		rv.add_child(Kit.button_small("دریافت", func(): UD.claim_ach(id), "green"))
+		rv.add_child(Kit.button_small(I18n.t("challenges.claim"), func(): UD.claim_ach(id), "green"))
 	else:
 		rv.add_child(Kit.center(Kit.img(UD.ui2("c_coin"), 62)))
 		var c := Kit.title("+%d" % int(a["coins"]), 26, NX.GOLD, "head")
@@ -247,10 +247,10 @@ func _account_card() -> Control:
 		var v := Kit.vbox(4)
 		v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		v.alignment = BoxContainer.ALIGNMENT_CENTER
-		v.add_child(Kit.label("حساب آنلاین", 42, NX.TEXT, true))
-		v.add_child(Kit.para("ورود یا ثبت‌نام برای بازی آنلاین، رده‌بندی و دیسک‌های الماسی", 29, NX.DIM))
+		v.add_child(Kit.label(I18n.t("account.online_account"), 42, NX.TEXT, true))
+		v.add_child(Kit.para(I18n.t("profile.sign_in_or_register_for"), 29, NX.DIM))
 		h.add_child(v)
-		var b := Kit.button_small("ورود", func(): Nav.go("account"), "violet")
+		var b := Kit.button_small(I18n.t("hub.join"), func(): Nav.go("account"), "violet")
 		b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		h.add_child(b)
 	else:
@@ -262,7 +262,7 @@ func _account_card() -> Control:
 		v2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		v2.alignment = BoxContainer.ALIGNMENT_CENTER
 		v2.add_child(Kit.label(str(op.get("username", "")), 42, NX.TEXT, true))
-		v2.add_child(Kit.label("امتیاز %s · الماس %s" % [NX.fa(int(op.get("rating", 0))), NX.fa(int(op.get("gems", 0)))], 29, NX.GOLD, true))
+		v2.add_child(Kit.label(I18n.t("play.rating_x_gems_x") % [NX.fa(int(op.get("rating", 0))), NX.fa(int(op.get("gems", 0)))], 29, NX.GOLD, true))
 		h.add_child(v2)
 		h.add_child(Kit.img(UD.menu("g_chevrons"), 60))
 	pn.add_child(h)

@@ -8,7 +8,16 @@ extends Control
 @onready var toast_layer: Control = $ToastLayer
 @onready var veil: ColorRect = $Veil
 
+func _enter_tree() -> void:
+	# before any child's _ready: the root window follows the locale (fa = RTL) and would mirror
+	# every absolutely placed control (HUD, hero art); screens and rows opt into RTL themselves
+	# via I18n.LD
+	I18n.ensure()
+	layout_direction = Control.LAYOUT_DIRECTION_LTR
+
 func _ready() -> void:
+	# language first: every screen reads I18n (texts, RTL/LTR, alignment) while it builds
+	I18n.ensure()
 	get_tree().set_auto_accept_quit(false)
 	get_tree().quit_on_go_back = false
 	_update_safe_area()
@@ -31,6 +40,9 @@ func _ready() -> void:
 	if st and st.has_signal("changed"):
 		st.connect("changed", _apply_quality)
 	var first := "intro"
+	if I18n.skip_intro:  # reloaded after a language switch: straight back to Home
+		I18n.skip_intro = false
+		first = "home"
 	if OS.has_environment("NX_START"):
 		first = OS.get_environment("NX_START")
 	# test hook (Android emulator smoke test): am start ... --esa command_line_params --nx-start=<screen|quickmatch>

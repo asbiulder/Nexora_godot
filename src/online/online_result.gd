@@ -39,7 +39,7 @@ func _g(snake: String, camel: String, def: Variant = null) -> Variant:
 func _ready() -> void:
 	Nav.chrome(false)
 	set_anchors_preset(Control.PRESET_FULL_RECT)
-	layout_direction = Control.LAYOUT_DIRECTION_RTL
+	layout_direction = I18n.LD
 	mine = _g("my_team", "myTeam", null)
 	var winner := OUI.i(o.get("winner"), -1)
 	if mine == null:
@@ -107,10 +107,10 @@ func _ready() -> void:
 	body.add_child(rewards_slot)
 	var reported := bool(o.get("reported", false))
 	if mine == null:
-		rewards_slot.add_child(OUI.lbl("تو تماشاگر این بازی بودی", OUI.TS_SMALL, OUI.DIM, "body", HORIZONTAL_ALIGNMENT_CENTER))
+		rewards_slot.add_child(OUI.lbl(I18n.t("online_result.you_were_a_spectator_in"), OUI.TS_SMALL, OUI.DIM, "body", HORIZONTAL_ALIGNMENT_CENTER))
 	elif not reported:
 		var wp := OUI.panel(OUI.ORANGE)
-		wp.add_child(OUI.lbl("نتیجه روی سرور ثبت نشد؛ جایزه‌ای اعمال نشد.", OUI.TS_SMALL, OUI.ORANGE, "body", HORIZONTAL_ALIGNMENT_CENTER, true, 2))
+		wp.add_child(OUI.lbl(I18n.t("online_result.the_result_wasn_t_saved"), OUI.TS_SMALL, OUI.ORANGE, "body", HORIZONTAL_ALIGNMENT_CENTER, true, 2))
 		rewards_slot.add_child(wp)
 	else:
 		var wv := OUI.vbox(OUI.S_S)
@@ -119,7 +119,7 @@ func _ready() -> void:
 		var spn := OUI.spinner()
 		spn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		wv.add_child(spn)
-		wv.add_child(OUI.lbl("در حال دریافت جوایز…", OUI.TS_CAP, OUI.DIM, "body", HORIZONTAL_ALIGNMENT_CENTER))
+		wv.add_child(OUI.lbl(I18n.t("online_result.collecting_rewards"), OUI.TS_CAP, OUI.DIM, "body", HORIZONTAL_ALIGNMENT_CENTER))
 		rewards_slot.add_child(wv)
 		_load_after(0)
 	if mine != null:
@@ -138,15 +138,15 @@ func _ready() -> void:
 		bub.add_theme_stylebox_override("panel", bst)
 		bub.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		bub.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-		bub.add_child(OUI.lbl(str(line["text"]), OUI.TS_SMALL, OUI.TEXT, "body", HORIZONTAL_ALIGNMENT_RIGHT, true, 0))
+		bub.add_child(OUI.lbl(str(line["text"]), OUI.TS_SMALL, OUI.TEXT, "body", I18n.AR, true, 0))
 		oh.add_child(bub)
 		body.add_child(OUI.margin(oh, 0, OUI.S_M, 0, 0))
 		var ftw := spr.create_tween().set_loops()
 		ftw.tween_property(spr, "position:y", -OUI.px(4), 1.1).set_trans(Tween.TRANS_SINE).as_relative()
 		ftw.tween_property(spr, "position:y", OUI.px(4), 1.1).set_trans(Tween.TRANS_SINE).as_relative()
 	body.add_child(OUI.spacer(OUI.S_M))
-	body.add_child(OUI.btn("بازگشت به لابی", _to_lobby, "gold" if out == "victory" else "primary"))
-	body.add_child(OUI.btn("خروج از اتاق", func() -> void: OUI.leave_room(true), "dark", true))
+	body.add_child(OUI.btn(I18n.t("online_result.back_to_lobby"), _to_lobby, "gold" if out == "victory" else "primary"))
+	body.add_child(OUI.btn(I18n.t("online_result.leave_room"), func() -> void: OUI.leave_room(true), "dark", true))
 
 
 func _process(dt: float) -> void:
@@ -216,15 +216,15 @@ func _show_rewards() -> void:
 	var rh := OUI.hbox(0)
 	rh.add_child(_rw(OUI.ui2("x_star"), d_xp, OUI.CYAN, 0.15, "XP"))
 	rh.add_child(_rw(OUI.ui2("c_coin"), d_coins, OUI.GOLD, 0.3, ""))
-	rh.add_child(_rw(OUI.ui2("x_trophy"), d_rating, OUI.GREEN if d_rating >= 0 else OUI.RED, 0.45, "امتیاز"))
+	rh.add_child(_rw(OUI.ui2("x_trophy"), d_rating, OUI.GREEN if d_rating >= 0 else OUI.RED, 0.45, I18n.t("online_result.rating")))
 	if d_arena != 0:
-		rh.add_child(_rw(OUI.ui2("x_crown"), d_arena, OUI.VIOLET, 0.6, "آرنا"))
+		rh.add_child(_rw(OUI.ui2("x_crown"), d_arena, OUI.VIOLET, 0.6, I18n.t("arena.arena")))
 	rewards_slot.add_child(rh)
 	var lp := OUI.level_progress(OUI.i(after.get("xp")))
 	var lpn := OUI.panel(null)
 	var lv := OUI.vbox(OUI.S_S)
 	var lh := OUI.hbox(OUI.S_S)
-	lh.add_child(OUI.flbl("سطح %s" % OUI.fa(lp["level"]), OUI.TS_BODY, OUI.TEXT, "bold"))
+	lh.add_child(OUI.flbl(I18n.t("hub.level_x") % OUI.fa(lp["level"]), OUI.TS_BODY, OUI.TEXT, "bold"))
 	lh.add_child(OUI.lbl("%s / %s XP" % [OUI.fa(lp["cur"]), OUI.fa(lp["need"])], OUI.TS_CAP, OUI.DIM))
 	lv.add_child(lh)
 	lv.add_child(OUI.bar(lp["frac"], OUI.CYAN, OUI.VIOLET, 8))
@@ -236,8 +236,8 @@ func _show_rewards() -> void:
 		uh.add_child(OUI.img(OUI.ui2("x_crown"), 48))
 		var uv := OUI.vbox(0)
 		uv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		uv.add_child(OUI.lbl("سطح %s!" % OUI.fa(lv_up), 18, Color("#d6b8ff"), "title"))
-		uv.add_child(OUI.lbl("به سطح جدید رسیدی", OUI.TS_CAP, OUI.DIM))
+		uv.add_child(OUI.lbl(I18n.t("online_result.level_x") % OUI.fa(lv_up), 18, Color("#d6b8ff"), "title"))
+		uv.add_child(OUI.lbl(I18n.t("online_result.you_reached_a_new_level"), OUI.TS_CAP, OUI.DIM))
 		uh.add_child(uv)
 		up.add_child(uh)
 		rewards_slot.add_child(up)
@@ -253,7 +253,7 @@ func _rw(t: Texture2D, v: int, c: Color, delay: float, label: String) -> Control
 	var im := OUI.img(t, 36)
 	im.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	vb.add_child(im)
-	var nl := OUI.lbl("+۰", 15, c, "title", HORIZONTAL_ALIGNMENT_CENTER)
+	var nl := OUI.lbl(I18n.t("online_result.0"), 15, c, "title", HORIZONTAL_ALIGNMENT_CENTER)
 	vb.add_child(nl)
 	if label != "":
 		vb.add_child(OUI.lbl(label, OUI.TS_TINY, OUI.DIM, "body", HORIZONTAL_ALIGNMENT_CENTER))

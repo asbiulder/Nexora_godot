@@ -46,7 +46,7 @@ func setup(p: Dictionary) -> void:
 func _ready() -> void:
 	Nav.chrome(false)
 	set_anchors_preset(Control.PRESET_FULL_RECT)
-	layout_direction = Control.LAYOUT_DIRECTION_RTL
+	layout_direction = I18n.LD
 	OUI.boot()
 	debounce = Timer.new()
 	debounce.one_shot = true
@@ -89,10 +89,10 @@ func _build_list() -> void:
 	var add := OUI.pill("+", _open_create, OUI.GREEN, 44, 44)
 	add.add_theme_font_override("font", OUI.font("title"))
 	add.add_theme_font_size_override("font_size", OUI.px(22))
-	root.add_child(OUI.header("تورنمنت‌ها", "TOURNAMENTS", func() -> void: Nav.back(), add, OUI.ORANGE, _load_list))
+	root.add_child(OUI.header(I18n.t("tournaments.tournaments"), "TOURNAMENTS", func() -> void: Nav.back(), add, OUI.ORANGE, _load_list))
 	vl = OUI.VList.new(92, _make_tour_row, _bind_tour_row, 8)
 	root.add_child(vl)
-	vl.set_header(OUI.margin(OUI.segment([["registration", "ثبت‌نام"], ["running", "در جریان"], ["finished", "تمام‌شده"]], tab, func(v: Variant) -> void:
+	vl.set_header(OUI.margin(OUI.segment([["registration", I18n.t("tournaments.sign_up")], ["running", I18n.t("challenges.in_progress")], ["finished", I18n.t("tournaments.finished")]], tab, func(v: Variant) -> void:
 		tab = str(v)
 		list_loaded = false
 		list_rows = []
@@ -136,7 +136,7 @@ func _apply_list() -> void:
 		vl.set_empty(OUI.skeleton(4, 92))
 	else:
 		var reg := tab == "registration"
-		vl.set_empty(OUI.empty(OUI.ui2("x_trophy"), "تورنمنتی در این بخش نیست", "اولین تورنمنت را خودت بساز!" if reg else "", "ساخت تورنمنت" if reg else "", _open_create))
+		vl.set_empty(OUI.empty(OUI.ui2("x_trophy"), I18n.t("tournaments.no_tournaments_in_this_section"), I18n.t("tournaments.create_the_first_tournament_yourself") if reg else "", I18n.t("tournaments.create_tournament") if reg else "", _open_create))
 
 
 class TourRow extends Button:
@@ -209,9 +209,9 @@ func _open_create() -> void:
 	var sc := OUI.scroll()
 	var v := OUI.vbox(OUI.S_XS)
 	sc.add_child(OUI.margin(v, OUI.S_L, 0, OUI.S_L, OUI.S_XL * 2))
-	var nf := OUI.field("نام تورنمنت", "جام کهکشان", 40)
+	var nf := OUI.field(I18n.t("tournaments.tournament_name"), I18n.t("tournaments.galaxy_cup"), 40)
 	v.add_child(nf)
-	v.add_child(OUI.cap_label("فرمت"))
+	v.add_child(OUI.cap_label(I18n.t("tournaments.format")))
 	var fl := HFlowContainer.new()
 	fl.add_theme_constant_override("h_separation", OUI.px(8))
 	fl.add_theme_constant_override("v_separation", OUI.px(8))
@@ -221,8 +221,8 @@ func _open_create() -> void:
 		OUI.clear(rounds_box)
 		var f: String = st["format"]
 		if f == "league" or f == "swiss":
-			rounds_box.add_child(OUI.cap_label("تعداد دور رفت و برگشت" if f == "league" else "تعداد دورها"))
-			var items: Array = [[1, "یک"], [2, "دو"], [3, "سه"]] if f == "league" else [[3, "۳"], [4, "۴"], [5, "۵"], [6, "۶"]]
+			rounds_box.add_child(OUI.cap_label(I18n.t("tournaments.number_of_home_and_away") if f == "league" else I18n.t("tournaments.number_of_rounds")))
+			var items: Array = [[1, I18n.t("tournaments.one")], [2, I18n.t("tournaments.two")], [3, I18n.t("tournaments.three")]] if f == "league" else [[3, I18n.t("tournaments.3")], [4, I18n.t("tournaments.4")], [5, I18n.t("tournaments.5")], [6, I18n.t("tournaments.6")]]
 			if f == "swiss" and int(st["rounds"]) < 3:
 				st["rounds"] = 3
 			if f == "league" and int(st["rounds"]) > 3:
@@ -249,31 +249,31 @@ func _open_create() -> void:
 		fl.add_child(b)
 	paint.call()
 	v.add_child(fl)
-	v.add_child(OUI.cap_label("حالت"))
+	v.add_child(OUI.cap_label(I18n.t("hub.mode")))
 	v.add_child(OUI.segment([["1v1", "1v1"], ["2v2", "2v2"], ["3v3", "3v3"]], "1v1", func(x: Variant) -> void: st["mode"] = x))
-	v.add_child(OUI.cap_label("ظرفیت"))
-	v.add_child(OUI.segment([[4, "۴"], [8, "۸"], [16, "۱۶"], [32, "۳۲"], [64, "۶۴"]], 8, func(x: Variant) -> void: st["max"] = x, OUI.ORANGE))
+	v.add_child(OUI.cap_label(I18n.t("tournaments.capacity")))
+	v.add_child(OUI.segment([[4, I18n.t("tournaments.4")], [8, I18n.t("tournaments.8")], [16, I18n.t("tournaments.16")], [32, I18n.t("tournaments.32")], [64, I18n.t("tournaments.64")]], 8, func(x: Variant) -> void: st["max"] = x, OUI.ORANGE))
 	v.add_child(rounds_box)
 	rebuild_rounds.call()
-	v.add_child(OUI.cap_label("جایزه‌ی قهرمان (الماس) — نایب‌قهرمان یک‌سوم"))
-	v.add_child(OUI.segment([[0, "۰"], [10, "۱۰"], [20, "۲۰"], [30, "۳۰"]], 20, func(x: Variant) -> void: st["gems"] = x, OUI.SKY))
-	v.add_child(OUI.cap_label("حداقل سطح"))
-	v.add_child(OUI.segment([[1, "۱"], [3, "۳"], [5, "۵"], [10, "۱۰"]], 1, func(x: Variant) -> void: st["min_lv"] = x, OUI.GREEN))
+	v.add_child(OUI.cap_label(I18n.t("tournaments.champion_prize_gems_runner_up")))
+	v.add_child(OUI.segment([[0, I18n.t("tournaments.0")], [10, I18n.t("tournaments.10")], [20, I18n.t("tournaments.20")], [30, I18n.t("tournaments.30")]], 20, func(x: Variant) -> void: st["gems"] = x, OUI.SKY))
+	v.add_child(OUI.cap_label(I18n.t("tournaments.minimum_level")))
+	v.add_child(OUI.segment([[1, I18n.t("tournaments.1")], [3, I18n.t("tournaments.3")], [5, I18n.t("tournaments.5")], [10, I18n.t("tournaments.10")]], 1, func(x: Variant) -> void: st["min_lv"] = x, OUI.GREEN))
 	v.add_child(OUI.spacer(OUI.S_L))
-	var go := OUI.btn("ساخت تورنمنت", Callable(), "gold")
+	var go := OUI.btn(I18n.t("tournaments.create_tournament"), Callable(), "gold")
 	go.pressed.connect(func() -> void:
 		var nm := OUI.field_value(nf).strip_edges()
 		if nm.length() < 3:
-			OUI.toast_err("نام تورنمنت حداقل ۳ کاراکتر")
+			OUI.toast_err(I18n.t("tournaments.tournament_name_must_be_at"))
 			return
 		go.disabled = true
-		go.text = "در حال ساخت…"
+		go.text = I18n.t("hub.creating")
 		var f: String = st["format"]
 		var r: Dictionary = await Supa.call_rpc("create_tournament", {"p_name": nm, "p_format": f, "p_mode": st["mode"], "p_max": st["max"], "p_rounds": st["rounds"] if (f == "league" or f == "swiss") else null, "p_prize_gems": st["gems"], "p_starts": null, "p_min_level": st["min_lv"]})
 		if OUI.ok(r):
 			OUI.sfx("ready")
 			OUI.buzz("success")
-			OUI.toast("تورنمنت ساخته شد", "ok")
+			OUI.toast(I18n.t("tournaments.tournament_created"), "ok")
 			Nav.close_sheet()
 			var dd: Variant = r.get("data")
 			if dd is Array and dd.size() > 0:
@@ -283,14 +283,14 @@ func _open_create() -> void:
 			OUI.toast_err(OUI.err(r))
 			if is_instance_valid(go):
 				go.disabled = false
-				go.text = "ساخت تورنمنت")
+				go.text = I18n.t("tournaments.create_tournament"))
 	v.add_child(go)
-	OUI.open_sheet("ساخت تورنمنت", "NEW TOURNAMENT", sc, OUI.ORANGE, 0.9)
+	OUI.open_sheet(I18n.t("tournaments.create_tournament"), "NEW TOURNAMENT", sc, OUI.ORANGE, 0.9)
 
 
 # ================================================================ detail
 func _build_detail() -> void:
-	var pg := OUI.page(self, "تورنمنت", "", func() -> void: Nav.back(), null, OUI.ORANGE, _load_detail)
+	var pg := OUI.page(self, I18n.t("hub.tournament"), "", func() -> void: Nav.back(), null, OUI.ORANGE, _load_detail)
 	root = pg["root"]
 	body = pg["body"]
 	body.add_child(OUI.spinner(36))
@@ -318,7 +318,7 @@ func _load_detail() -> void:
 	var tt: Variant = OUI.one(a)
 	if tt == null:
 		OUI.clear(body)
-		body.add_child(OUI.error_state("تورنمنت پیدا نشد", _load_detail))
+		body.add_child(OUI.error_state(I18n.t("tournaments.tournament_not_found"), _load_detail))
 		return
 	t = tt
 	entries = OUI.rows(b)
@@ -393,62 +393,62 @@ func _render_detail() -> void:
 	bf.add_theme_constant_override("h_separation", OUI.px(4))
 	bf.add_theme_constant_override("v_separation", OUI.px(4))
 	bf.add_child(OUI.badge(stf[0], stf[1], status == "running"))
-	bf.add_child(OUI.badge("%s/%s شرکت‌کننده" % [OUI.fa(entries.size()), OUI.fa(OUI.i(t.get("max_entries")))], OUI.SKY))
-	bf.add_child(OUI.badge("💎 %s قهرمان" % OUI.fa(OUI.i(t.get("prize_gems"))), OUI.GEM_BLUE))
+	bf.add_child(OUI.badge(I18n.t("tournaments.x_x_players") % [OUI.fa(entries.size()), OUI.fa(OUI.i(t.get("max_entries")))], OUI.SKY))
+	bf.add_child(OUI.badge(I18n.t("tournaments.x_champion") % OUI.fa(OUI.i(t.get("prize_gems"))), OUI.GEM_BLUE))
 	bf.add_child(OUI.badge("%s XP" % OUI.fa(OUI.i(t.get("prize_xp"))), OUI.CYAN))
 	bf.add_child(OUI.badge("%s · %s" % [FORMAT_FA.get(OUI.s(t.get("format")), ""), OUI.s(t.get("mode")).to_upper()], OUI.VIOLET))
 	if OUI.i(t.get("min_level"), 1) > 1:
-		bf.add_child(OUI.badge("حداقل سطح %s" % OUI.fa(OUI.i(t.get("min_level"))), OUI.GREEN))
+		bf.add_child(OUI.badge(I18n.t("tournaments.min_level_x") % OUI.fa(OUI.i(t.get("min_level"))), OUI.GREEN))
 	if status != "registration" and OUI.i(t.get("current_round")) > 0:
-		bf.add_child(OUI.badge("دور %s" % OUI.fa(OUI.i(t.get("current_round"))), OUI.VIOLET))
+		bf.add_child(OUI.badge(I18n.t("tournaments.round_x") % OUI.fa(OUI.i(t.get("current_round"))), OUI.VIOLET))
 	iv.add_child(bf)
 	var w := OUI.s(t.get("winner_entry"))
 	if w != "" and names.has(w):
 		var wh := OUI.hbox(OUI.S_S)
 		wh.add_child(OUI.img(OUI.ui2("x_trophy"), 44))
-		wh.add_child(OUI.flbl("قهرمان: %s" % names[w], OUI.TS_H, OUI.GOLD, "title"))
+		wh.add_child(OUI.flbl(I18n.t("tournaments.champion_x") % names[w], OUI.TS_H, OUI.GOLD, "title"))
 		iv.add_child(wh)
 	ip.add_child(iv)
 	body.add_child(ip)
 	# actions
 	if status == "registration":
 		if my_id != "":
-			body.add_child(OUI.btn("…" if busy == "leave" else "انصراف از تورنمنت", func() -> void:
-				_run("leave", func() -> Dictionary: return await Supa.call_rpc("leave_tournament", {"p_tid": tid}), "از تورنمنت خارج شدی"), "dark", true))
+			body.add_child(OUI.btn("…" if busy == "leave" else I18n.t("tournaments.leave_tournament"), func() -> void:
+				_run("leave", func() -> Dictionary: return await Supa.call_rpc("leave_tournament", {"p_tid": tid}), I18n.t("tournaments.you_left_the_tournament")), "dark", true))
 		elif entries.size() < OUI.i(t.get("max_entries")):
 			if OUI.s(t.get("mode")) != "1v1":
-				var nf := OUI.field("نام تیم (اختیاری)", "", 24)
+				var nf := OUI.field(I18n.t("tournaments.team_name_optional"), "", 24)
 				var le: LineEdit = nf.get_meta("input")
 				le.text = team_name
 				le.text_changed.connect(func(x: String) -> void: team_name = x)
 				body.add_child(nf)
-			body.add_child(OUI.btn("…" if busy == "join" else "ثبت‌نام", func() -> void:
+			body.add_child(OUI.btn("…" if busy == "join" else I18n.t("tournaments.sign_up"), func() -> void:
 				var tn := team_name.strip_edges()
-				_run("join", func() -> Dictionary: return await Supa.call_rpc("join_tournament", {"p_tid": tid, "p_team_name": tn if tn != "" else null, "p_members": null}), "ثبت‌نام شدی!"), "green"))
+				_run("join", func() -> Dictionary: return await Supa.call_rpc("join_tournament", {"p_tid": tid, "p_team_name": tn if tn != "" else null, "p_members": null}), I18n.t("tournaments.you_re_signed_up")), "green"))
 		else:
-			body.add_child(OUI.lbl("ظرفیت تکمیل است", OUI.TS_BODY, OUI.ORANGE, "body", HORIZONTAL_ALIGNMENT_CENTER))
+			body.add_child(OUI.lbl(I18n.t("tournaments.tournament_is_full"), OUI.TS_BODY, OUI.ORANGE, "body", HORIZONTAL_ALIGNMENT_CENTER))
 	if is_org and status == "registration":
-		var sb := OUI.btn("…" if busy == "start" else "شروع تورنمنت (%s نفر)" % OUI.fa(entries.size()), func() -> void:
-			_run("start", func() -> Dictionary: return await Supa.call_rpc("start_tournament", {"p_tid": tid}), "تورنمنت شروع شد"), "gold")
+		var sb := OUI.btn("…" if busy == "start" else I18n.t("tournaments.start_tournament_x_players") % OUI.fa(entries.size()), func() -> void:
+			_run("start", func() -> Dictionary: return await Supa.call_rpc("start_tournament", {"p_tid": tid}), I18n.t("tournaments.tournament_started")), "gold")
 		sb.disabled = entries.size() < 2
 		body.add_child(sb)
 	if not next.is_empty():
 		var np := OUI.panel(OUI.RED, OUI.S_M, true)
 		var nv := OUI.vbox(OUI.S_S)
-		nv.add_child(OUI.lbl("مسابقه‌ی بعدی تو", OUI.TS_SMALL, OUI.RED, "bold"))
-		nv.add_child(OUI.lbl("%s  vs  %s" % [names.get(OUI.s(next.get("entry_a")), "؟"), names.get(OUI.s(next.get("entry_b")), "؟")], OUI.TS_H, OUI.TEXT, "title", HORIZONTAL_ALIGNMENT_CENTER))
+		nv.add_child(OUI.lbl(I18n.t("tournaments.your_next_match"), OUI.TS_SMALL, OUI.RED, "bold"))
+		nv.add_child(OUI.lbl("%s  vs  %s" % [names.get(OUI.s(next.get("entry_a")), I18n.t("tournaments.sym")), names.get(OUI.s(next.get("entry_b")), I18n.t("tournaments.sym"))], OUI.TS_H, OUI.TEXT, "title", HORIZONTAL_ALIGNMENT_CENTER))
 		var nid := OUI.s(next.get("id"))
-		nv.add_child(OUI.btn("…" if busy == "room" else "ورود به مسابقه", func() -> void: _open_room(nid), "red"))
+		nv.add_child(OUI.btn("…" if busy == "room" else I18n.t("tournaments.enter_match"), func() -> void: _open_room(nid), "red"))
 		np.add_child(nv)
 		body.add_child(np)
 	body.add_child(OUI.spacer(OUI.S_S))
-	body.add_child(OUI.segment([["board", "براکت" if _is_elim() else "جدول"], ["entries", "شرکت‌کنندگان"]], dtab, func(v: Variant) -> void:
+	body.add_child(OUI.segment([["board", I18n.t("tournaments.bracket") if _is_elim() else I18n.t("tournaments.table")], ["entries", I18n.t("tournaments.participants")]], dtab, func(v: Variant) -> void:
 		dtab = str(v)
 		_render_detail()))
 	body.add_child(OUI.spacer(OUI.S_S))
 	if dtab == "entries":
 		if entries.is_empty():
-			body.add_child(OUI.empty(OUI.ui2("x_ball"), "هنوز کسی ثبت‌نام نکرده"))
+			body.add_child(OUI.empty(OUI.ui2("x_ball"), I18n.t("tournaments.no_one_has_signed_up")))
 		for e in entries:
 			var row := OUI.row_box(OUI.S_M, 48)
 			var h := OUI.hbox(OUI.S_S)
@@ -457,13 +457,13 @@ func _render_detail() -> void:
 			h.add_child(sl)
 			h.add_child(OUI.flbl(OUI.s(e.get("team_name")), OUI.TS_BODY, OUI.TEXT, "bold"))
 			if bool(e.get("eliminated", false)):
-				h.add_child(OUI.badge("حذف", OUI.RED))
+				h.add_child(OUI.badge(I18n.t("tournaments.out"), OUI.RED))
 			elif OUI.i(e.get("final_rank")) == 1:
-				h.add_child(OUI.badge("قهرمان", OUI.GOLD))
+				h.add_child(OUI.badge(I18n.t("data.champion"), OUI.GOLD))
 			row.add_child(h)
 			body.add_child(row)
 	elif status == "registration":
-		body.add_child(OUI.empty(OUI.ui2("c_calendar"), "براکت بعد از شروع ساخته می‌شود", "برگزارکننده تورنمنت را شروع می‌کند"))
+		body.add_child(OUI.empty(OUI.ui2("c_calendar"), I18n.t("tournaments.the_bracket_is_created_once"), I18n.t("tournaments.the_organizer_starts_the_tournament")))
 	elif _is_elim():
 		_bracket(my_id, is_org)
 	else:
@@ -488,25 +488,25 @@ func _open_room(tm_id: String) -> void:
 static func round_label(rnd: int, total: int) -> String:
 	var left := total - rnd
 	match left:
-		0: return "فینال"
-		1: return "نیمه‌نهایی"
-		2: return "یک‌چهارم"
-		3: return "یک‌هشتم"
-		4: return "یک‌شانزدهم"
-	return "دور %s" % OUI.fa(rnd)
+		0: return I18n.t("tournaments.final")
+		1: return I18n.t("tournaments.semi_final")
+		2: return I18n.t("tournaments.quarter_final")
+		3: return I18n.t("tournaments.round_of_16")
+		4: return I18n.t("tournaments.round_of_32")
+	return I18n.t("tournaments.round_x") % OUI.fa(rnd)
 
 
 func _bracket(my_id: String, is_org: bool) -> void:
 	var sections: Array = []
 	if OUI.s(t.get("format")) == "double_elim":
-		sections = [["جدول برندگان", "winners"], ["جدول بازندگان", "losers"], ["فینال بزرگ", "final"]]
+		sections = [[I18n.t("tournaments.winners_bracket"), "winners"], [I18n.t("tournaments.losers_bracket"), "losers"], [I18n.t("tournaments.grand_final"), "final"]]
 	else:
 		sections = [["", "main"]]
 	for s in sections:
 		var ms := matches.filter(func(m: Variant) -> bool: return OUI.s(m.get("bracket")) == s[1])
 		if ms.is_empty():
 			continue
-		var labels: bool = OUI.s(t.get("format")) != "double_elim" or s[0] == "جدول برندگان"
+		var labels: bool = OUI.s(t.get("format")) != "double_elim" or s[0] == I18n.t("tournaments.winners_bracket")
 		if s[0] != "":
 			body.add_child(OUI.lbl(s[0], OUI.TS_BODY, OUI.TEXT, "bold"))
 		body.add_child(_bracket_section(ms, my_id, is_org, labels))
@@ -541,7 +541,7 @@ func _bracket_section(ms: Array, my_id: String, is_org: bool, labels: bool) -> C
 	for ri in total:
 		var col: Array = rounds[ri]
 		var x := ri * (bw + cg)
-		var lab := OUI.lbl(round_label(ri + 1, total) if labels else "دور %s" % OUI.fa(ri + 1), OUI.TS_CAP, OUI.CYAN, "bold", HORIZONTAL_ALIGNMENT_CENTER)
+		var lab := OUI.lbl(round_label(ri + 1, total) if labels else I18n.t("tournaments.round_x") % OUI.fa(ri + 1), OUI.TS_CAP, OUI.CYAN, "bold", HORIZONTAL_ALIGNMENT_CENTER)
 		lab.position = Vector2(x, 0)
 		lab.size = Vector2(bw, lab_h)
 		view.add_child(lab)
@@ -622,7 +622,7 @@ func _side(m: Dictionary, ek: String, sk: String) -> Control:
 	var sl := OUI.lbl(OUI.fa(OUI.i(sc)) if sc != null else ("–" if stt == "bye" and e != "" else ""), OUI.TS_SMALL, OUI.GOLD if win else OUI.DIM, "title", HORIZONTAL_ALIGNMENT_CENTER)
 	sl.custom_minimum_size.x = OUI.px(22)
 	h.add_child(sl)
-	var nm: String = str(names.get(e, "…")) if e != "" else ("استراحت" if stt == "bye" else "—")
+	var nm: String = str(names.get(e, "…")) if e != "" else (I18n.t("tournaments.bye") if stt == "bye" else "—")
 	h.add_child(OUI.flbl(nm, OUI.TS_SMALL, (OUI.GOLD if win else OUI.TEXT) if e != "" else OUI.DIM2, "bold" if win else "body"))
 	pc.add_child(OUI.margin(h, 6, 0, 6, 0))
 	return pc
@@ -630,9 +630,9 @@ func _side(m: Dictionary, ek: String, sk: String) -> Control:
 
 func _standings(my_id: String, is_org: bool) -> void:
 	var head := OUI.hbox(0)
-	var heads := ["#", "تیم", "بازی", "ب", "م", "ش", "گل", "امتیاز"]
+	var heads := ["#", I18n.t("tournaments.team"), I18n.t("tournaments.match"), I18n.t("tournaments.w"), I18n.t("tournaments.d"), I18n.t("tournaments.l"), I18n.t("tournaments.goals"), I18n.t("online_result.rating")]
 	for k in heads.size():
-		var l := OUI.lbl(heads[k], OUI.TS_SMALL, OUI.DIM, "bold", HORIZONTAL_ALIGNMENT_RIGHT if k == 1 else HORIZONTAL_ALIGNMENT_CENTER)
+		var l := OUI.lbl(heads[k], OUI.TS_SMALL, OUI.DIM, "bold", I18n.AR if k == 1 else HORIZONTAL_ALIGNMENT_CENTER)
 		if k == 1:
 			l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		else:
@@ -648,7 +648,7 @@ func _standings(my_id: String, is_org: bool) -> void:
 		h.custom_minimum_size.y = OUI.px(40)
 		var vals := [OUI.fa(OUI.i(e.get("pos"))), OUI.s(e.get("team_name")), OUI.fa(OUI.i(e.get("played"))), OUI.fa(OUI.i(e.get("wins"))), OUI.fa(OUI.i(e.get("draws"))), OUI.fa(OUI.i(e.get("losses"))), "%s:%s" % [OUI.fa(OUI.i(e.get("gf"))), OUI.fa(OUI.i(e.get("ga")))], OUI.fa(OUI.i(e.get("points")))]
 		for k in vals.size():
-			var l := OUI.lbl(vals[k], OUI.TS_SMALL, OUI.GOLD if k == 7 else OUI.TEXT, "title" if k == 7 else ("bold" if k == 1 else "body"), HORIZONTAL_ALIGNMENT_RIGHT if k == 1 else HORIZONTAL_ALIGNMENT_CENTER)
+			var l := OUI.lbl(vals[k], OUI.TS_SMALL, OUI.GOLD if k == 7 else OUI.TEXT, "title" if k == 7 else ("bold" if k == 1 else "body"), I18n.AR if k == 1 else HORIZONTAL_ALIGNMENT_CENTER)
 			if k == 1:
 				l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			else:
@@ -659,15 +659,15 @@ func _standings(my_id: String, is_org: bool) -> void:
 	var open := matches.filter(func(m: Variant) -> bool: return OUI.s(m.get("status")) in ["ready", "live"])
 	if open.is_empty():
 		return
-	body.add_child(OUI.section_title("مسابقات باز"))
+	body.add_child(OUI.section_title(I18n.t("tournaments.open_tournaments")))
 	for m in open:
 		var mine := my_id != "" and (OUI.s(m.get("entry_a")) == my_id or OUI.s(m.get("entry_b")) == my_id)
 		var row := OUI.row_box(OUI.S_M, 48, OUI.CYAN if mine else OUI.LINE)
 		var h := OUI.hbox(OUI.S_S)
-		h.add_child(OUI.badge("دور %s" % OUI.fa(OUI.i(m.get("round"))), OUI.VIOLET))
-		h.add_child(OUI.flbl("%s  vs  %s" % [names.get(OUI.s(m.get("entry_a")), "؟"), names.get(OUI.s(m.get("entry_b")), "؟")], OUI.TS_SMALL))
+		h.add_child(OUI.badge(I18n.t("tournaments.round_x") % OUI.fa(OUI.i(m.get("round"))), OUI.VIOLET))
+		h.add_child(OUI.flbl("%s  vs  %s" % [names.get(OUI.s(m.get("entry_a")), I18n.t("tournaments.sym")), names.get(OUI.s(m.get("entry_b")), I18n.t("tournaments.sym"))], OUI.TS_SMALL))
 		if OUI.s(m.get("status")) == "live":
-			h.add_child(OUI.badge("زنده", OUI.RED, true))
+			h.add_child(OUI.badge(I18n.t("hub.live"), OUI.RED, true))
 		row.add_child(h)
 		if is_org:
 			var mm: Dictionary = m
@@ -679,14 +679,14 @@ func _standings(my_id: String, is_org: bool) -> void:
 func _override(m: Dictionary) -> void:
 	var sc := [0, 0]
 	var v := OUI.vbox(OUI.S_S)
-	v.add_child(OUI.lbl("ثبت نتیجه توسط برگزارکننده", OUI.TS_H, OUI.TEXT, "bold", HORIZONTAL_ALIGNMENT_CENTER))
+	v.add_child(OUI.lbl(I18n.t("tournaments.result_entry_by_the_organizer"), OUI.TS_H, OUI.TEXT, "bold", HORIZONTAL_ALIGNMENT_CENTER))
 	for side in 2:
 		var e := OUI.s(m.get("entry_a" if side == 0 else "entry_b"))
 		var h := OUI.hbox(OUI.S_S)
-		h.add_child(OUI.flbl(names.get(e, "؟"), OUI.TS_BODY))
+		h.add_child(OUI.flbl(names.get(e, I18n.t("tournaments.sym")), OUI.TS_BODY))
 		var step := OUI.hbox(4)
 		step.layout_direction = Control.LAYOUT_DIRECTION_LTR
-		var val := OUI.lbl("۰", 24, OUI.TEXT, "title", HORIZONTAL_ALIGNMENT_CENTER)
+		var val := OUI.lbl(I18n.t("tournaments.0"), 24, OUI.TEXT, "title", HORIZONTAL_ALIGNMENT_CENTER)
 		val.custom_minimum_size.x = OUI.px(40)
 		var sd := side
 		step.add_child(OUI.pill("−", func() -> void:
@@ -703,8 +703,8 @@ func _override(m: Dictionary) -> void:
 		if holder[0] != null and is_instance_valid(holder[0]):
 			(holder[0] as Node).queue_free()
 	var mid := OUI.s(m.get("id"))
-	v.add_child(OUI.btn("ثبت", func() -> void:
+	v.add_child(OUI.btn(I18n.t("tournaments.submit"), func() -> void:
 		close.call()
-		_run("ovr", func() -> Dictionary: return await Supa.call_rpc("set_tournament_result", {"p_tm": mid, "p_sa": sc[0], "p_sb": sc[1]}), "نتیجه ثبت شد"), "gold"))
-	v.add_child(OUI.btn("انصراف", close, "dark", true))
+		_run("ovr", func() -> Dictionary: return await Supa.call_rpc("set_tournament_result", {"p_tm": mid, "p_sa": sc[0], "p_sb": sc[1]}), I18n.t("tournaments.result_saved")), "gold"))
+	v.add_child(OUI.btn(I18n.t("nav.cancel"), close, "dark", true))
 	holder[0] = OUI.modal(self, v, OUI.GOLD, close)

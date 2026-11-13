@@ -25,7 +25,7 @@ func build() -> void:
 	_fill()
 	end_body()
 	# segment pinned under the HUD
-	seg = Kit.tabs(["دیسک", "توپ", "زمین", "ترکیب"], _on_sub, sub)
+	seg = Kit.tabs([I18n.t("home.disc"), I18n.t("home.ball"), I18n.t("hub.field"), I18n.t("kb.formation")], _on_sub, sub)
 	var bar := Kit.margin(seg, NX.PAD, 0, NX.PAD, 0)
 	bar.position = Vector2(0, Nav.insets()["top"] - 6)
 	bar.set_anchors_preset(Control.PRESET_TOP_WIDE)
@@ -74,18 +74,18 @@ func _discs() -> void:
 	var pn := Kit.glass(rc, false)
 	var v := Kit.vbox(16)
 	v.add_child(Kit.stat_bars(int(ds["power"]), int(ds["accuracy"])))
-	v.add_child(Kit.para("قدرت = سرعت بیشینه‌ی ضربه · دقت = انحراف کمتر و پیش‌نمایش مسیر بلندتر", 26, NX.DIM))
+	v.add_child(Kit.para(I18n.t("team.power_max_shot_speed_accuracy"), 26, NX.DIM))
 	var p := UD.p()
 	var op := UD.online_profile()
 	var b: NxButton
 	if str(p.get("team", "")) == ft["id"]:
-		b = Kit.button_small("انتخاب‌شده ✓", Callable(), "dark")
+		b = Kit.button_small(I18n.t("team.selected"), Callable(), "dark")
 		b.set_disabled(true)
 	elif owned:
-		b = Kit.button_small("انتخاب این دیسک", _disc_act, "primary")
+		b = Kit.button_small(I18n.t("team.select_this_disc"), _disc_act, "primary")
 	else:
-		var sub_l := "موجودی: %s الماس" % NX.fa(int(op.get("gems", 0))) if not op.is_empty() else ""
-		b = Kit.button_ex("…" if busy else "خرید · %s الماس" % NX.fa(price), _disc_act, "violet", true, null, sub_l)
+		var sub_l := I18n.t("team.balance_x_gems") % NX.fa(int(op.get("gems", 0))) if not op.is_empty() else ""
+		b = Kit.button_ex("…" if busy else I18n.t("team.buy_x_gems") % NX.fa(price), _disc_act, "violet", true, null, sub_l)
 		b.set_disabled(busy)
 	v.add_child(b)
 	pn.add_child(v)
@@ -162,7 +162,7 @@ func _disc_cell(t: Dictionary, cell: float, sel: bool, own: bool, eq: bool) -> C
 	im.modulate.a = 1.0 if own else 0.5
 	v.add_child(Kit.center(im))
 	if eq:
-		var l := Kit.label("● فعال", 23, NX.hdr(NX.GREEN, 1.2))
+		var l := Kit.label(I18n.t("team.active"), 23, NX.hdr(NX.GREEN, 1.2))
 		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		v.add_child(l)
 	elif own:
@@ -194,7 +194,7 @@ func _disc_act() -> void:
 	if UD.disc_owned(ft["id"]):
 		UD.set_p({"team": ft["id"]})
 		UD.haptic("success")
-		toast("%s انتخاب شد" % ft["name"], "ok")
+		toast(I18n.t("team.x_selected") % ft["name"], "ok")
 		var dz := UD.discs()
 		if UD.signed_in() and dz and dz.has_method("equip"):
 			var r = await dz.equip(ft["id"])
@@ -247,7 +247,7 @@ func _balls() -> void:
 		r.add_theme_stylebox_override("panel", NX.box(NX.hdr(col, 1.6), 8, 0, Color.TRANSPARENT, 12, Color(col, 0.8)))
 		tr.add_child(r)
 	body.add_child(tr)
-	var cap := Kit.label("رنگ دنباله‌ی توپ", 26, NX.DIM)
+	var cap := Kit.label(I18n.t("team.ball_trail_colour"), 26, NX.DIM)
 	cap.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	body.add_child(cap)
 	body.add_child(Kit.margin(_buy_btn(eq, owned, price, _ball_act), 130, 10, 130, 16))
@@ -257,7 +257,7 @@ func _balls() -> void:
 		var own := UD._has_num(owned_l, i)
 		var sel := i == fball
 		var e := int(p.get("ball", 0)) == i
-		var c := _cell(UD.ball_tex(i), cell, cell - 58, sel, NX.GREEN, own, "● فعال" if e else (UD.ball_name(i) if own else "%d ◉" % UD.ball_price(i)), NX.GREEN if e else (NX.DIM if own else NX.GOLD), false)
+		var c := _cell(UD.ball_tex(i), cell, cell - 58, sel, NX.GREEN, own, I18n.t("team.active") if e else (UD.ball_name(i) if own else "%d ◉" % UD.ball_price(i)), NX.GREEN if e else (NX.DIM if own else NX.GOLD), false)
 		var ii := i
 		Kit.tap(c, func():
 			fball = ii
@@ -272,18 +272,18 @@ func _ball_act() -> void:
 	if owned:
 		UD.set_p({"ball": fball})
 		UD.haptic("success")
-		toast("توپ انتخاب شد", "ok")
+		toast(I18n.t("team.ball_selected"), "ok")
 		return
 	var price := UD.ball_price(fball)
 	if int(p.get("coins", 0)) < price:
-		toast("سکه کافی نداری", "err")
+		toast(I18n.t("shop.not_enough_coins"), "err")
 		return
 	var ob: Array = (p.get("ownedBalls", []) as Array).duplicate()
 	ob.append(fball)
 	UD.set_p({"coins": int(p["coins"]) - price, "ownedBalls": ob, "ball": fball})
 	UD.sfx("goal")
 	UD.haptic("success")
-	toast("توپ جدید باز شد!", "ok")
+	toast(I18n.t("team.new_ball_unlocked"), "ok")
 
 # ------------------------------------------------------------------ fields
 func _fields() -> void:
@@ -316,7 +316,7 @@ func _fields() -> void:
 	for i in UD.fields().size():
 		var own := UD._has_num(owned_l, i)
 		var e := int(p.get("field", 0)) == i
-		var c := _cell(UD.field_thumb(i), cell, cell - 42, i == ffield, NX.CYAN, own, "● فعال" if e else (str(UD.field(i)["name"]) if own else "%d ◉" % UD.field_price(i)), NX.GREEN if e else (NX.DIM if own else NX.GOLD), true)
+		var c := _cell(UD.field_thumb(i), cell, cell - 42, i == ffield, NX.CYAN, own, I18n.t("team.active") if e else (str(UD.field(i)["name"]) if own else "%d ◉" % UD.field_price(i)), NX.GREEN if e else (NX.DIM if own else NX.GOLD), true)
 		var ii := i
 		Kit.tap(c, func():
 			ffield = ii
@@ -330,18 +330,18 @@ func _field_act() -> void:
 	if UD._has_num(p.get("ownedFields", []), ffield):
 		UD.set_p({"field": ffield})
 		UD.haptic("success")
-		toast("زمین انتخاب شد", "ok")
+		toast(I18n.t("team.field_selected"), "ok")
 		return
 	var price := UD.field_price(ffield)
 	if int(p.get("coins", 0)) < price:
-		toast("سکه کافی نداری", "err")
+		toast(I18n.t("shop.not_enough_coins"), "err")
 		return
 	var of: Array = (p.get("ownedFields", []) as Array).duplicate()
 	of.append(ffield)
 	UD.set_p({"coins": int(p["coins"]) - price, "ownedFields": of, "field": ffield})
 	UD.sfx("goal")
 	UD.haptic("success")
-	toast("زمین جدید باز شد!", "ok")
+	toast(I18n.t("team.new_field_unlocked"), "ok")
 
 # ------------------------------------------------------------------ formation
 func _formation() -> void:
@@ -391,8 +391,6 @@ func _formation() -> void:
 	var t := Kit.title("%s · %s" % [fm[0], fm[1]], 47)
 	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	body.add_child(t)
-	# GAME hook: visual formation picker sheet (src/game/formation_picker.gd)
-	body.add_child(padx(Kit.button(FormationPicker.t("form.open", "انتخاب ترکیب"), func(): Nav.sheet(FormationPicker.new()), "primary")))
 	var grid := _grid(3)
 	var j := 0
 	for f in UD.forms():
@@ -420,7 +418,7 @@ func _formation() -> void:
 func _grid(cols: int) -> GridContainer:
 	var g := GridContainer.new()
 	g.columns = cols
-	g.layout_direction = Control.LAYOUT_DIRECTION_RTL
+	g.layout_direction = I18n.LD
 	g.add_theme_constant_override("h_separation", 20)
 	g.add_theme_constant_override("v_separation", 20)
 	return g
@@ -448,12 +446,12 @@ func _cell(tex: Texture2D, cell: float, art: float, sel: bool, acc: Color, own: 
 
 func _buy_btn(eq: bool, owned: bool, price: int, cb: Callable) -> NxButton:
 	if eq:
-		var b := Kit.button_small("انتخاب‌شده ✓", Callable(), "dark")
+		var b := Kit.button_small(I18n.t("team.selected"), Callable(), "dark")
 		b.set_disabled(true)
 		return b
 	if owned:
-		return Kit.button_small("انتخاب", cb, "green")
-	return Kit.button_small("خرید · %d" % price, cb, "gold", UD.ui2("c_coin"))
+		return Kit.button_small(I18n.t("team.select"), cb, "green")
+	return Kit.button_small(I18n.t("team.buy_x") % price, cb, "gold", UD.ui2("c_coin"))
 
 
 class _DashRing extends Control:

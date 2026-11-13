@@ -75,7 +75,19 @@ func _go(n: String, params := {}, wait := 1.4) -> void:
 func _want(n: String) -> bool:
 	return only == "" or n in only.split(",")
 
+func _compile_all(dir: String) -> void:
+	for f in DirAccess.get_files_at(dir):
+		if f.ends_with(".gd"):
+			var s = load(dir + "/" + f)
+			if s == null or not (s as GDScript).can_instantiate():
+				issues += 1
+				print("[tw] COMPILE FAIL ", dir + "/" + f)
+	for d in DirAccess.get_directories_at(dir):
+		_compile_all(dir + "/" + d)
+
 func _run() -> void:
+	_compile_all("res://src")
+	print("[tw] lang=", I18n.lang)
 	await _wait(1.5)
 	var intro = Nav.screen
 	if intro and intro.has_method("enter"):

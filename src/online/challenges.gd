@@ -55,7 +55,7 @@ static func claim(def_id: String) -> Dictionary:
 	var dd := OUI.d(r.get("data"))
 	OUI.sfx("win")
 	OUI.buzz("success")
-	OUI.toast("+%s الماس · +%s XP" % [OUI.fa(OUI.i(dd.get("gems"))), OUI.fa(OUI.i(dd.get("xp")))], "ok")
+	OUI.toast(I18n.t("challenges.x_gems_x_xp") % [OUI.fa(OUI.i(dd.get("gems"))), OUI.fa(OUI.i(dd.get("xp")))], "ok")
 	return {"ok": true, "gems": OUI.i(dd.get("gems")), "xp": OUI.i(dd.get("xp"))}
 
 
@@ -66,14 +66,14 @@ func setup(_p: Dictionary) -> void:
 func _ready() -> void:
 	Nav.chrome(false)
 	OUI.boot()
-	var pg := OUI.page(self, "چالش‌های روزانه", "DAILY CHALLENGES", func() -> void: Nav.back(), null, OUI.GREEN, _load)
+	var pg := OUI.page(self, I18n.t("challenges.daily_challenges"), "DAILY CHALLENGES", func() -> void: Nav.back(), null, OUI.GREEN, _load)
 	body = pg["body"]
 	var hp := OUI.panel(OUI.GREEN)
 	var h := OUI.hbox(OUI.S_M)
 	h.add_child(OUI.img(OUI.ui2("c_calendar"), 48))
 	var v := OUI.vbox(2)
 	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	v.add_child(OUI.lbl("چالش‌های امروز", OUI.TS_H, OUI.TEXT, "title"))
+	v.add_child(OUI.lbl(I18n.t("challenges.today_s_challenges"), OUI.TS_H, OUI.TEXT, "title"))
 	cd_l = OUI.lbl("", OUI.TS_CAP, OUI.DIM)
 	v.add_child(cd_l)
 	h.add_child(v)
@@ -107,7 +107,7 @@ func _start() -> void:
 	var u: String = await OUI.ensure()
 	if not is_inside_tree() or u == "":
 		if is_inside_tree():
-			err_msg = "اول وارد حساب شو"
+			err_msg = I18n.t("challenges.sign_in_first")
 			_render()
 		return
 	_load()
@@ -121,7 +121,7 @@ func _cd() -> void:
 	var h := int(left / 3600.0)
 	var m := int(fmod(left, 3600.0) / 60.0)
 	var s := int(fmod(left, 60.0))
-	cd_l.text = "تازه‌سازی تا %s:%s:%s" % [OUI.fa(h), OUI.pad2fa(m), OUI.pad2fa(s)]
+	cd_l.text = I18n.t("challenges.refreshes_in_x_x_x") % [OUI.fa(h), OUI.pad2fa(m), OUI.pad2fa(s)]
 
 
 func _load() -> void:
@@ -147,7 +147,7 @@ func _render() -> void:
 	elif not loaded:
 		lst.add_child(OUI.skeleton(4, 96))
 	elif list.is_empty():
-		lst.add_child(OUI.empty(OUI.ui2("x_ball"), "امروز چالشی نیست"))
+		lst.add_child(OUI.empty(OUI.ui2("x_ball"), I18n.t("challenges.no_challenges_today")))
 	else:
 		var k := 0
 		for c in list:
@@ -191,7 +191,7 @@ static func challenge_card(c: Dictionary, compact: bool, on_claim: Callable) -> 
 	h.add_child(OUI.img(OUI.ui2("x_medal" if claimed else ("x_star" if done else "x_ball")), 36 if compact else 44))
 	var v := OUI.vbox(OUI.S_XS)
 	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	v.add_child(OUI.lbl(OUI.s(c.get("title_fa")), OUI.TS_SMALL if compact else OUI.TS_BODY, OUI.TEXT, "bold", HORIZONTAL_ALIGNMENT_RIGHT, true, 2))
+	v.add_child(OUI.lbl(OUI.s(c.get("title_fa")), OUI.TS_SMALL if compact else OUI.TS_BODY, OUI.TEXT, "bold", I18n.AR, true, 2))
 	v.add_child(OUI.bar(minf(1.0, float(prog) / target), OUI.GREEN if done else OUI.CYAN, null, 6))
 	v.add_child(OUI.lbl("%s/%s · 💎%s · %sXP" % [OUI.fa(mini(prog, target)), OUI.fa(target), OUI.fa(OUI.i(c.get("reward_gems"))), OUI.fa(OUI.i(c.get("reward_xp")))], OUI.TS_TINY, OUI.DIM))
 	h.add_child(v)
@@ -199,15 +199,15 @@ static func challenge_card(c: Dictionary, compact: bool, on_claim: Callable) -> 
 	side.custom_minimum_size.x = OUI.px(76)
 	side.alignment = BoxContainer.ALIGNMENT_CENTER
 	if claimed:
-		side.add_child(OUI.lbl("✓ گرفتی", OUI.TS_CAP, OUI.GREEN, "body", HORIZONTAL_ALIGNMENT_CENTER))
+		side.add_child(OUI.lbl(I18n.t("challenges.claimed"), OUI.TS_CAP, OUI.GREEN, "body", HORIZONTAL_ALIGNMENT_CENTER))
 	elif done:
-		var b := OUI.btn("دریافت", Callable(), "green", true)
+		var b := OUI.btn(I18n.t("challenges.claim"), Callable(), "green", true)
 		b.pressed.connect(func() -> void:
 			b.disabled = true
 			on_claim.call(p))
 		side.add_child(b)
 	else:
-		side.add_child(OUI.lbl("در جریان", OUI.TS_CAP, OUI.DIM, "body", HORIZONTAL_ALIGNMENT_CENTER))
+		side.add_child(OUI.lbl(I18n.t("challenges.in_progress"), OUI.TS_CAP, OUI.DIM, "body", HORIZONTAL_ALIGNMENT_CENTER))
 	h.add_child(side)
 	p.add_child(h)
 	return p
@@ -224,7 +224,7 @@ class HomeCard extends VBoxContainer:
 	var ch: Variant = null
 	var uid := ""
 	func _ready() -> void:
-		layout_direction = Control.LAYOUT_DIRECTION_RTL
+		layout_direction = I18n.LD
 		visible = false
 		OUI.boot()
 		OUI.ebus().profile_changed.connect(_auth)
@@ -267,10 +267,10 @@ class HomeCard extends VBoxContainer:
 		h.add_child(OUI.img(OUI.ui2("c_calendar"), 34))
 		var tv := OUI.vbox(0)
 		tv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		tv.add_child(OUI.lbl("چالش‌های امروز", OUI.TS_BODY, OUI.TEXT, "bold"))
-		tv.add_child(OUI.lbl("%s/%s انجام شد · تازه‌سازی %s ساعت دیگر" % [OUI.fa(done), OUI.fa(list.size()), OUI.fa(int(ChallengesScreen.s_to_tehran_midnight() / 3600.0))], OUI.TS_TINY, OUI.DIM))
+		tv.add_child(OUI.lbl(I18n.t("challenges.today_s_challenges"), OUI.TS_BODY, OUI.TEXT, "bold"))
+		tv.add_child(OUI.lbl(I18n.t("challenges.x_x_done_refreshes_in") % [OUI.fa(done), OUI.fa(list.size()), OUI.fa(int(ChallengesScreen.s_to_tehran_midnight() / 3600.0))], OUI.TS_TINY, OUI.DIM))
 		h.add_child(tv)
-		var all := OUI.btn("همه", func() -> void: Nav.go("challenges", {}), "dark", true)
+		var all := OUI.btn(I18n.t("challenges.all"), func() -> void: Nav.go("challenges", {}), "dark", true)
 		all.custom_minimum_size.x = OUI.px(72)
 		h.add_child(all)
 		v.add_child(h)

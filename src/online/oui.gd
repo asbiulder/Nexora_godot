@@ -83,6 +83,8 @@ static func px(v: float) -> int:
 # ================================================================ text / numbers
 static func fa_num(s: Variant) -> String:
 	var t := str(s)
+	if I18n.is_en():
+		return t
 	var out := ""
 	for ch in t:
 		var c := ch.unicode_at(0)
@@ -105,7 +107,7 @@ static func fa(n: Variant) -> String:
 		grouped = digits[k] + grouped
 		cnt += 1
 		if cnt % 3 == 0 and k > 0:
-			grouped = "٬" + grouped
+			grouped = ("," if I18n.is_en() else "٬") + grouped
 	return ("−" if neg else "") + fa_num(grouped)
 
 
@@ -170,12 +172,12 @@ static func time_ago(iso: Variant) -> String:
 		return ""
 	var dt := now_s() - iso_to_unix(iso)
 	if dt < 60:
-		return "الان"
+		return I18n.t("oui.now")
 	if dt < 3600:
-		return "%s دقیقه" % fa(floor(dt / 60.0))
+		return I18n.t("oui.x_min") % fa(floor(dt / 60.0))
 	if dt < 86400:
-		return "%s ساعت" % fa(floor(dt / 3600.0))
-	return "%s روز" % fa(floor(dt / 86400.0))
+		return I18n.t("oui.x_h") % fa(floor(dt / 3600.0))
+	return I18n.t("oui.x_d") % fa(floor(dt / 86400.0))
 
 
 # ================================================================ levels / rules (shared with backend)
@@ -221,9 +223,9 @@ static func rule_label(st: Variant) -> String:
 	var dd: Dictionary = st if st is Dictionary else {}
 	var t := float(dd.get("time", 0) if dd.get("time") != null else 0)
 	if t > 0:
-		return "%s دقیقه" % fa(round(t / 60.0))
+		return I18n.t("oui.x_min") % fa(round(t / 60.0))
 	var g := int(dd.get("goals", 3) if dd.get("goals") != null else 3)
-	return "تا %s گل" % fa(g if g > 0 else 3)
+	return I18n.t("oui.first_to_x_goals") % fa(g if g > 0 else 3)
 
 
 static func s(v: Variant, def: String = "") -> String:
@@ -371,8 +373,9 @@ static func font(kind: String) -> Font:
 
 
 # ================================================================ widgets
-static func lbl(text: String, size: float = TS_BODY, color: Color = TEXT, kind: String = "body", align: int = HORIZONTAL_ALIGNMENT_RIGHT, wrap: bool = false, lines: int = 1) -> Label:
+static func lbl(text: String, size: float = TS_BODY, color: Color = TEXT, kind: String = "body", align: int = I18n.AR, wrap: bool = false, lines: int = 1) -> Label:
 	var l: Label = Label.new() if wrap else FitLabel.new()
+	text = I18n.f(text)
 	l.text = text
 	l.add_theme_font_override("font", font(kind))
 	l.add_theme_font_size_override("font_size", px(size))
@@ -432,7 +435,7 @@ class FitLabel extends Label:
 
 ## label that takes the remaining width of an HBox (trims with "…" when the row is too narrow)
 static func flbl(text: String, size: float = TS_BODY, color: Color = TEXT, kind: String = "body", wrap := false, lines := 1) -> Label:
-	var l := lbl(text, size, color, kind, HORIZONTAL_ALIGNMENT_RIGHT, wrap, lines)
+	var l := lbl(text, size, color, kind, I18n.AR, wrap, lines)
 	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	if not wrap:
 		l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
@@ -591,7 +594,7 @@ static func btn(text: String, cb: Callable, style: String = "primary", small := 
 			st.draw_center = false
 			st.border_color = Color(1, 1, 1, 0)
 		b.add_theme_stylebox_override(stt, st)
-	b.text = text if sub == "" else text + "\n" + sub
+	b.text = I18n.f(text) if sub == "" else I18n.f(text) + "\n" + I18n.f(sub)
 	if is_rtl_text(b.text):
 		b.text_direction = Control.TEXT_DIRECTION_RTL
 	b.add_theme_font_override("font", font("bold"))
@@ -625,7 +628,7 @@ static func pill(text: String, cb: Callable, color: Color = CYAN, min_w: float =
 		if stt == "disabled":
 			s2.bg_color.a = 0.4
 		b.add_theme_stylebox_override(stt, s2)
-	b.text = text
+	b.text = I18n.f(text)
 	b.add_theme_font_override("font", font("bold"))
 	b.add_theme_font_size_override("font_size", px(TS_SMALL))
 	for k in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
@@ -761,7 +764,7 @@ static func empty(t: Texture2D, title: String, sub: String = "", action: String 
 
 
 static func error_state(msg: String, retry: Callable = Callable()) -> Control:
-	return empty(ui2("c_bell"), "مشکلی پیش اومد", msg, "تلاش دوباره" if retry.is_valid() else "", retry)
+	return empty(ui2("c_bell"), I18n.t("oui.something_went_wrong"), msg, I18n.t("oui.try_again") if retry.is_valid() else "", retry)
 
 
 ## text field with label + error (RN Field). The LineEdit is meta "input".
@@ -777,7 +780,7 @@ static func field(label: String = "", placeholder: String = "", max_len: int = 0
 
 static func line_edit(placeholder: String = "", max_len: int = 0, secret := false, ltr := false, h: float = 48) -> LineEdit:
 	var le := LineEdit.new()
-	le.placeholder_text = placeholder
+	le.placeholder_text = I18n.f(placeholder)
 	if max_len > 0:
 		le.max_length = max_len
 	le.secret = secret
@@ -796,7 +799,7 @@ static func line_edit(placeholder: String = "", max_len: int = 0, secret := fals
 	le.add_theme_color_override("font_placeholder_color", DIM2)
 	le.add_theme_color_override("caret_color", CYAN)
 	le.add_theme_color_override("selection_color", Color(CYAN, 0.35))
-	le.alignment = HORIZONTAL_ALIGNMENT_LEFT if ltr else HORIZONTAL_ALIGNMENT_RIGHT
+	le.alignment = HORIZONTAL_ALIGNMENT_LEFT if ltr else I18n.AR
 	le.structured_text_bidi_override = TextServer.STRUCTURED_TEXT_DEFAULT
 	le.text_direction = Control.TEXT_DIRECTION_LTR if ltr else Control.TEXT_DIRECTION_AUTO
 	le.virtual_keyboard_type = LineEdit.KEYBOARD_TYPE_PASSWORD if secret else LineEdit.KEYBOARD_TYPE_DEFAULT
@@ -906,7 +909,7 @@ static func opt_row(title: String, sub: String, on: bool, cb: Callable) -> Contr
 	var v := vbox(0)
 	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	v.add_child(lbl(title, TS_BODY, TEXT, "bold"))
-	v.add_child(lbl(sub, TS_CAP, DIM, "body", HORIZONTAL_ALIGNMENT_RIGHT, true, 2))
+	v.add_child(lbl(sub, TS_CAP, DIM, "body", I18n.AR, true, 2))
 	h.add_child(v)
 	h.add_child(toggle(on, cb))
 	return h
@@ -964,7 +967,7 @@ class Bar extends Control:
 ## power / accuracy bars 1–10 (RN StatBars)
 static func stat_bars(power: int, accuracy: int, compact := false) -> Control:
 	var v := vbox(2 if compact else 4)
-	for row in [["قدرت", power, ORANGE], ["دقت", accuracy, CYAN]]:
+	for row in [[I18n.t("oui.power"), power, ORANGE], [I18n.t("oui.accuracy"), accuracy, CYAN]]:
 		var h := hbox(4)
 		var l := lbl(row[0], 9 if compact else TS_TINY, DIM)
 		l.custom_minimum_size.x = px(26 if compact else 34)
@@ -981,7 +984,7 @@ static func stat_bars(power: int, accuracy: int, compact := false) -> Control:
 			cells.add_child(c)
 		h.add_child(cells)
 		if not compact:
-			var n := lbl(fa(row[1]), TS_TINY, row[2], "bold", HORIZONTAL_ALIGNMENT_LEFT)
+			var n := lbl(fa(row[1]), TS_TINY, row[2], "bold", I18n.AL)
 			n.custom_minimum_size.x = px(16)
 			h.add_child(n)
 		v.add_child(h)
@@ -1047,10 +1050,10 @@ static func header(title: String, en: String, on_back: Callable, right: Control 
 	var v := vbox(0)
 	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	if en != "":
-		var e := lbl(en, 9, accent, "head", HORIZONTAL_ALIGNMENT_RIGHT)
+		var e := lbl(en, 9, accent, "head", I18n.AR)
 		e.add_theme_constant_override("outline_size", 0)
 		v.add_child(e)
-	var tl := lbl(title, TS_TITLE, TEXT, "title", HORIZONTAL_ALIGNMENT_RIGHT)
+	var tl := lbl(title, TS_TITLE, TEXT, "title", I18n.AR)
 	wrap.set_meta("title", tl)
 	v.add_child(tl)
 	h.add_child(v)
@@ -1065,7 +1068,7 @@ static func top_inset() -> int:
 ## standard page: header on top + scroll body. Returns {root, body(VBox), scroll}
 static func page(owner: Control, title: String, en: String, on_back: Callable, right: Control = null, accent: Color = CYAN, on_refresh: Callable = Callable()) -> Dictionary:
 	owner.set_anchors_preset(Control.PRESET_FULL_RECT)
-	owner.layout_direction = Control.LAYOUT_DIRECTION_RTL
+	owner.layout_direction = I18n.LD
 	var root := vbox(0)
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	owner.add_child(root)
@@ -1132,7 +1135,7 @@ static func enter(c: Control, idx: int) -> void:
 
 ## bottom sheet (RN Sheet): Nav.sheet draws the grip + title row; content fills the body.
 static func open_sheet(title: String, en: String, content: Control, accent: Color = CYAN, height_frac := 0.85) -> Control:
-	content.layout_direction = Control.LAYOUT_DIRECTION_RTL
+	content.layout_direction = I18n.LD
 	content.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	return Nav.sheet(content, {"title": title, "en": en, "accent": accent, "height": height_frac})
@@ -1144,7 +1147,7 @@ static func modal(host: Control, content: Control, accent: Color = CYAN, on_clos
 	veil.color = Color(2 / 255.0, 4 / 255.0, 14 / 255.0, 0.78)
 	veil.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	veil.mouse_filter = Control.MOUSE_FILTER_STOP
-	veil.layout_direction = Control.LAYOUT_DIRECTION_RTL
+	veil.layout_direction = I18n.LD
 	var cc := CenterContainer.new()
 	cc.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	veil.add_child(cc)
@@ -1186,7 +1189,7 @@ static func err(res: Variant) -> String:
 		var e := s(res.get("error", ""))
 		if e != "":
 			return e
-	return "خطای ناشناخته؛ دوباره امتحان کن"
+	return I18n.t("oui.unknown_error_try_again")
 
 
 static func ok(res: Variant) -> bool:
@@ -1294,7 +1297,7 @@ static func refresh_profile() -> Dictionary:
 ## RN setUsername (validation lives in Supa.set_username)
 static func set_username(name: String) -> Dictionary:
 	if uid() == "":
-		return {"ok": false, "error": "اول وارد حساب شو"}
+		return {"ok": false, "error": I18n.t("challenges.sign_in_first")}
 	var r: Dictionary = await Supa.set_username(name)
 	if not ok(r):
 		return {"ok": false, "error": err(r)}
@@ -1452,7 +1455,7 @@ static func quick_match(mode: String, kind: String = "quick") -> String:
 static func pick_and_upload(bucket: String, size: int, square: bool, cb: Callable) -> void:
 	var u := uid()
 	if u == "":
-		cb.call({"ok": false, "error": "اول وارد حساب شو", "cancelled": false})
+		cb.call({"ok": false, "error": I18n.t("challenges.sign_in_first"), "cancelled": false})
 		return
 	if not DisplayServer.has_feature(DisplayServer.FEATURE_NATIVE_DIALOG_FILE):
 		cb.call({"ok": false, "error": "", "cancelled": true, "unsupported": true})
@@ -1465,7 +1468,7 @@ static func pick_and_upload(bucket: String, size: int, square: bool, cb: Callabl
 			return
 		var res: Dictionary = await _process_upload(bucket, u, paths[0], size, square)
 		cb.call(res)
-	var e := DisplayServer.file_dialog_show("انتخاب عکس", "", "", false, DisplayServer.FILE_DIALOG_MODE_OPEN_FILE,
+	var e := DisplayServer.file_dialog_show(I18n.t("oui.choose_photo"), "", "", false, DisplayServer.FILE_DIALOG_MODE_OPEN_FILE,
 		PackedStringArray(["*.png, *.jpg, *.jpeg, *.webp ; Images", "image/*"]), on_pick)
 	if e != OK:
 		cb.call({"ok": false, "error": "", "cancelled": true, "unsupported": true})
@@ -1474,7 +1477,7 @@ static func pick_and_upload(bucket: String, size: int, square: bool, cb: Callabl
 static func _process_upload(bucket: String, u: String, path: String, size: int, square: bool) -> Dictionary:
 	var bytes := FileAccess.get_file_as_bytes(path)
 	if bytes.is_empty():
-		return {"ok": false, "error": "انتخاب یا آپلود عکس ناموفق بود", "cancelled": false}
+		return {"ok": false, "error": I18n.t("oui.choosing_or_uploading_the_photo"), "cancelled": false}
 	var im := Image.new()
 	var e := ERR_FILE_UNRECOGNIZED
 	if bytes.size() > 3 and bytes[0] == 0x89 and bytes[1] == 0x50:
@@ -1484,7 +1487,7 @@ static func _process_upload(bucket: String, u: String, path: String, size: int, 
 	elif bytes.size() > 12 and bytes.slice(8, 12).get_string_from_ascii() == "WEBP":
 		e = im.load_webp_from_buffer(bytes)
 	if e != OK:
-		return {"ok": false, "error": "پردازش عکس ناموفق بود", "cancelled": false}
+		return {"ok": false, "error": I18n.t("oui.photo_processing_failed"), "cancelled": false}
 	if square:
 		var m := mini(im.get_width(), im.get_height())
 		im = im.get_region(Rect2i((im.get_width() - m) / 2, (im.get_height() - m) / 2, m, m))
@@ -1509,7 +1512,7 @@ static func _process_upload(bucket: String, u: String, path: String, size: int, 
 	elif r is Dictionary and ok(r):
 		url = s(r.get("data", ""))
 	if url == "":
-		return {"ok": false, "error": "آپلود عکس ناموفق بود", "cancelled": false}
+		return {"ok": false, "error": I18n.t("oui.photo_upload_failed"), "cancelled": false}
 	NetImg.put(url, ImageTexture.create_from_image(im))
 	return {"ok": true, "url": url}
 

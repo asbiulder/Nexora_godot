@@ -41,7 +41,7 @@ func setup(p: Dictionary) -> void:
 func _ready() -> void:
 	Nav.chrome(true)
 	set_anchors_preset(Control.PRESET_FULL_RECT)
-	layout_direction = Control.LAYOUT_DIRECTION_RTL
+	layout_direction = I18n.LD
 	OUI.boot()
 	debounce = Timer.new()
 	debounce.one_shot = true
@@ -92,15 +92,15 @@ func _build() -> void:
 				b.text = "…"
 			var u: String = await OUI.ensure()
 			if u == "":
-				OUI.toast_err("اتصال برقرار نشد")
+				OUI.toast_err(I18n.t("account.couldn_t_connect"))
 			if is_inside_tree():
 				_build()
-		var e := OUI.empty(OUI.ui2("c_profile"), "اجتماعی", "برای پیام، باشگاه و دوستان وارد بخش آنلاین شو (مهمان هم می‌شود)", "ورود به‌عنوان مهمان", go)
+		var e := OUI.empty(OUI.ui2("c_profile"), I18n.t("home.social"), I18n.t("social.open_the_online_section_for"), I18n.t("social.sign_in_as_guest"), go)
 		holder[0] = e.find_children("*", "Button", true, false)[0] if e.find_children("*", "Button", true, false).size() > 0 else null
 		cc.add_child(e)
 		root.add_child(cc)
 		return
-	root.add_child(OUI.margin(OUI.segment([["msg", "پیام‌ها"], ["club", "باشگاه‌ها"], ["friends", "دوستان"]], tab, func(v: Variant) -> void:
+	root.add_child(OUI.margin(OUI.segment([["msg", I18n.t("kb.messages")], ["club", I18n.t("social.clubs")], ["friends", I18n.t("social.friends")]], tab, func(v: Variant) -> void:
 		tab = str(v)
 		_build()), OUI.S_L, 0, OUI.S_L, OUI.S_S))
 	match tab:
@@ -116,7 +116,7 @@ func _build_messages() -> void:
 	vl.pad_bottom = int(Nav.insets().get("bottom", OUI.px(110)))
 	root.add_child(vl)
 	var hv := OUI.vbox(OUI.S_S)
-	var sf := OUI.line_edit("جستجوی بازیکن با نام کاربری…", 30)
+	var sf := OUI.line_edit(I18n.t("social.search_players_by_username"), 30)
 	sf.text = q
 	sf.text_changed.connect(func(t: String) -> void:
 		q = t
@@ -125,9 +125,9 @@ func _build_messages() -> void:
 	found_box = OUI.vbox(OUI.S_S)
 	hv.add_child(found_box)
 	var bh := OUI.hbox(OUI.S_S)
-	var b1 := OUI.btn("گروه / کانال جدید", _open_new_conv, "green", true)
+	var b1 := OUI.btn(I18n.t("social.new_group_channel"), _open_new_conv, "green", true)
 	b1.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var b2 := OUI.btn("کشف گروه‌ها", _open_discover, "dark", true)
+	var b2 := OUI.btn(I18n.t("social.discover_groups"), _open_discover, "dark", true)
 	b2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	bh.add_child(b1)
 	bh.add_child(b2)
@@ -166,7 +166,7 @@ func _apply_inbox() -> void:
 	elif not inbox_loaded:
 		vl.set_empty(OUI.skeleton(5, 64))
 	else:
-		vl.set_empty(OUI.empty(OUI.ui2("c_mega"), "هنوز گفتگویی نداری", "یک بازیکن را جستجو کن یا به یک گروه بپیوند"))
+		vl.set_empty(OUI.empty(OUI.ui2("c_mega"), I18n.t("social.no_conversations_yet"), I18n.t("social.search_for_a_player_or")))
 
 
 func _do_search() -> void:
@@ -182,7 +182,7 @@ func _do_search() -> void:
 	OUI.clear(found_box)
 	var list := OUI.rows(r)
 	if list.is_empty():
-		found_box.add_child(OUI.lbl("کسی پیدا نشد", OUI.TS_BODY, OUI.DIM, "body", HORIZONTAL_ALIGNMENT_CENTER))
+		found_box.add_child(OUI.lbl(I18n.t("social.no_one_found"), OUI.TS_BODY, OUI.DIM, "body", HORIZONTAL_ALIGNMENT_CENTER))
 		return
 	for p in list:
 		var id := OUI.s(p.get("id"))
@@ -194,9 +194,9 @@ func _do_search() -> void:
 		v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		v.alignment = BoxContainer.ALIGNMENT_CENTER
 		v.add_child(OUI.lbl(OUI.s(p.get("username")), OUI.TS_BODY, OUI.TEXT, "bold"))
-		v.add_child(OUI.lbl("سطح %s" % OUI.fa(OUI.i(p.get("level"), 1)), OUI.TS_TINY, OUI.DIM))
+		v.add_child(OUI.lbl(I18n.t("hub.level_x") % OUI.fa(OUI.i(p.get("level"), 1)), OUI.TS_TINY, OUI.DIM))
 		h.add_child(v)
-		h.add_child(OUI.pill("پیام", func() -> void: _dm(id), OUI.CYAN, 60, 44))
+		h.add_child(OUI.pill(I18n.t("kb.message"), func() -> void: _dm(id), OUI.CYAN, 60, 44))
 		row.add_child(h)
 		found_box.add_child(row)
 
@@ -290,16 +290,16 @@ func _bind_inbox_row(c: Control, item: Variant, _i: int) -> void:
 			NetImg.fetch(url, func(t: Texture2D) -> void:
 				if is_instance_valid(b) and b.id == want and t:
 					b.icon_tex.texture = t)
-	b.title_l.text = OUI.s(peer.get("username"), "گفتگو") if is_dm else (OUI.s(r.get("title")) if OUI.s(r.get("title")) != "" else KIND_LABEL.get(kind, ""))
+	b.title_l.text = OUI.s(peer.get("username"), I18n.t("lobby.chat")) if is_dm else (OUI.s(r.get("title")) if OUI.s(r.get("title")) != "" else KIND_LABEL.get(kind, ""))
 	OUI.clear(b.kind_slot)
 	if not is_dm:
 		b.kind_slot.add_child(OUI.badge(KIND_LABEL.get(kind, ""), kc))
 	var lm := OUI.d(r.get("last_message"))
 	var unread := OUI.i(r.get("unread"))
 	if lm.is_empty():
-		b.last_l.text = "بدون پیام"
+		b.last_l.text = I18n.t("social.no_messages")
 	elif OUI.s(lm.get("image_url")) != "" and OUI.s(lm.get("body")) == "":
-		b.last_l.text = "📷 عکس"
+		b.last_l.text = I18n.t("chat.photo")
 	else:
 		b.last_l.text = OUI.s(lm.get("body"))
 	b.last_l.add_theme_color_override("font_color", OUI.TEXT if unread > 0 else OUI.DIM)
@@ -317,22 +317,22 @@ func _open_new_conv() -> void:
 	var sc := OUI.scroll()
 	var v := OUI.vbox(OUI.S_S)
 	sc.add_child(OUI.margin(v, OUI.S_L, 0, OUI.S_L, OUI.S_XL))
-	var hint := OUI.lbl("در گروه همه‌ی اعضا پیام می‌فرستند.", OUI.TS_CAP, OUI.DIM, "body", HORIZONTAL_ALIGNMENT_RIGHT, true, 2)
-	v.add_child(OUI.segment([["group", "گروه"], ["channel", "کانال"]], "group", func(x: Variant) -> void:
+	var hint := OUI.lbl(I18n.t("social.in_a_group_every_member"), OUI.TS_CAP, OUI.DIM, "body", I18n.AR, true, 2)
+	v.add_child(OUI.segment([["group", I18n.t("kb.group")], ["channel", I18n.t("kb.channel")]], "group", func(x: Variant) -> void:
 		st["kind"] = x
-		hint.text = "در گروه همه‌ی اعضا پیام می‌فرستند." if x == "group" else "در کانال فقط مالک و مدیرها پیام می‌فرستند."))
+		hint.text = I18n.t("social.in_a_group_every_member") if x == "group" else I18n.t("social.in_a_channel_only_the")))
 	v.add_child(hint)
-	var tf := OUI.field("عنوان", "", 40)
+	var tf := OUI.field(I18n.t("social.title"), "", 40)
 	v.add_child(tf)
-	v.add_child(OUI.lbl("توضیح (اختیاری)", OUI.TS_SMALL, OUI.DIM, "bold"))
+	v.add_child(OUI.lbl(I18n.t("social.description_optional"), OUI.TS_SMALL, OUI.DIM, "bold"))
 	var about := OUI.text_area("", 80)
 	v.add_child(about)
-	v.add_child(OUI.opt_row("عمومی", "در بخش «کشف» دیده شود و همه بتوانند بپیوندند", true, func(x: bool) -> void: st["pub"] = x))
-	var go := OUI.btn("ساختن", Callable(), "green")
+	v.add_child(OUI.opt_row(I18n.t("social.public"), I18n.t("social.show_in_discover_so_anyone"), true, func(x: bool) -> void: st["pub"] = x))
+	var go := OUI.btn(I18n.t("social.create"), Callable(), "green")
 	go.pressed.connect(func() -> void:
 		var title := OUI.field_value(tf).strip_edges()
 		if title.length() < 2:
-			OUI.toast_err("عنوان لازم است")
+			OUI.toast_err(I18n.t("social.a_title_is_required"))
 			return
 		go.disabled = true
 		go.text = "…"
@@ -346,9 +346,9 @@ func _open_new_conv() -> void:
 			OUI.toast_err(OUI.err(r))
 			if is_instance_valid(go):
 				go.disabled = false
-				go.text = "ساختن")
+				go.text = I18n.t("social.create"))
 	v.add_child(go)
-	OUI.open_sheet("گروه یا کانال جدید", "NEW CONVERSATION", sc, OUI.CYAN, 0.82)
+	OUI.open_sheet(I18n.t("social.new_group_or_channel"), "NEW CONVERSATION", sc, OUI.CYAN, 0.82)
 
 
 func _open_discover() -> void:
@@ -356,14 +356,14 @@ func _open_discover() -> void:
 	var v := OUI.vbox(OUI.S_S)
 	sc.add_child(OUI.margin(v, OUI.S_L, 0, OUI.S_L, OUI.S_XL))
 	v.add_child(OUI.skeleton(4))
-	OUI.open_sheet("کشف گروه‌ها و کانال‌ها", "DISCOVER", sc, OUI.CYAN, 0.82)
+	OUI.open_sheet(I18n.t("social.discover_groups_and_channels"), "DISCOVER", sc, OUI.CYAN, 0.82)
 	var r: Dictionary = await OUI.get_rows("public_conversations?select=*&order=members.desc&limit=50")
 	if not is_instance_valid(v):
 		return
 	OUI.clear(v)
 	var list := OUI.rows(r)
 	if list.is_empty():
-		v.add_child(OUI.empty(OUI.ui2("x_ball"), "هنوز گروه عمومی‌ای نیست", "اولین گروه را خودت بساز"))
+		v.add_child(OUI.empty(OUI.ui2("x_ball"), I18n.t("social.no_public_groups_yet"), I18n.t("social.create_the_first_group_yourself")))
 		return
 	for it in list:
 		var id := OUI.s(it.get("id"))
@@ -379,9 +379,9 @@ func _open_discover() -> void:
 		tv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		tv.add_child(OUI.lbl(OUI.s(it.get("title")), OUI.TS_BODY, OUI.TEXT, "bold"))
 		var ab := OUI.s(it.get("about"))
-		tv.add_child(OUI.lbl("%s · %s عضو%s" % [KIND_LABEL.get(kind, ""), OUI.fa(OUI.i(it.get("members"))), (" · " + ab) if ab != "" else ""], OUI.TS_CAP, OUI.DIM))
+		tv.add_child(OUI.lbl(I18n.t("social.x_x_membersx") % [KIND_LABEL.get(kind, ""), OUI.fa(OUI.i(it.get("members"))), (" · " + ab) if ab != "" else ""], OUI.TS_CAP, OUI.DIM))
 		h.add_child(tv)
-		h.add_child(OUI.pill("پیوستن", func() -> void:
+		h.add_child(OUI.pill(I18n.t("chat.join"), func() -> void:
 			var jr: Dictionary = await Supa.call_rpc("join_conversation", {"p_conv": id})
 			if OUI.ok(jr):
 				OUI.sfx("join")
@@ -402,7 +402,7 @@ func _build_clubs() -> void:
 	club_btn_slot = OUI.vbox(0)
 	hv.add_child(club_btn_slot)
 	_fill_club_btn()
-	var sf := OUI.line_edit("جستجوی نام یا تگ باشگاه…", 24)
+	var sf := OUI.line_edit(I18n.t("social.search_club_name_or_tag"), 24)
 	sf.text = cq
 	var ct := Timer.new()
 	ct.one_shot = true
@@ -413,7 +413,7 @@ func _build_clubs() -> void:
 		cq = t
 		ct.start())
 	hv.add_child(sf)
-	hv.add_child(OUI.lbl("برترین باشگاه‌ها", OUI.TS_H, OUI.TEXT, "bold"))
+	hv.add_child(OUI.lbl(I18n.t("social.top_clubs"), OUI.TS_H, OUI.TEXT, "bold"))
 	vl.set_header(OUI.margin(hv, OUI.S_L, 0, OUI.S_L, OUI.S_S))
 	_apply_clubs()
 	_load_clubs()
@@ -423,9 +423,9 @@ func _fill_club_btn() -> void:
 	OUI.clear(club_btn_slot)
 	var cid := OUI.s(OUI.profile.get("club_id"))
 	if cid != "":
-		club_btn_slot.add_child(OUI.btn("باشگاه من", func() -> void: Nav.go("club", {"id": cid}), "gold", true))
+		club_btn_slot.add_child(OUI.btn(I18n.t("social.my_club"), func() -> void: Nav.go("club", {"id": cid}), "gold", true))
 	else:
-		club_btn_slot.add_child(OUI.btn("ساخت باشگاه (۵۰ الماس)", _open_create_club, "green", true))
+		club_btn_slot.add_child(OUI.btn(I18n.t("social.create_club_50_gems"), _open_create_club, "green", true))
 
 
 func _load_clubs() -> void:
@@ -446,7 +446,7 @@ func _apply_clubs() -> void:
 	if vl == null or not is_instance_valid(vl):
 		return
 	vl.set_items(clubs)
-	vl.set_empty(OUI.skeleton(5, 70) if not clubs_loaded else OUI.empty(OUI.ui2("x_shield"), "باشگاهی پیدا نشد"))
+	vl.set_empty(OUI.skeleton(5, 70) if not clubs_loaded else OUI.empty(OUI.ui2("x_shield"), I18n.t("social.no_clubs_found")))
 
 
 class ClubRow extends Button:
@@ -491,7 +491,7 @@ func _make_club_row() -> Control:
 	pv.alignment = BoxContainer.ALIGNMENT_CENTER
 	b.pow_l = OUI.lbl("", 13, OUI.ORANGE, "title", HORIZONTAL_ALIGNMENT_CENTER)
 	pv.add_child(b.pow_l)
-	pv.add_child(OUI.lbl("قدرت", 9, OUI.DIM, "body", HORIZONTAL_ALIGNMENT_CENTER))
+	pv.add_child(OUI.lbl(I18n.t("oui.power"), 9, OUI.DIM, "body", HORIZONTAL_ALIGNMENT_CENTER))
 	h.add_child(pv)
 	b.add_child(h)
 	b.pressed.connect(func() -> void:
@@ -515,7 +515,7 @@ func _bind_club_row(c: Control, item: Variant, idx: int) -> void:
 	OUI.clear(b.tag_slot)
 	b.tag_slot.add_child(OUI.badge(OUI.s(it.get("tag")), OUI.GOLD))
 	var pol := OUI.s(it.get("join_policy"))
-	b.sub_l.text = "%s/%s عضو · %s" % [OUI.fa(OUI.i(it.get("members"))), OUI.fa(OUI.i(it.get("max_members"))), "آزاد" if pol == "open" else ("با درخواست" if pol == "request" else "فقط دعوت")]
+	b.sub_l.text = I18n.t("social.x_x_members_x") % [OUI.fa(OUI.i(it.get("members"))), OUI.fa(OUI.i(it.get("max_members"))), I18n.t("club.open") if pol == "open" else (I18n.t("social.by_request") if pol == "request" else I18n.t("social.invite_only"))]
 	b.pow_l.text = OUI.fa(OUI.i(it.get("power")))
 
 
@@ -524,9 +524,9 @@ func _open_create_club() -> void:
 	var sc := OUI.scroll()
 	var v := OUI.vbox(OUI.S_S)
 	sc.add_child(OUI.margin(v, OUI.S_L, 0, OUI.S_L, OUI.S_XL * 2))
-	var nf := OUI.field("نام باشگاه", "", 24)
+	var nf := OUI.field(I18n.t("social.club_name"), "", 24)
 	v.add_child(nf)
-	var tf := OUI.field("تگ (۲ تا ۵ حرف انگلیسی)", "", 5, false, true)
+	var tf := OUI.field(I18n.t("social.tag_2_to_5_english"), "", 5, false, true)
 	var tle: LineEdit = tf.get_meta("input")
 	tle.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	tle.add_theme_font_override("font", OUI.font("head"))
@@ -540,10 +540,10 @@ func _open_create_club() -> void:
 			tle.text = clean
 			tle.caret_column = clean.length())
 	v.add_child(tf)
-	v.add_child(OUI.lbl("توضیح", OUI.TS_SMALL, OUI.DIM, "bold"))
+	v.add_child(OUI.lbl(I18n.t("social.description"), OUI.TS_SMALL, OUI.DIM, "bold"))
 	var desc := OUI.text_area("", 80)
 	v.add_child(desc)
-	v.add_child(OUI.cap_label("نشان"))
+	v.add_child(OUI.cap_label(I18n.t("data.emblem")))
 	var grid := HFlowContainer.new()
 	grid.add_theme_constant_override("h_separation", OUI.px(8))
 	grid.add_theme_constant_override("v_separation", OUI.px(8))
@@ -563,21 +563,21 @@ func _open_create_club() -> void:
 			paint.call()))
 	paint.call()
 	v.add_child(grid)
-	v.add_child(OUI.cap_label("عضوگیری"))
-	v.add_child(OUI.segment([["open", "آزاد"], ["request", "با درخواست"], ["invite", "فقط دعوت"]], "open", func(x: Variant) -> void: st["policy"] = x, OUI.GOLD))
+	v.add_child(OUI.cap_label(I18n.t("club.recruiting")))
+	v.add_child(OUI.segment([["open", I18n.t("club.open")], ["request", I18n.t("social.by_request")], ["invite", I18n.t("social.invite_only")]], "open", func(x: Variant) -> void: st["policy"] = x, OUI.GOLD))
 	v.add_child(OUI.spacer(OUI.S_L))
-	var go := OUI.btn("ساخت باشگاه · ۵۰ الماس", Callable(), "gold")
+	var go := OUI.btn(I18n.t("social.create_club_50_gems_2"), Callable(), "gold")
 	go.pressed.connect(func() -> void:
 		var name := OUI.field_value(nf).strip_edges()
 		var tag := tle.text
 		if name.length() < 3 or name.length() > 24:
-			OUI.toast_err("نام باشگاه ۳ تا ۲۴ کاراکتر")
+			OUI.toast_err(I18n.t("social.club_name_must_be_3"))
 			return
 		if RegEx.create_from_string("^[A-Z0-9]{2,5}$").search(tag) == null:
-			OUI.toast_err("تگ: ۲ تا ۵ حرف/عدد انگلیسی بزرگ")
+			OUI.toast_err(I18n.t("social.tag_2_to_5_uppercase"))
 			return
 		if OUI.i(OUI.profile.get("gems")) < 50:
-			OUI.toast_err("۵۰ الماس لازم داری")
+			OUI.toast_err(I18n.t("social.you_need_50_gems"))
 			OracleCoach.react("nogems")
 			return
 		go.disabled = true
@@ -587,7 +587,7 @@ func _open_create_club() -> void:
 		if OUI.ok(r):
 			OUI.sfx("win")
 			OUI.buzz("success")
-			OUI.toast("باشگاه ساخته شد!", "ok")
+			OUI.toast(I18n.t("social.club_created"), "ok")
 			OUI.refresh_profile()
 			Nav.close_sheet()
 			Nav.go("club", {"id": OUI.s(r.get("data"))})
@@ -595,9 +595,9 @@ func _open_create_club() -> void:
 			OUI.toast_err(OUI.err(r))
 			if is_instance_valid(go):
 				go.disabled = false
-				go.text = "ساخت باشگاه · ۵۰ الماس")
+				go.text = I18n.t("social.create_club_50_gems_2"))
 	v.add_child(go)
-	OUI.open_sheet("ساخت باشگاه", "NEW CLUB", sc, OUI.GOLD, 0.9)
+	OUI.open_sheet(I18n.t("social.create_club"), "NEW CLUB", sc, OUI.GOLD, 0.9)
 
 
 # ================================================================ friends
@@ -605,7 +605,7 @@ func _build_friends() -> void:
 	vl = OUI.VList.new(60, _make_friend_row, _bind_friend_row, 8)
 	vl.pad_bottom = int(Nav.insets().get("bottom", OUI.px(110)))
 	root.add_child(vl)
-	vl.set_header(OUI.margin(OUI.segment([["following", "دنبال‌شده‌ها"], ["followers", "دنبال‌کننده‌ها"]], fmode, func(x: Variant) -> void:
+	vl.set_header(OUI.margin(OUI.segment([["following", I18n.t("social.following")], ["followers", I18n.t("social.followers")]], fmode, func(x: Variant) -> void:
 		fmode = str(x)
 		_load_friends(), OUI.GREEN), OUI.S_L, 0, OUI.S_L, OUI.S_S))
 	_load_friends()
@@ -645,7 +645,7 @@ func _apply_friends() -> void:
 		cc.add_child(OUI.spinner())
 		vl.set_empty(cc)
 	else:
-		vl.set_empty(OUI.empty(OUI.ui2("x_player"), "هنوز کسی را دنبال نمی‌کنی" if fmode == "following" else "هنوز دنبال‌کننده‌ای نداری", "از رده‌بندی یا جستجو بازیکن‌ها را پیدا کن"))
+		vl.set_empty(OUI.empty(OUI.ui2("x_player"), I18n.t("social.you_re_not_following_anyone") if fmode == "following" else I18n.t("social.you_have_no_followers_yet"), I18n.t("social.find_players_from_the_leaderboard")))
 
 
 class FriendRow extends Button:
@@ -695,7 +695,7 @@ func _bind_friend_row(c: Control, item: Variant, _i: int) -> void:
 	var on := OUI.is_online(it.get("online_at"))
 	b.av.set_data(it.get("avatar"), it.get("avatar_url"), OUI.GREEN if on else OUI.LINE)
 	b.name_l.text = OUI.s(it.get("username"))
-	b.sub_l.text = "آنلاین" if on else "آخرین بازدید %s پیش" % OUI.time_ago(it.get("online_at"))
+	b.sub_l.text = I18n.t("hub.online") if on else I18n.t("public_profile.last_seen_x_ago") % OUI.time_ago(it.get("online_at"))
 	b.sub_l.add_theme_color_override("font_color", OUI.GREEN if on else OUI.DIM)
 	OUI.clear(b.lv_slot)
-	b.lv_slot.add_child(OUI.badge("سطح %s" % OUI.fa(OUI.i(it.get("level"), 1)), OUI.GOLD))
+	b.lv_slot.add_child(OUI.badge(I18n.t("hub.level_x") % OUI.fa(OUI.i(it.get("level"), 1)), OUI.GOLD))

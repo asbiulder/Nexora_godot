@@ -76,6 +76,18 @@ func _ready() -> void:
 
 func attach(m: Node) -> void:
 	main = m
+	# a fresh main (first boot or a language-switch scene reload): forget the old tree's nodes
+	current = ""
+	current_params = {}
+	screen = null
+	history.clear()
+	_busy = false
+	_sheet = null
+	_sheet_panel = null
+	_sheet_dim = null
+	_modal = null
+	_modal_stack.clear()
+	_toast_node = null
 
 func is_registered(name: String) -> bool:
 	return REG.has(name)
@@ -101,17 +113,17 @@ func kind_of(name: String) -> String:
 func _instance(name: String, params: Dictionary) -> Control:
 	var path := script_path(name)
 	if path == "":
-		toast("به‌زودی")
+		toast(I18n.t("nav.coming_soon"))
 		return null
 	var s = load(path)
 	if s == null or not (s is GDScript) or not (s as GDScript).can_instantiate():
-		toast("به‌زودی")
+		toast(I18n.t("nav.coming_soon"))
 		return null
 	var o = (s as GDScript).new()
 	if not o is Control:
 		if o is Node:
 			o.queue_free()
-		toast("به‌زودی")
+		toast(I18n.t("nav.coming_soon"))
 		return null
 	var c := o as Control
 	c.name = name.capitalize().replace(" ", "")
@@ -235,7 +247,7 @@ func back() -> void:
 	if current != "home":
 		go("home")
 		return
-	confirm("از نکسورا خارج می‌شی؟", func(): get_tree().quit(), "خروج", "ماندن")
+	confirm(I18n.t("nav.quit_nexora"), func(): get_tree().quit(), I18n.t("nav.quit"), I18n.t("nav.stay"))
 
 # ------------------------------------------------------------------ chrome / backdrop / music
 func chrome(visible: bool) -> void:
@@ -350,10 +362,10 @@ func sheet(content: Control, opts := {}) -> Control:
 		col.alignment = BoxContainer.ALIGNMENT_CENTER
 		if opts.get("en", "") != "":
 			var e := Kit.caps(str(opts["en"]), 23, NX.hdr(accent, 1.3), 8)
-			e.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+			e.horizontal_alignment = I18n.AR
 			col.add_child(e)
 		var t := Kit.title(str(opts["title"]), 52)
-		t.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		t.horizontal_alignment = I18n.AR
 		col.add_child(t)
 		row.add_child(col)
 		head.add_child(row)
@@ -489,7 +501,9 @@ func _close_all_modals() -> void:
 func has_modal() -> bool:
 	return _modal != null
 
-func confirm(text: String, cb: Callable, ok := "تأیید", cancel := "انصراف") -> void:
+func confirm(text: String, cb: Callable, ok := "", cancel := "") -> void:
+	if ok == "": ok = I18n.t("nav.ok")
+	if cancel == "": cancel = I18n.t("nav.cancel")
 	var v := Kit.vbox(30)
 	var m := Kit.margin(v, 56, 60, 56, 56)
 	v.add_child(Kit.center(Kit.img(UD.ui2("c_bell"), 170)))
@@ -571,10 +585,10 @@ func toast(text: String, kind := "info") -> void:
 func open_chest(premium: bool) -> void:
 	var p := UD.p()
 	if not premium and not UD.chest_ready():
-		toast("صندوقچه‌ی رایگان هنوز آماده نیست", "info")
+		toast(I18n.t("nav.the_free_chest_isn_t"), "info")
 		return
 	if premium and int(p.get("coins", 0)) < 600:
-		toast("۶۰۰ سکه لازمه", "err")
+		toast(I18n.t("nav.you_need_600_coins"), "err")
 		return
 	var prize := UD.roll_chest(p, premium)
 	var patch := {}
@@ -600,9 +614,9 @@ func claim_daily() -> void:
 	UD.set_p({"lastDaily": UD.now_ms(), "streak": streak, "coins": int(p.get("coins", 0)) + int(rw["coins"]), "gems": int(p.get("gems", 0)) + int(rw.get("gems", 0))})
 	UD.sfx("goal")
 	UD.haptic("heavy")
-	var msg := "+%s سکه" % NX.fa(rw["coins"])
+	var msg := I18n.t("nav.x_coins") % NX.fa(rw["coins"])
 	if int(rw.get("gems", 0)) > 0:
-		msg += " · +%s الماس" % NX.fa(rw["gems"])
+		msg += I18n.t("nav.x_gems") % NX.fa(rw["gems"])
 	toast(msg, "ok")
 	close_modal()
 	refresh_chrome()

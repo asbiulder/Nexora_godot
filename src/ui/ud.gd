@@ -482,7 +482,7 @@ static func buy_and_equip_disc(id: String, name_: String) -> bool:
 	var dz := discs()
 	if dz == null or not dz.has_method("buy_and_equip"):
 		var nav := node("Nav")
-		if nav: nav.toast("برای خرید دیسک باید آنلاین باشی", "err")
+		if nav: nav.toast(I18n.t("ud.you_need_to_be_online"), "err")
 		return false
 	var ok: bool = await dz.buy_and_equip(id, name_)
 	if ok:
@@ -544,7 +544,7 @@ static func claim_ach(id: String) -> bool:
 	var ml := Engine.get_main_loop() as SceneTree
 	var nav := ml.root.get_node_or_null("Nav")
 	if nav:
-		nav.toast("+%s سکه · +%s الماس" % [NX.fa(a["coins"]), NX.fa(a["gems"])], "ok")
+		nav.toast(I18n.t("ud.x_coins_x_gems") % [NX.fa(a["coins"]), NX.fa(a["gems"])], "ok")
 		nav.refresh_chrome()
 	return true
 

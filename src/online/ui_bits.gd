@@ -243,7 +243,7 @@ class PingBadge extends PanelContainer:
 		_dot.custom_minimum_size = Vector2(OUI.px(8), OUI.px(8))
 		_dot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		h.add_child(_dot)
-		_l = OUI.lbl("— ms", 10, OUI.DIM, "head", HORIZONTAL_ALIGNMENT_LEFT)
+		_l = OUI.lbl("— ms", 10, OUI.DIM, "head", I18n.AL)
 		h.add_child(_l)
 		if link != null and link.has_signal("changed"):
 			link.changed.connect(_upd)
@@ -290,7 +290,7 @@ class VoiceBar extends HBoxContainer:
 		OUI.clear(self)
 		if not enabled:
 			if not compact:
-				add_child(OUI.flbl("چت صوتی برای این اتاق خاموش است", OUI.TS_CAP, OUI.DIM2))
+				add_child(OUI.flbl(I18n.t("ui_bits.voice_chat_is_off_for"), OUI.TS_CAP, OUI.DIM2))
 			return
 		if not Voice.supported():
 			var off := OUI.pill("🔇", Callable(), OUI.DIM2, 44, 44)
@@ -298,7 +298,7 @@ class VoiceBar extends HBoxContainer:
 			add_child(off)
 			if not compact:
 				var why: String = Voice.support_reason()
-				add_child(OUI.flbl(why if why != "" else "چت صوتی فقط در نسخه‌ی اندروید فعال است", OUI.TS_CAP, OUI.DIM, "body", true, 2))
+				add_child(OUI.flbl(why if why != "" else I18n.t("ui_bits.voice_chat_only_works_in"), OUI.TS_CAP, OUI.DIM, "body", true, 2))
 			return
 		var v := _vstate()
 		var status := str(v.get("status", "off"))
@@ -311,10 +311,10 @@ class VoiceBar extends HBoxContainer:
 			if pub:
 				add_child(OUI.pill("🎙" if mic else "🚫", func() -> void: Voice.set_mic(not mic), OUI.GREEN if mic else OUI.DIM2, 44, 44))
 			if not compact:
-				add_child(OUI.flbl(("میکروفون روشن" if mic else "میکروفون خاموش") if pub else "فقط شنونده", OUI.TS_CAP, OUI.DIM))
+				add_child(OUI.flbl((I18n.t("ui_bits.mic_on") if mic else I18n.t("ui_bits.mic_off")) if pub else I18n.t("ui_bits.listener_only"), OUI.TS_CAP, OUI.DIM))
 		else:
 			var connecting := status == "connecting"
-			var jb := OUI.pill("…" if connecting else ("🎙" if compact else "🎙 ورود به چت صوتی"), func() -> void: Voice.join(room_id), OUI.CYAN, 44, 44)
+			var jb := OUI.pill("…" if connecting else ("🎙" if compact else I18n.t("ui_bits.join_voice_chat")), func() -> void: Voice.join(room_id), OUI.CYAN, 44, 44)
 			jb.disabled = connecting
 			add_child(jb)
 			if not compact and status == "error" and str(v.get("error", "")) != "":
@@ -335,7 +335,7 @@ class ChatPanel extends VBoxContainer:
 		link = l
 		compact = cmp
 	func _ready() -> void:
-		layout_direction = Control.LAYOUT_DIRECTION_RTL
+		layout_direction = I18n.LD
 		add_theme_constant_override("separation", 0)
 		_sc = OUI.scroll()
 		_sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -347,7 +347,7 @@ class ChatPanel extends VBoxContainer:
 		row.layout_direction = Control.LAYOUT_DIRECTION_LTR
 		var send := OUI.pill("➤", _send, OUI.CYAN, 44, 44)
 		row.add_child(send)
-		_in = OUI.line_edit("پیام…", 200, false, false, 44)
+		_in = OUI.line_edit(I18n.t("ui_bits.message"), 200, false, false, 44)
 		_in.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		_in.text_submitted.connect(func(_t: String) -> void: _send())
 		row.add_child(_in)
@@ -377,7 +377,7 @@ class ChatPanel extends VBoxContainer:
 			OUI.clear(_list)
 			_shown = 0
 		if chat.is_empty() and _list.get_child_count() == 0:
-			_list.add_child(OUI.lbl("هنوز پیامی نیست؛ سلام کن!", OUI.TS_SMALL, OUI.DIM2, "body", HORIZONTAL_ALIGNMENT_CENTER))
+			_list.add_child(OUI.lbl(I18n.t("ui_bits.no_messages_yet_say_hi"), OUI.TS_SMALL, OUI.DIM2, "body", HORIZONTAL_ALIGNMENT_CENTER))
 			_list.get_child(0).set_meta("placeholder", true)
 			return
 		if _list.get_child_count() > 0 and _list.get_child(0).has_meta("placeholder"):
@@ -415,7 +415,7 @@ class ChatPanel extends VBoxContainer:
 		var v := OUI.vbox(0)
 		if not mine:
 			v.add_child(OUI.lbl(str(c.get("name", "")), OUI.TS_TINY, OUI.CYAN, "bold"))
-		var t := OUI.lbl(str(c.get("text", "")), OUI.TS_SMALL if compact else 13, OUI.TEXT, "body", HORIZONTAL_ALIGNMENT_RIGHT, true, 0)
+		var t := OUI.lbl(str(c.get("text", "")), OUI.TS_SMALL if compact else 13, OUI.TEXT, "body", I18n.AR, true, 0)
 		t.custom_minimum_size.x = OUI.px(40)
 		v.add_child(t)
 		pc.add_child(v)

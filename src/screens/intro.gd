@@ -82,7 +82,7 @@ func _ready() -> void:
 	var sb := NX.box(Color(0.047, 0.078, 0.188, 0.8), 78, 3, NX.hdr(Color("#5ce1ff"), 1.3), 40, Color(0.36, 0.88, 1.0, 0.55))
 	sb.content_margin_left = 68; sb.content_margin_right = 68; sb.content_margin_top = 30; sb.content_margin_bottom = 30
 	tap_btn.add_theme_stylebox_override("panel", sb)
-	tap_btn.add_child(Kit.label("برای ورود لمس کنید", 39, NX.TEXT, true))
+	tap_btn.add_child(Kit.label(I18n.t("intro.tap_to_enter"), 39, NX.TEXT, true))
 	tap_btn.visible = false
 	add_child(tap_btn)
 	# skip
@@ -90,7 +90,7 @@ func _ready() -> void:
 	var ssb := NX.box(Color("#141a30"), 57, 3, Color(1, 1, 1, 0.2))
 	ssb.content_margin_left = 42; ssb.content_margin_right = 42; ssb.content_margin_top = 22; ssb.content_margin_bottom = 22
 	skip.add_theme_stylebox_override("panel", ssb)
-	skip.add_child(Kit.label("رد کردن ‹", 34))
+	skip.add_child(Kit.label(I18n.t("intro.skip"), 34))
 	add_child(skip)
 	Kit.tap(skip, enter, 0.92)
 	resized.connect(_layout)

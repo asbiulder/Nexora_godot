@@ -23,7 +23,7 @@ const TS := 1.1
 static func label(text, size: int = 36, color: Color = NX.TEXT, bold := false) -> Label:
 	size = int(round(size * TS))
 	var l := Label.new()
-	var s := str(text)
+	var s := I18n.f(text)  # Persian source text from const tables -> English when lang is en
 	l.text = s
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	if NX.is_fa(s):
@@ -31,7 +31,7 @@ static func label(text, size: int = 36, color: Color = NX.TEXT, bold := false) -
 		l.add_theme_font_override("font", NX.font("faB" if bold else "fa"))
 		l.add_theme_font_size_override("font_size", int(round(size * (1.2 if size < 30 else 1.03))) if bold else size)
 		l.text_direction = Control.TEXT_DIRECTION_RTL
-		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		l.horizontal_alignment = I18n.AR
 	else:
 		l.add_theme_font_override("font", NX.font("bold" if bold else "body"))
 		l.add_theme_font_size_override("font_size", size)
@@ -40,7 +40,7 @@ static func label(text, size: int = 36, color: Color = NX.TEXT, bold := false) -
 
 ## Orbitron display text (falls back to Vazirmatn heavy for Persian)
 static func title(text, size: int = 52, color: Color = NX.TEXT, kind := "title") -> Label:
-	var s := str(text)
+	var s := I18n.f(text)
 	if NX.is_fa(s):
 		var l := label(s, int(round(size * 1.03)), color, true)
 		return l
@@ -63,7 +63,7 @@ static func caps(text: String, size: int = 24, color: Color = NX.CYAN, spacing :
 	return l
 
 ## wrapping paragraph
-static func para(text, size: int = 31, color: Color = NX.DIM, align := HORIZONTAL_ALIGNMENT_RIGHT) -> Label:
+static func para(text, size: int = 31, color: Color = NX.DIM, align := I18n.AR) -> Label:
 	var l := label(text, size, color)
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	l.horizontal_alignment = align
@@ -225,8 +225,8 @@ static func hscroll(sep := 20, rtl := true) -> Array:
 	var h := HBoxContainer.new()
 	h.add_theme_constant_override("separation", sep)
 	if rtl:
-		h.layout_direction = Control.LAYOUT_DIRECTION_RTL
-		sc.layout_direction = Control.LAYOUT_DIRECTION_RTL
+		h.layout_direction = I18n.LD
+		sc.layout_direction = I18n.LD
 	sc.add_child(h)
 	return [sc, h]
 
@@ -344,7 +344,7 @@ static func hbox(sep := 20, rtl := false) -> HBoxContainer:
 	h.add_theme_constant_override("separation", sep)
 	h.mouse_filter = Control.MOUSE_FILTER_PASS
 	if rtl:
-		h.layout_direction = Control.LAYOUT_DIRECTION_RTL
+		h.layout_direction = I18n.LD
 	return h
 
 static func vbox(sep := 16) -> VBoxContainer:
@@ -420,7 +420,7 @@ static func section(title_fa: String, en := "", accent: Color = NX.CYAN, action 
 	col.add_child(t)
 	if en != "":
 		var e := caps(en, 21, NX.hdr(accent, 1.25), 7)
-		e.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		e.horizontal_alignment = I18n.AR
 		col.add_child(e)
 	row.add_child(col)
 	var bar := ColorRect.new()
@@ -571,13 +571,13 @@ static func price_tag(v: int, gem := false) -> Control:
 ## two-row stat bars (power / accuracy, 10 pips) — RN StatBars
 static func stat_bars(power: int, accuracy: int, compact := false) -> Control:
 	var v := vbox(6 if compact else 12)
-	for row in [["قدرت", power, NX.ORANGE], ["دقت", accuracy, NX.CYAN]]:
+	for row in [[I18n.t("oui.power"), power, NX.ORANGE], [I18n.t("oui.accuracy"), accuracy, NX.CYAN]]:
 		var h := hbox(4, true)
 		var l := label(row[0], 23 if compact else 27, NX.DIM)
 		l.custom_minimum_size.x = 68 if compact else 90
 		h.add_child(l)
 		var pips := HBoxContainer.new()
-		pips.layout_direction = Control.LAYOUT_DIRECTION_RTL
+		pips.layout_direction = I18n.LD
 		pips.add_theme_constant_override("separation", 4)
 		pips.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		for i in 10:
@@ -606,7 +606,7 @@ static func speech(text: String, max_w := 756.0, size := 36, accent: Color = NX.
 	p.add_theme_stylebox_override("panel", sb)
 	var l := label(text, size, NX.TEXT, true)
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	l.horizontal_alignment = I18n.AR
 	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	l.custom_minimum_size.x = clampf(UD.text_w(l) + 6.0, 120.0, max_w - 76.0)
 	p.add_child(l)

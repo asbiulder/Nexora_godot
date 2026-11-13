@@ -49,9 +49,9 @@ static var _primed := false
 
 static func coach_miss(power: float, misses: int) -> String:
 	if power > 0.92:
-		return "قدرت خیلی زیاد بود؛ با کشیدن کمتر ضربه کنترل‌شده‌تر می‌شه. 💡"
+		return I18n.t("coach.too_much_power_pull_less")
 	if power < 0.18:
-		return "ضربه خیلی آروم بود؛ کمی بیشتر بکش تا به توپ برسی. 💪"
+		return I18n.t("coach.that_shot_was_too_soft")
 	if misses % 2 == 1:
 		return SOFT[randi() % SOFT.size()]
 	return ""
@@ -64,10 +64,10 @@ static func tip() -> String:
 ## result screens: out = "victory" | "defeat" | "draw"
 static func result_line(out: String) -> Dictionary:
 	if out == "victory":
-		return {"mood": "joy" if randf() < 0.5 else "laugh", "text": ["عالی بود کاپیتان! 🏆", "چه بردی! کهکشان به احترامت ایستاده. ✨", "همین‌طوری ادامه بده، قهرمان! 🔥"][randi() % 3]}
+		return {"mood": "joy" if randf() < 0.5 else "laugh", "text": [I18n.t("coach.great_job_captain"), I18n.t("coach.what_a_win_the_galaxy"), I18n.t("coach.keep_it_up_champ")][randi() % 3]}
 	if out == "defeat":
-		return {"mood": "calm", "text": "اشکالی نداره، دست بعدی مال ماست. 💙 نکته: %s" % tip()}
-	return {"mood": "content", "text": "مساوی! فقط یک ضربه تا برد فاصله داشتیم. 🤝"}
+		return {"mood": "calm", "text": I18n.t("coach.no_worries_the_next_one") % tip()}
+	return {"mood": "content", "text": I18n.t("coach.a_draw_we_were_just")}
 
 
 static func enabled() -> bool:
@@ -121,17 +121,17 @@ static func react(ev: String, detail: String = "") -> void:
 	if ev == "message" and _quiet.has("chat"):
 		return
 	match ev:
-		"goal": coach(["گووووول! 🔥", "چه ضربه‌ای! 😄", "تور دروازه لرزید! ⚡"][randi() % 3], "excited" if randf() < 0.5 else "laugh")
-		"reward": _announce(("جایزه رسید: %s 🎁" % detail) if detail != "" else "جایزه‌ات رسید! 🎁", "joy")
-		"levelup": _announce(("سطح %s! داری قوی‌تر می‌شی کاپیتان 🚀" % detail) if detail != "" else "سطح جدید! 🚀", "spin")
-		"purchase": _announce("مبارکت باشه! با این یکی حسابی می‌درخشی ✨", "happy")
-		"nogems": _announce("الماس کافی نداری 🤔 چالش‌های روزانه (تا ۵)، جایزه‌ی فصل (تا ۳۰) و قهرمانی تورنمنت (تا ۳۰) الماس می‌دن.", "confused", ["challenges", "tours"])
-		"error": _announce("اوه! %s — نگران نباش، دوباره امتحان می‌کنیم." % (detail if detail != "" else "یه مشکلی پیش اومد"), "alert")
-		"search": coach("دارم حریف پیدا می‌کنم… 🔭", "spin")
-		"challengeDone": _announce("چالش «%s» کامل شد! جایزه‌ات رو بگیر 🎉" % detail, "excited", ["claim"])
-		"message": _announce(("پیام جدید از %s 💬" % detail) if detail != "" else "پیام جدید داری 💬", "curious", ["messages"])
-		"follow": _announce(("%s دنبالت کرد! 👀" % detail) if detail != "" else "یک دنبال‌کننده‌ی جدید داری 👀", "curious")
-		"tourReady": _announce("مسابقه‌ی تورنمنتت آماده‌ست! ⚠️ زود وارد شو.", "alert", ["tours"])
+		"goal": coach([I18n.t("coach.gooooal"), I18n.t("coach.what_a_shot"), I18n.t("coach.the_net_is_shaking")][randi() % 3], "excited" if randf() < 0.5 else "laugh")
+		"reward": _announce((I18n.t("coach.reward_received_x") % detail) if detail != "" else I18n.t("coach.your_reward_is_here"), "joy")
+		"levelup": _announce((I18n.t("coach.level_x_you_re_getting") % detail) if detail != "" else I18n.t("coach.new_level"), "spin")
+		"purchase": _announce(I18n.t("coach.congrats_you_ll_shine_with"), "happy")
+		"nogems": _announce(I18n.t("coach.not_enough_gems_daily_challenges"), "confused", ["challenges", "tours"])
+		"error": _announce(I18n.t("coach.oops_x_don_t_worry") % (detail if detail != "" else I18n.t("coach.something_went_wrong")), "alert")
+		"search": coach(I18n.t("coach.finding_you_an_opponent"), "spin")
+		"challengeDone": _announce(I18n.t("coach.challenge_x_completed_claim_your") % detail, "excited", ["claim"])
+		"message": _announce((I18n.t("coach.new_message_from_x") % detail) if detail != "" else I18n.t("coach.you_have_a_new_message"), "curious", ["messages"])
+		"follow": _announce((I18n.t("coach.x_followed_you") % detail) if detail != "" else I18n.t("coach.you_have_a_new_follower"), "curious")
+		"tourReady": _announce(I18n.t("coach.your_tournament_match_is_ready"), "alert", ["tours"])
 
 
 ## tiny non-blocking coach toast (top in matches, bottom elsewhere)
@@ -150,7 +150,7 @@ static func coach(text: String, mood: String = "idea") -> void:
 	var vp := tree.root.get_visible_rect().size
 	var pc := PanelContainer.new()
 	pc.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	pc.layout_direction = Control.LAYOUT_DIRECTION_RTL
+	pc.layout_direction = I18n.LD
 	var st := OUI.sb(Color(8 / 255.0, 14 / 255.0, 40 / 255.0, 0.92), 20, Color(92 / 255.0, 225 / 255.0, 1, 0.45), 1)
 	st.content_margin_left = OUI.px(10)
 	st.content_margin_right = OUI.px(10)
@@ -305,7 +305,7 @@ class OracleBubble extends Control:
 	func _ready() -> void:
 		set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
-		layout_direction = Control.LAYOUT_DIRECTION_RTL
+		layout_direction = I18n.LD
 		holder = Control.new()
 		holder.custom_minimum_size = Vector2(OUI.px(SPR), OUI.px(SPR + 10))
 		holder.size = holder.custom_minimum_size
@@ -350,11 +350,11 @@ class OracleBubble extends Control:
 			_tour(0)
 			return
 		var h := Time.get_datetime_dict_from_system()["hour"] as int
-		var g := "صبح بخیر" if (h >= 5 and h < 12) else ("روز بخیر" if h < 17 else ("عصر بخیر" if h < 21 else "شب بخیر"))
+		var g := I18n.t("coach.good_morning") if (h >= 5 and h < 12) else (I18n.t("coach.good_afternoon") if h < 17 else (I18n.t("coach.good_evening") if h < 21 else I18n.t("coach.good_night")))
 		var name := OUI.s(OUI.profile.get("username", ""))
 		if name == "":
 			name = str(p.get("name", ""))
-		say("%s %s! 👋 آماده‌ی یک مسابقه‌ی کهکشانی هستی؟" % [g, name], "hello" if (h >= 5 and h < 12) else "wave", ["quick", "challenges"])
+		say(I18n.t("coach.x_x_ready_for_a") % [g, name], "hello" if (h >= 5 and h < 12) else "wave", ["quick", "challenges"])
 
 	func _process(dt: float) -> void:
 		t += dt
@@ -409,7 +409,7 @@ class OracleBubble extends Control:
 		if sleeping:
 			sleeping = false
 			sprite.set_mood("wave")
-			say("بیدارم! 😄 چه کمکی از دستم برمیاد؟", "wave", OracleKB.SUGGESTIONS.slice(0, 3))
+			say(I18n.t("coach.i_m_awake_how_can"), "wave", OracleKB.SUGGESTIONS.slice(0, 3))
 		else:
 			_close_speech()
 			Nav.go("oracle", {})
@@ -420,7 +420,7 @@ class OracleBubble extends Control:
 		sprite.set_mood(mood)
 		_close_speech()
 		speech = PanelContainer.new()
-		speech.layout_direction = Control.LAYOUT_DIRECTION_RTL
+		speech.layout_direction = I18n.LD
 		var st := OUI.sb(Color(10 / 255.0, 18 / 255.0, 52 / 255.0, 0.97), 18, Color(92 / 255.0, 225 / 255.0, 1, 0.55), 1, 12)
 		st.shadow_color = Color(OUI.CYAN, 0.35)
 		st.shadow_size = OUI.px(8)
@@ -434,7 +434,7 @@ class OracleBubble extends Control:
 		top.add_child(OUI.pill("✕", func() -> void: _close_speech(), OUI.DIM, 28, 28))
 		top.add_child(OUI.expand())
 		v.add_child(top)
-		var tl := OUI.lbl(text, 15, OUI.TEXT, "body", HORIZONTAL_ALIGNMENT_RIGHT, true, 0)
+		var tl := OUI.lbl(text, 15, OUI.TEXT, "body", I18n.AR, true, 0)
 		var inner := w - OUI.px(24)
 		tl.custom_minimum_size.x = clampf(UD.text_w(tl) + 6.0, minf(OUI.px(140), inner), inner)
 		tl.visible_ratio = 0.0
@@ -504,7 +504,7 @@ class OracleBubble extends Control:
 			ring.position = Vector2(cx, cy) - ring.size / 2.0
 			root.add_child(ring)
 		var card := PanelContainer.new()
-		card.layout_direction = Control.LAYOUT_DIRECTION_RTL
+		card.layout_direction = I18n.LD
 		card.add_theme_stylebox_override("panel", OUI.sb(Color(12 / 255.0, 20 / 255.0, 58 / 255.0, 0.98), 24, Color(92 / 255.0, 225 / 255.0, 1, 0.5), 1, 14))
 		var v := OUI.vbox(10)
 		var h := OUI.hbox(8)
@@ -516,7 +516,7 @@ class OracleBubble extends Control:
 		v.add_child(h)
 		var bh := OUI.hbox(8)
 		var last := step >= OracleCoach.TOUR.size() - 1
-		var nb := OUI.btn("شروع" if last else "بعدی", func() -> void:
+		var nb := OUI.btn(I18n.t("coach.start") if last else I18n.t("coach.next"), func() -> void:
 			if last:
 				_end_tour()
 			else:
@@ -524,7 +524,7 @@ class OracleBubble extends Control:
 		nb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		bh.add_child(nb)
 		if not last:
-			var sk := OUI.btn("رد کردن", _end_tour, "dark", true)
+			var sk := OUI.btn(I18n.t("coach.skip"), _end_tour, "dark", true)
 			sk.custom_minimum_size.x = OUI.px(110)
 			bh.add_child(sk)
 		v.add_child(bh)
@@ -549,7 +549,7 @@ class OracleBubble extends Control:
 		_tour(-1)
 		tour_step = -1
 		Store.set_p({"oracleTour": true})
-		say("هر وقت سؤالی داشتی روی من بزن! 💙", "wave", ["quick"])
+		say(I18n.t("coach.tap_me_whenever_you_have_2"), "wave", ["quick"])
 
 
 class Ring extends Control:

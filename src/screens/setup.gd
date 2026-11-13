@@ -64,10 +64,10 @@ func _ready() -> void:
 	vs.add_child(vg)
 	var vh := Kit.hbox(10)
 	vh.alignment = BoxContainer.ALIGNMENT_CENTER
-	vh.add_child(_side(UD.team_tex(me), me["name"], "تغییر تیم", NX.CYAN, _team))
+	vh.add_child(_side(UD.team_tex(me), me["name"], I18n.t("setup.change_team"), NX.CYAN, _team))
 	vh.add_child(Kit.img(UD.ui("vs"), Vector2(182, 156)))
 	var local := k == "local"
-	var right := _side(UD.team_tex(me) if local else UD.team_tex(opp), "بازیکن ۲" if local else opp["name"], " " if local else "حریف دیگر ↻", NX.RED, Callable() if local else _reroll)
+	var right := _side(UD.team_tex(me) if local else UD.team_tex(opp), I18n.t("data.player_2") if local else opp["name"], " " if local else I18n.t("setup.another_opponent"), NX.RED, Callable() if local else _reroll)
 	opp_img = right.get_meta("img")
 	opp_name = right.get_meta("name")
 	vh.add_child(right)
@@ -80,8 +80,8 @@ func _ready() -> void:
 		csb.content_margin_top = 26; csb.content_margin_bottom = 26
 		cup.add_theme_stylebox_override("panel", csb)
 		var ch := Kit.hbox(0, true)
-		var stages := ["یک‌چهارم", "نیمه‌نهایی", "فینال"]
-		var diffs := ["آسان", "معمولی", "سخت"]
+		var stages := [I18n.t("tournaments.quarter_final"), I18n.t("tournaments.semi_final"), I18n.t("tournaments.final")]
+		var diffs := [I18n.t("settings.easy"), I18n.t("settings.normal"), I18n.t("settings.hard")]
 		for i in 3:
 			var c := Kit.vbox(2)
 			c.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -98,14 +98,14 @@ func _ready() -> void:
 		cup.add_child(ch)
 		v.add_child(cup)
 	if k == "quick":
-		v.add_child(_row("سختی", Kit.tabs(["آسان", "معمولی", "سخت"], func(i): lvl = i, lvl)))
+		v.add_child(_row(I18n.t("setup.difficulty"), Kit.tabs([I18n.t("settings.easy"), I18n.t("settings.normal"), I18n.t("settings.hard")], func(i): lvl = i, lvl)))
 	if k == "quick" or k == "local":
 		var rules := ["g3", "g5", "t3"]
-		v.add_child(_row("قانون", Kit.tabs(["تا ۳ گل", "تا ۵ گل", "۳ دقیقه"], func(i): rule = rules[i], rules.find(rule), NX.VIOLET)))
+		v.add_child(_row(I18n.t("hub.rule"), Kit.tabs([I18n.t("oui.first_to_3_goals"), I18n.t("oui.first_to_5_goals"), I18n.t("oui.3_minutes")], func(i): rule = rules[i], rules.find(rule), NX.VIOLET)))
 	if k != "train":
 		var tts := [0, 10, 15, 20]
 		var ti := tts.find(tt)
-		v.add_child(_row("زمان نوبت", Kit.tabs(["خاموش", "۱۰ث", "۱۵ث", "۲۰ث"], func(i): tt = tts[i], 2 if ti < 0 else ti, NX.GREEN)))
+		v.add_child(_row(I18n.t("setup.turn_time"), Kit.tabs([I18n.t("setup.off"), I18n.t("oui.10s"), I18n.t("oui.15s"), I18n.t("oui.20s")], func(i): tt = tts[i], 2 if ti < 0 else ti, NX.GREEN)))
 	# loadout
 	var ld := PanelContainer.new()
 	var lsb := NX.box(Color(0.04, 0.07, 0.19, 0.85), 42, 3, NX.LINE)
@@ -116,14 +116,14 @@ func _ready() -> void:
 	var lc := Kit.vbox(2)
 	lc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	lc.add_child(Kit.label("%s · %s" % [UD.ball_name(int(p.get("ball", 0))), UD.field(int(p.get("field", 0)))["name"]], 31, NX.TEXT, true))
-	lc.add_child(Kit.label("ترکیب %s · تجهیزات" % UD.forms()[int(p.get("form", 0))][0], 29, NX.DIM))
+	lc.add_child(Kit.label(I18n.t("setup.formation_x_loadout") % UD.forms()[int(p.get("form", 0))][0], 29, NX.DIM))
 	lh.add_child(lc)
 	lh.add_child(Kit.img(UD.field_thumb(int(p.get("field", 0))), Vector2(78, 104), "cover"))
 	ld.add_child(lh)
 	Kit.tap(ld, _team, 0.97)
 	v.add_child(ld)
 	v.add_child(Kit.gap(16))
-	v.add_child(Kit.button("شروع جام" if k == "cup" else "شروع بازی", _go, "gold" if k == "cup" else "primary"))
+	v.add_child(Kit.button(I18n.t("setup.start_cup") if k == "cup" else I18n.t("lobby.start_match"), _go, "gold" if k == "cup" else "primary"))
 
 func _side(tex: Texture2D, nm: String, sub: String, col: Color, cb: Callable) -> Control:
 	var c := Kit.vbox(4)

@@ -22,12 +22,12 @@ func _fill() -> void:
 	var e := Kit.caps("PORTAL · SELECT", 26, NX.hdr(NX.CYAN, 1.3), 12)
 	e.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	head.add_child(e)
-	var t := Kit.title("انتخاب حالت بازی", 57)
+	var t := Kit.title(I18n.t("play.choose_a_game_mode"), 57)
 	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	head.add_child(t)
 	body.add_child(ent(head, 0))
 	body.add_child(ent(padx(_online_card()), 1))
-	body.add_child(Kit.section("آفلاین", "OFFLINE · BOT & LOCAL"))
+	body.add_child(Kit.section(I18n.t("play.offline"), "OFFLINE · BOT & LOCAL"))
 	carousel = _Carousel.new()
 	carousel.modes = Launch.modes()
 	carousel.index = idx
@@ -45,10 +45,10 @@ func _fill() -> void:
 	body.add_child(dots)
 	carousel.moved.connect(_dots)
 	var m0: Dictionary = carousel.modes[idx]
-	enter_btn = Kit.button("ورود به %s" % m0["name"], func(): Nav.go("setup", {"mode": carousel.modes[idx]["k"]}), m0["grad"])
+	enter_btn = Kit.button(I18n.t("play.enter_x") % m0["name"], func(): Nav.go("setup", {"mode": carousel.modes[idx]["k"]}), m0["grad"])
 	body.add_child(Kit.margin(enter_btn, 62, 26, 62, 0))
 	# league road
-	body.add_child(Kit.section("جاده‌ی لیگ", "LEAGUE ROAD", NX.GOLD))
+	body.add_child(Kit.section(I18n.t("play.league_road"), "LEAGUE ROAD", NX.GOLD))
 	var hs := Kit.hscroll(0)
 	var road: HBoxContainer = hs[1]
 	road.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -103,7 +103,7 @@ func _fill() -> void:
 func _on_idx(i: int) -> void:
 	idx = i
 	var m: Dictionary = carousel.modes[i]
-	enter_btn.set_text("ورود به %s" % m["name"])
+	enter_btn.set_text(I18n.t("play.enter_x") % m["name"])
 	enter_btn.set_style(m["grad"])
 
 func _dots(x: float) -> void:
@@ -130,7 +130,7 @@ func _online_card() -> Control:
 	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	col.alignment = BoxContainer.ALIGNMENT_CENTER
 	var tl := Kit.hbox(18, true)
-	var ttl := Kit.label("آنلاین", 62, Color.WHITE, true)
+	var ttl := Kit.label(I18n.t("hub.online"), 62, Color.WHITE, true)
 	Kit.glow_text(ttl, NX.CYAN, 16)
 	tl.add_child(ttl)
 	var live := PanelContainer.new()
@@ -151,12 +151,12 @@ func _online_card() -> Control:
 	blink.tween_property(dot, "modulate:a", 0.2, 0.6)
 	blink.tween_property(dot, "modulate:a", 1.0, 0.6)
 	col.add_child(tl)
-	var d := Kit.label("مسابقه با بازیکن‌های واقعی · ۱ به ۱، ۲ به ۲، ۳ به ۳", 31, Color("#d6e6ff"))
+	var d := Kit.label(I18n.t("account.play_real_players_1v1_2v2"), 31, Color("#d6e6ff"))
 	d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	col.add_child(d)
 	var op := UD.online_profile()
 	if not op.is_empty():
-		col.add_child(Kit.label("امتیاز %s · الماس %s" % [NX.fa(int(op.get("rating", 0))), NX.fa(int(op.get("gems", 0)))], 29, NX.GOLD, true))
+		col.add_child(Kit.label(I18n.t("play.rating_x_gems_x") % [NX.fa(int(op.get("rating", 0))), NX.fa(int(op.get("gems", 0)))], 29, NX.GOLD, true))
 	row.add_child(col)
 	g.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	g.offset_left = -g.pad; g.offset_top = -g.pad; g.offset_right = g.pad; g.offset_bottom = g.pad
@@ -184,7 +184,7 @@ func _online_card() -> Control:
 					Nav.online("hub"))
 	v.add_child(card)
 	var links := Kit.hbox(18, true)
-	for l in [["arena", "آرنا", "x_crown"], ["tours", "تورنمنت", "x_trophy"], ["leagues", "لیگ", "x_medal"], ["challenges", "چالش", "c_calendar"]]:
+	for l in [["arena", I18n.t("arena.arena"), "x_crown"], ["tours", I18n.t("hub.tournament"), "x_trophy"], ["leagues", I18n.t("tournaments.league"), "x_medal"], ["challenges", I18n.t("kb.challenge"), "c_calendar"]]:
 		var b := PanelContainer.new()
 		var sb := NX.box(Color(0.04, 0.063, 0.172, 0.85), 36, 3, NX.LINE)
 		b.add_theme_stylebox_override("panel", sb)

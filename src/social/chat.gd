@@ -44,7 +44,7 @@ func setup(p: Dictionary) -> void:
 func _ready() -> void:
 	Nav.chrome(false)
 	set_anchors_preset(Control.PRESET_FULL_RECT)
-	layout_direction = Control.LAYOUT_DIRECTION_RTL
+	layout_direction = I18n.LD
 	OUI.boot()
 	OracleCoach.set_quiet("chat", true)
 	var root := OUI.vbox(0)
@@ -57,7 +57,7 @@ func _ready() -> void:
 	add_child(bg)
 	move_child(bg, 0)
 	right_slot = OUI.hbox(0)
-	hdr = OUI.header("گفتگو", "", func() -> void: Nav.back(), right_slot)
+	hdr = OUI.header(I18n.t("lobby.chat"), "", func() -> void: Nav.back(), right_slot)
 	title_l = hdr.get_meta("title")
 	root.add_child(hdr)
 	sc = OUI.scroll()
@@ -236,7 +236,7 @@ func _typing_tick() -> void:
 		if n != "":
 			names.append(n)
 	typing_l.visible = names.size() > 0
-	typing_l.text = "%s در حال نوشتن…" % "، ".join(names)
+	typing_l.text = I18n.t("chat.x_is_typing") % "، ".join(names)
 
 
 func _add_msg(m: Dictionary) -> void:
@@ -286,12 +286,12 @@ func _render_meta() -> void:
 	var kind := OUI.s(conv.get("kind"))
 	var peer := _peer()
 	var pp := OUI.d(peer.get("profiles"))
-	title_l.text = (OUI.s(pp.get("username"), "گفتگو") if kind == "dm" else OUI.s(conv.get("title"), "گفتگو"))
+	title_l.text = (OUI.s(pp.get("username"), I18n.t("lobby.chat")) if kind == "dm" else OUI.s(conv.get("title"), I18n.t("lobby.chat")))
 	if title_l.text == "":
-		title_l.text = "گفتگو"
+		title_l.text = I18n.t("lobby.chat")
 	var en := ""
 	if not conv.is_empty():
-		en = ("ONLINE" if OUI.is_online(pp.get("online_at")) else "DIRECT") if kind == "dm" else "%s · %s عضو" % [KIND_LABEL.get(kind, ""), OUI.fa(members.size())]
+		en = ("ONLINE" if OUI.is_online(pp.get("online_at")) else "DIRECT") if kind == "dm" else I18n.t("chat.x_x_members") % [KIND_LABEL.get(kind, ""), OUI.fa(members.size())]
 	var hv: VBoxContainer = title_l.get_parent()
 	if hv.get_child_count() > 1:
 		(hv.get_child(0) as Label).text = en
@@ -314,7 +314,7 @@ func _render_meta() -> void:
 		var send := OUI.pill("…" if sending else "➤", func() -> void: _send(""), OUI.CYAN, 44, 44)
 		row.add_child(send)
 		var old := txt.text if is_instance_valid(txt) else ""
-		txt = OUI.line_edit("پیام…", 2000, false, false, 44)
+		txt = OUI.line_edit(I18n.t("ui_bits.message"), 2000, false, false, 44)
 		txt.text = old
 		txt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		txt.text_changed.connect(_on_type)
@@ -323,21 +323,21 @@ func _render_meta() -> void:
 		row.add_child(OUI.pill("🖼", _send_image, OUI.DIM, 44, 44))
 		input_slot.add_child(row)
 	elif not conv.is_empty() and _me_member().is_empty() and bool(conv.get("is_public", false)):
-		input_slot.add_child(OUI.btn("پیوستن", func() -> void:
+		input_slot.add_child(OUI.btn(I18n.t("chat.join"), func() -> void:
 			var r: Dictionary = await Supa.call_rpc("join_conversation", {"p_conv": id})
 			if OUI.ok(r):
 				_load_meta()
 			else:
 				OUI.toast_err(OUI.err(r)), "green"))
 	elif not conv.is_empty():
-		input_slot.add_child(OUI.lbl("فقط مدیران کانال می‌توانند پیام بفرستند" if kind == "channel" else "امکان ارسال پیام نیست", OUI.TS_SMALL, OUI.DIM, "body", HORIZONTAL_ALIGNMENT_CENTER))
+		input_slot.add_child(OUI.lbl(I18n.t("chat.only_channel_admins_can_post") if kind == "channel" else I18n.t("chat.can_t_send_messages"), OUI.TS_SMALL, OUI.DIM, "body", HORIZONTAL_ALIGNMENT_CENTER))
 
 
 func _rebuild_list() -> void:
 	OUI.clear(list)
 	msg_nodes.clear()
 	if msgs.is_empty():
-		list.add_child(OUI.empty(OUI.ui2("c_mega"), "اولین پیام را بفرست!"))
+		list.add_child(OUI.empty(OUI.ui2("c_mega"), I18n.t("chat.send_the_first_message")))
 		return
 	if more:
 		var ld := CenterContainer.new()
@@ -383,7 +383,7 @@ func _bubble(m: Dictionary, mine: bool, show_name: bool, rt: Dictionary) -> Cont
 	if deleted:
 		pc.modulate.a = 0.5
 	var v := OUI.vbox(2)
-	v.layout_direction = Control.LAYOUT_DIRECTION_RTL
+	v.layout_direction = I18n.LD
 	var maxw := OUI.px(290)
 	if show_name:
 		v.add_child(OUI.lbl(_uname(OUI.s(m.get("sender"))) if OUI.s(m.get("sender")) != "" else "…", OUI.TS_TINY, OUI.CYAN, "bold"))
@@ -397,12 +397,12 @@ func _bubble(m: Dictionary, mine: bool, show_name: bool, rt: Dictionary) -> Cont
 		q.add_theme_stylebox_override("panel", qs)
 		var qv := OUI.vbox(0)
 		qv.add_child(OUI.lbl(_uname(OUI.s(rt.get("sender"))), 10, OUI.CYAN))
-		qv.add_child(OUI.lbl("پیام حذف شده" if bool(rt.get("deleted", false)) else (OUI.s(rt.get("body")) if OUI.s(rt.get("body")) != "" else "📷 عکس"), OUI.TS_CAP, OUI.DIM))
+		qv.add_child(OUI.lbl(I18n.t("chat.message_deleted") if bool(rt.get("deleted", false)) else (OUI.s(rt.get("body")) if OUI.s(rt.get("body")) != "" else I18n.t("chat.photo")), OUI.TS_CAP, OUI.DIM))
 		q.add_child(qv)
 		v.add_child(q)
 	var img_url := OUI.s(m.get("image_url"))
 	if deleted:
-		v.add_child(OUI.lbl("🚫 این پیام حذف شد", OUI.TS_SMALL, OUI.DIM))
+		v.add_child(OUI.lbl(I18n.t("chat.this_message_was_deleted"), OUI.TS_SMALL, OUI.DIM))
 	else:
 		if img_url != "":
 			var tr := TextureRect.new()
@@ -424,12 +424,12 @@ func _bubble(m: Dictionary, mine: bool, show_name: bool, rt: Dictionary) -> Cont
 			v.add_child(clip)
 		var body_t := OUI.s(m.get("body"))
 		if body_t != "":
-			var bl := OUI.lbl(body_t, 14, OUI.TEXT, "body", HORIZONTAL_ALIGNMENT_RIGHT, true, 0)
+			var bl := OUI.lbl(body_t, 14, OUI.TEXT, "body", I18n.AR, true, 0)
 			var f := bl.get_theme_font("font")
 			var w := f.get_string_size(body_t, HORIZONTAL_ALIGNMENT_LEFT, -1, bl.get_theme_font_size("font_size")).x + 6
 			bl.custom_minimum_size.x = clampf(w, OUI.px(30), maxw)
 			v.add_child(bl)
-	v.add_child(OUI.lbl(OUI.time_ago(m.get("created_at")), 9, OUI.DIM2, "body", HORIZONTAL_ALIGNMENT_LEFT if mine else HORIZONTAL_ALIGNMENT_RIGHT))
+	v.add_child(OUI.lbl(OUI.time_ago(m.get("created_at")), 9, OUI.DIM2, "body", I18n.AL if mine else I18n.AR))
 	pc.add_child(v)
 	var lp := LongPress.new()
 	lp.add_child(pc)
@@ -526,7 +526,7 @@ func _send_image() -> void:
 			return
 		if not res.get("ok", false):
 			if res.get("unsupported", false):
-				OUI.toast_err("انتخاب عکس روی این دستگاه پشتیبانی نمی‌شود")
+				OUI.toast_err(I18n.t("chat.choosing_a_photo_isn_t"))
 			elif not res.get("cancelled", false):
 				OUI.toast_err(OUI.s(res.get("error")))
 			return
@@ -542,8 +542,8 @@ func _set_reply(m: Dictionary) -> void:
 	var h := OUI.hbox(OUI.S_S)
 	var v := OUI.vbox(0)
 	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	v.add_child(OUI.lbl("پاسخ به %s" % _uname(OUI.s(m.get("sender"))), OUI.TS_TINY, OUI.CYAN))
-	v.add_child(OUI.lbl(OUI.s(m.get("body")) if OUI.s(m.get("body")) != "" else "📷 عکس", OUI.TS_SMALL))
+	v.add_child(OUI.lbl(I18n.t("chat.replying_to_x") % _uname(OUI.s(m.get("sender"))), OUI.TS_TINY, OUI.CYAN))
+	v.add_child(OUI.lbl(OUI.s(m.get("body")) if OUI.s(m.get("body")) != "" else I18n.t("chat.photo"), OUI.TS_SMALL))
 	h.add_child(v)
 	h.add_child(OUI.pill("✕", func() -> void: _set_reply({}), OUI.DIM, 44, 44))
 	reply_bar.add_child(OUI.margin(h, OUI.S_M, 0, OUI.S_M, 0))
@@ -566,22 +566,22 @@ func _menu(m: Dictionary) -> void:
 		b.custom_minimum_size.y = OUI.px(52)
 		v.add_child(b)
 	if _can_post():
-		item.call("پاسخ", func() -> void:
+		item.call(I18n.t("chat.reply"), func() -> void:
 			_close_overlay()
 			_set_reply(m)
 			if is_instance_valid(txt):
 				txt.grab_focus(), OUI.TEXT)
 	if snd != "" and snd != u:
-		item.call("مشاهده‌ی پروفایل", func() -> void:
+		item.call(I18n.t("chat.view_profile"), func() -> void:
 			_close_overlay()
 			Nav.go("public_profile", {"id": snd}), OUI.TEXT)
 	if snd == u:
-		item.call("حذف پیام", func() -> void:
+		item.call(I18n.t("chat.delete_message"), func() -> void:
 			_close_overlay()
 			var r: Dictionary = await OUI.patch("messages?id=eq.%d" % OUI.i(m.get("id")), {"deleted": true, "body": null})
 			if not OUI.ok(r):
 				OUI.toast_err(OUI.err(r)), OUI.RED)
-	item.call("انصراف", _close_overlay, OUI.DIM)
+	item.call(I18n.t("nav.cancel"), _close_overlay, OUI.DIM)
 	overlay = OUI.modal(self, v, OUI.CYAN, _close_overlay)
 
 
@@ -631,7 +631,7 @@ func _open_info() -> void:
 		if not is_instance_valid(mem_box):
 			return
 		OUI.clear(mem_box)
-		mem_box.add_child(OUI.section_title("اعضا (%s)" % OUI.fa(members.size()), OUI.S_S))
+		mem_box.add_child(OUI.section_title(I18n.t("chat.members_x") % OUI.fa(members.size()), OUI.S_S))
 		for m in members:
 			var mu := OUI.s(m.get("user_id"))
 			var pp := OUI.d(m.get("profiles"))
@@ -645,23 +645,23 @@ func _open_info() -> void:
 			var tv := OUI.vbox(0)
 			tv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			tv.alignment = BoxContainer.ALIGNMENT_CENTER
-			tv.add_child(OUI.lbl(OUI.s(pp.get("username"), "…") + (" (تو)" if mu == u else ""), OUI.TS_BODY, OUI.TEXT, "bold"))
+			tv.add_child(OUI.lbl(OUI.s(pp.get("username"), "…") + (I18n.t("ranks.you") if mu == u else ""), OUI.TS_BODY, OUI.TEXT, "bold"))
 			if role != "member":
 				var bh := OUI.hbox(0)
-				bh.add_child(OUI.badge("مالک" if role == "owner" else "مدیر", OUI.GOLD if role == "owner" else OUI.CYAN))
+				bh.add_child(OUI.badge(I18n.t("chat.owner") if role == "owner" else I18n.t("chat.admin"), OUI.GOLD if role == "owner" else OUI.CYAN))
 				bh.add_child(OUI.expand())
 				tv.add_child(bh)
 			h.add_child(tv)
 			if my_role == "owner" and mu != u and kind != "club":
-				h.add_child(OUI.pill("برکناری" if role == "admin" else "مدیر کن", func() -> void: act.call(mu, "demote" if role == "admin" else "promote"), OUI.CYAN, 44, 44))
+				h.add_child(OUI.pill(I18n.t("chat.demote") if role == "admin" else I18n.t("chat.make_admin"), func() -> void: act.call(mu, "demote" if role == "admin" else "promote"), OUI.CYAN, 44, 44))
 			if admin and mu != u and role != "owner" and kind != "club":
-				h.add_child(OUI.pill("حذف", func() -> void: act.call(mu, "remove"), OUI.RED, 44, 44))
+				h.add_child(OUI.pill(I18n.t("tournaments.out"), func() -> void: act.call(mu, "remove"), OUI.RED, 44, 44))
 			mem_box.add_child(h)
 			mem_box.add_child(OUI.divider())
 	if OUI.s(conv.get("about")) != "":
-		v.add_child(OUI.lbl(OUI.s(conv.get("about")), OUI.TS_BODY, OUI.DIM, "body", HORIZONTAL_ALIGNMENT_RIGHT, true, 0))
+		v.add_child(OUI.lbl(OUI.s(conv.get("about")), OUI.TS_BODY, OUI.DIM, "body", I18n.AR, true, 0))
 	if admin and kind != "club":
-		var af := OUI.field("افزودن عضو", "نام کاربری…", 30)
+		var af := OUI.field(I18n.t("chat.add_member"), I18n.t("chat.username"), 30)
 		var le: LineEdit = af.get_meta("input")
 		v.add_child(af)
 		var found := OUI.vbox(0)
@@ -687,7 +687,7 @@ func _open_info() -> void:
 				h.custom_minimum_size.y = OUI.px(56)
 				h.add_child(NetImg.avatar(f.get("avatar"), f.get("avatar_url"), 36))
 				h.add_child(OUI.flbl(OUI.s(f.get("username")), OUI.TS_BODY))
-				h.add_child(OUI.pill("افزودن", func() -> void:
+				h.add_child(OUI.pill(I18n.t("chat.add"), func() -> void:
 					act.call(fid, "add")
 					le.text = ""
 					OUI.clear(found), OUI.GREEN, 60, 44))
@@ -698,10 +698,10 @@ func _open_info() -> void:
 	refill.call()
 	if kind != "club" and kind != "dm":
 		v.add_child(OUI.spacer(OUI.S_L))
-		v.add_child(OUI.btn("خروج از گفتگو", func() -> void:
+		v.add_child(OUI.btn(I18n.t("chat.leave_conversation"), func() -> void:
 			var r: Dictionary = await Supa.call_rpc("leave_conversation", {"p_conv": id})
 			if OUI.ok(r):
-				OUI.toast("خارج شدی", "ok")
+				OUI.toast(I18n.t("chat.you_left"), "ok")
 				Nav.close_sheet()
 				Nav.back()
 			else:
