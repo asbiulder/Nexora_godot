@@ -101,7 +101,8 @@ func migrate(q: Dictionary) -> Dictionary:
 	var ok := false
 	for t in D.TEAMS:
 		if t.id == n.team: ok = true; break
-	if not ok: n.team = "club0"
+	if not ok: n.team = "club0"   # also catches discs removed by the art audit (Data.REMOVED_TEAMS)
+	if not (int(n.get("form", 0)) >= 0 and int(n.get("form", 0)) < D.FORMS.size()): n.form = 0
 	return n
 
 func set_p(patch: Dictionary) -> void:
