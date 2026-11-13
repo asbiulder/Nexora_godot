@@ -21,8 +21,10 @@ shot() { adb exec-out screencap -p > "$OUT/$1.png" 2>/dev/null || true; }
 alive() { adb shell pidof $PKG | tr -d '\r'; }
 fail=0
 check_log() {  # $1 = logcat file, $2 = phase name
-  grep -q "FATAL EXCEPTION" "$1" && { echo "::error::[$2] FATAL EXCEPTION in logcat"; fail=1; }
-  grep -E -q "Fatal signal|SIGSEGV|SIGABRT" "$1" && { echo "::error::[$2] native crash signal in logcat"; fail=1; }
+  # only crashes of OUR process count (emulator system apps such as YouTube Music crash on their own)
+  grep -A1 "FATAL EXCEPTION" "$1" | grep -q "Process: $PKG" && { echo "::error::[$2] FATAL EXCEPTION in $PKG"; fail=1; }
+  grep -E "Fatal signal|>>> .* <<<" "$1" | grep -q "$PKG" && { echo "::error::[$2] native crash signal in $PKG"; fail=1; }
+  grep -A1 "FATAL EXCEPTION" "$1" | grep "Process:" | grep -v "$PKG" | sed 's/^/[ignored foreign crash] /' || true
   grep -E -q "SCRIPT ERROR|Parse Error|USER ERROR" "$1" && { echo "::error::[$2] Godot script/user errors in logcat"; fail=1; }
   echo "================ [$2] filtered logcat ================"
   grep -E -i "godot|nexora|NX_|AndroidRuntime|FATAL|DEBUG +:|libc +:|SIGSEGV|SIGABRT|livekit|ActivityManager.*(nexora|Process)|SCRIPT ERROR|USER ERROR|Parse Error|OpenGL|GLES|vulkan|crash" "$1" | grep -v chatty | tail -n 400
