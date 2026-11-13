@@ -135,11 +135,9 @@ func _top() -> float: return NX.safe_top
 
 func _layout() -> void:
 	if view == null or size.x <= 0: return
-	view.fit(size, _top() + 86 * U, NX.safe_bottom + 22 * U)
-	hud.position = Vector2(10 * U, _top() + 8 * U)
-	hud.size = Vector2(size.x - 20 * U, 60 * U)
-	turn_bar.position = Vector2(60 * U, _top() + 76 * U)
-	turn_bar.size = Vector2(size.x - 72 * U, 4 * U)
+	view.fit(size, _top() + 80 * U, NX.safe_bottom + 22 * U)
+	hud.position = Vector2(8 * U, _top() + 6 * U)
+	hud.size = Vector2(size.x - 16 * U, 66 * U)
 	banner.size = Vector2(size.x, 120 * U)
 	banner.position = Vector2(0, size.y * 0.38 - 30 * U)
 	banner.pivot_offset = Vector2(size.x * 0.5, 40 * U)
@@ -147,152 +145,31 @@ func _layout() -> void:
 
 # ------------------------------------------------------------------ HUD
 func _build_hud() -> void:
-	hud = Control.new()
-	hud.name = "Hud"
-	hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(hud)
-	var row := HBoxContainer.new()
-	row.set_anchors_preset(Control.PRESET_FULL_RECT)
-	row.add_theme_constant_override("separation", int(8 * U))
-	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	hud.add_child(row)
-	# pause button (RN: 40dp rounded square, "II")
-	var pb := PanelContainer.new()
-	pb.custom_minimum_size = Vector2(40 * U, 40 * U)
-	pb.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	pb.add_theme_stylebox_override("panel", NX.box(Color(8 / 255.0, 12 / 255.0, 34 / 255.0, 0.85), int(12 * U), 3, NX.LINE))
-	var pl := Kit.title("II", int(14 * U), NX.TEXT)
-	pl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	pl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	pb.add_child(pl)
-	Kit.tap(pb, func(): _set_paused(true), 0.9)
-	pause_btn = pb
-	row.add_child(pb)
-	board = Kit.glass(TEAM_COL[0], false)
-	board.set_pad(8 * U, 0)
-	board.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	board.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(board)
-	var b := HBoxContainer.new()
-	b.add_theme_constant_override("separation", int(4 * U))
-	b.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	board.add_child(b)
-	b.add_child(_side(0))
-	var mid := VBoxContainer.new()
-	mid.alignment = BoxContainer.ALIGNMENT_CENTER
-	mid.add_theme_constant_override("separation", -6)
-	mid.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	mid.custom_minimum_size.x = 92 * U
-	score_l = Kit.title("0 : 0", int(26 * U), Color.WHITE)
-	score_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	Kit.glow_text(score_l, NX.CYAN, 10)
-	mid.add_child(score_l)
-	clock_l = Kit.caps("", int(9 * U), NX.DIM, 5)
-	clock_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	mid.add_child(clock_l)
-	b.add_child(mid)
-	b.add_child(_side(1))
-	turn_bar = _TurnBar.new()
-	turn_bar.visible = float(cfg.get("turn_time", 15)) > 0
-	add_child(turn_bar)
-
-func _side(i: int) -> Control:
-	var h := HBoxContainer.new()
-	h.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	h.add_theme_constant_override("separation", int(6 * U))
-	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	if i == 1: h.layout_direction = Control.LAYOUT_DIRECTION_RTL
-	var logo := Panel.new()
-	logo.custom_minimum_size = Vector2(40 * U, 40 * U)
-	logo.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	logo.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	logo.add_theme_stylebox_override("panel", _logo_box(i, false))
-	var t := Kit.round_img(D.team_tex(String(teams[i].get("id", "club0"))), 34 * U)
-	t.position = Vector2(3 * U, 3 * U)
-	logo.add_child(t)
-	h.add_child(logo)
-	side_logo[i] = logo
-	var col := VBoxContainer.new()
-	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	col.alignment = BoxContainer.ALIGNMENT_CENTER
-	col.add_theme_constant_override("separation", -4)
-	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var n := Kit.label(names[i], int(12 * U), NX.DIM, true)
-	n.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	n.clip_text = true
-	n.custom_minimum_size.x = 20
-	n.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT if i == 0 else HORIZONTAL_ALIGNMENT_RIGHT
-	col.add_child(n)
-	side_name[i] = n
-	var tl := Kit.label("نوبت توئه", int(8 * U), NX.hdr(TEAM_COL[i], 1.3), true)
-	tl.horizontal_alignment = n.horizontal_alignment
-	tl.modulate.a = 0.0
-	col.add_child(tl)
-	side_turn[i] = tl
-	h.add_child(col)
-	return h
-
-func _logo_box(i: int, on: bool) -> StyleBoxFlat:
-	var c: Color = TEAM_COL[i]
-	var sb := NX.box(Color("#050816"), int(20 * U), 5, NX.hdr(c, 1.4) if on else Color(1, 1, 1, 0.15), 26 if on else 0, Color(c.r, c.g, c.b, 0.85))
-	return sb
+	# professional code-drawn HUD (src/game/match_hud.gd): wings + score plate + turn strip + pause
+	var h := MatchHud.new()
+	h.name = "Hud"
+	var tx := [D.team_tex(String(teams[0].get("id", "club0"))), D.team_tex(String(teams[1].get("id", "club1")))]
+	var ai := bool(cfg.get("ai", false))
+	h.setup(tx, names, [not bots, not bots and not ai])
+	h.pause_pressed.connect(func(): _set_paused(true))
+	add_child(h)
+	hud = h
+	pause_btn = h.pause_btn
 
 func _refresh_hud(force := false) -> void:
 	var mt := float(cfg.get("match_time", 0))
 	var tt := float(cfg.get("turn_time", 15))
 	var clock := ""
 	if mt > 0:
-		if eng.sudden: clock = "گل طلایی"
+		if eng.sudden: clock = MatchHud.t("hud.golden_goal", "گل طلایی")
 		else:
 			var m := maxi(0, int(ceil(eng.mleft)))
 			clock = "%d:%02d" % [m / 60, m % 60]
 	else:
-		clock = "تا %d گل" % int(cfg.get("limit", 3))
+		clock = MatchHud.t("hud.first_to", "تا %d گل") % int(cfg.get("limit", 3))
 	var tl := maxf(0.0, eng.tleft / tt) if (tt > 0 and eng.phase == "aim") else 1.0
-	var s := {"s0": eng.score[0], "s1": eng.score[1], "turn": eng.turn, "clock": clock, "sudden": eng.sudden}
-	if force or s != _hud_state:
-		var turn_changed: bool = force or int(_hud_state.get("turn", -1)) != eng.turn
-		var score_changed: bool = not force and (int(_hud_state.get("s0", 0)) != eng.score[0] or int(_hud_state.get("s1", 0)) != eng.score[1])
-		_hud_state = s
-		score_l.text = "%d : %d" % [eng.score[0], eng.score[1]]
-		if clock_l.text != clock:
-			# Persian text needs the Vazirmatn label, Latin the Orbitron caption
-			_set_clock(clock, eng.sudden)
-		if turn_changed: _on_turn_hud()
-		if score_changed:
-			score_l.pivot_offset = score_l.size * 0.5
-			var tw := score_l.create_tween()
-			tw.tween_property(score_l, "scale", Vector2(1.35, 1.35), 0.12).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-			tw.tween_property(score_l, "scale", Vector2.ONE, 0.45).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
-	turn_bar.set_state(tl, eng.turn)
-
-func _set_clock(text: String, sudden: bool) -> void:
-	var col := NX.hdr(NX.GOLD, 1.3) if sudden else NX.DIM
-	var parent := clock_l.get_parent()
-	var idx := clock_l.get_index()
-	var nl: Label
-	if NX.is_fa(text): nl = Kit.label(text, int(9 * U * 1.2), col, true)
-	else: nl = Kit.caps(text, int(9 * U), col, 5)
-	nl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	parent.remove_child(clock_l)
-	clock_l.queue_free()
-	parent.add_child(nl)
-	parent.move_child(nl, idx)
-	clock_l = nl
-
-func _on_turn_hud() -> void:
-	var t := eng.turn
-	board.accent = TEAM_COL[t]
-	var sb := board.get_theme_stylebox("panel") as StyleBoxFlat
-	if sb: sb.border_color = Color(TEAM_COL[t].r, TEAM_COL[t].g, TEAM_COL[t].b, 0.42)
-	board.queue_redraw()
-	for i in 2:
-		var on := i == t
-		(side_logo[i] as Panel).add_theme_stylebox_override("panel", _logo_box(i, on))
-		(side_name[i] as Label).add_theme_color_override("font_color", Color.WHITE if on else NX.DIM)
-		var tl: Label = side_turn[i]
-		var tw := tl.create_tween()
-		tw.tween_property(tl, "modulate:a", 1.0 if on else 0.0, 0.2)
+	(hud as MatchHud).set_state(eng.score[0], eng.score[1], eng.turn, clock, eng.sudden, tl, tt > 0, eng.phase == "aim")
+	if force: (hud as MatchHud)._chips()
 
 # ------------------------------------------------------------------ banner
 func _build_banner() -> void:
@@ -375,19 +252,19 @@ func _build_pause() -> void:
 	pn.custom_minimum_size.x = size.x * 0.82
 	var v := Kit.vbox(int(12 * U))
 	pn.add_child(v)
-	var t := Kit.title("توقف", int(24 * U))
+	var t := Kit.title(MatchHud.t("hud.pause", "توقف"), int(24 * U))
 	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(t)
 	v.add_child(Kit.gap(6 * U))
-	v.add_child(Kit.button("ادامه", func(): _set_paused(false), "primary"))
-	v.add_child(Kit.button_small("شروع دوباره", _restart, "dark"))
-	v.add_child(Kit.button("خروج", _quit, "danger"))
+	v.add_child(Kit.button(MatchHud.t("hud.resume", "ادامه"), func(): _set_paused(false), "primary"))
+	v.add_child(Kit.button_small(MatchHud.t("hud.restart", "شروع دوباره"), _restart, "dark"))
+	v.add_child(Kit.button(MatchHud.t("hud.quit", "خروج"), _quit, "danger"))
 	# graphics quality (Store.quality -> MatchView.set_quality, same key as the settings sheet)
 	v.add_child(Kit.gap(2 * U))
-	var ql := Kit.label("کیفیت گرافیک", int(11 * U), NX.DIM, true)
+	var ql := Kit.label(MatchHud.t("hud.quality", "کیفیت گرافیک"), int(11 * U), NX.DIM, true)
 	ql.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(ql)
-	var seg := Kit.tabs(["بالا", "روان"], func(k): UD.set_p({"quality": "low" if int(k) == 1 else "high"}), 1 if _quality == "low" else 0, NX.VIOLET)
+	var seg := Kit.tabs([MatchHud.t("hud.quality_high", "بالا"), MatchHud.t("hud.quality_smooth", "روان")], func(k): UD.set_p({"quality": "low" if int(k) == 1 else "high"}), 1 if _quality == "low" else 0, NX.VIOLET)
 	v.add_child(seg)
 	root.add_child(pn)
 	var place := func():
@@ -468,7 +345,7 @@ func _process(delta: float) -> void:
 	var tt := float(cfg.get("turn_time", 15))
 	if tt > 0 and eng.phase == "aim" and eng.tleft < 5 and eng.tleft > 0 and _human(eng.turn) and int(co.reminded) != int(co.turn_n) and not paused:
 		co.reminded = co.turn_n
-		_coach_call("coach", ["۵ ثانیه وقت داری! ⏱ یک ضربه بزن.", "alert"])
+		_coach_call("coach", [MatchHud.t("hud.time_warn", "۵ ثانیه وقت داری! ⏱ یک ضربه بزن."), "alert"])
 	if _dragging and eng.drag == null: _dragging = false
 	_refresh_hud()
 
@@ -511,16 +388,16 @@ func _on_event(ev: Dictionary) -> void:
 			co.shot_team = -1
 		"goal":
 			if ev.get("nogoal", false):
-				show_banner("گل مردود", "با ضربه‌ی اول نمی‌شه گل زد", NX.DIM)
+				show_banner(MatchHud.t("hud.no_goal", "گل مردود"), MatchHud.t("hud.no_goal_sub", "با ضربه‌ی اول نمی‌شه گل زد"), NX.DIM)
 			else:
 				var tm := int(ev.get("team", 0))
 				co.touched = true
 				_goal_sound(sfx)
 				UD.haptic("heavy")
-				show_banner("گل!", names[tm], NX.CYAN if tm == 0 else NX.RED, true)
+				show_banner(MatchHud.t("hud.goal", "گل!"), names[tm], NX.CYAN if tm == 0 else NX.RED, true)
 				if _human(tm): _coach_call("react", ["goal"])
 		"clock":
-			show_banner("گل طلایی", "گل بعدی برنده‌ست", NX.GOLD)
+			show_banner(MatchHud.t("hud.golden_goal", "گل طلایی"), MatchHud.t("hud.golden_sub", "گل بعدی برنده‌ست"), NX.GOLD)
 		"end":
 			if not ended:
 				ended = true
