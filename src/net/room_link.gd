@@ -336,6 +336,28 @@ func _dup(from: String, gi: Variant) -> bool:
 		seen.erase(order.pop_front())
 	return false
 
+# ---------------------------------------------------------------- match end helpers (server: supabase/migrations/20261113170000_online_fixes.sql)
+## Host quits a running match: forfeit when opponents are still here (a losing host can no longer wipe the
+## match), plain abandon otherwise. Falls back to abandon_match on servers without host_forfeit.
+## score = [a, b] as last simulated. Returns the rpc result (data.outcome = "forfeit" | "abandoned" | "none").
+func host_quit(match_id: String, score: Array = [0, 0]) -> Dictionary:
+	var r: Dictionary = await _S().call_rpc("host_forfeit", {"p_match": match_id, "p_score_a": int(score[0]) if score.size() > 0 else 0, "p_score_b": int(score[1]) if score.size() > 1 else 0})
+	if not r.ok and (int(r.get("status", 0)) == 404 or str(r.get("raw", "")).contains("PGRST202")):
+		r = await _S().call_rpc("abandon_match", {"p_match": match_id})
+	if not dead:
+		ping()
+	return r
+
+## The host vanished mid-match (≥30 s silent server-side): take over the room and settle the match
+## (host's team forfeits if its opponents are here, else abandoned). score = last snapshot seen.
+## Errors: "host still online" (retry later) / "match not live" (already settled).
+func claim_host_lost(match_id: String, score: Array = [0, 0]) -> Dictionary:
+	var r: Dictionary = await _S().call_rpc("claim_host_lost", {"p_match": match_id, "p_score_a": int(score[0]) if score.size() > 0 else 0, "p_score_b": int(score[1]) if score.size() > 1 else 0})
+	if not dead:
+		ping()
+		refresh()
+	return r
+
 # ---------------------------------------------------------------- voice (Voice autoload, one room at a time)
 func voice() -> Node:
 	return _S().get_node_or_null("/root/Voice")
