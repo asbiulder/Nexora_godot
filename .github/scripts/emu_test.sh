@@ -4,7 +4,7 @@
 # vs the bot (--nx-start=quickmatch, read by src/main.gd) and let it play.
 # usage: emu_test.sh <apk> <outdir>
 set -u
-APK="$1"; OUT="$2"; PKG=com.nexora.game
+APK="$1"; OUT="$2"; PKG=com.nexora.nx
 mkdir -p "$OUT"
 adb wait-for-device
 { adb shell getprop ro.build.version.sdk; adb shell getprop ro.product.cpu.abilist; } | tee "$OUT/device.txt"

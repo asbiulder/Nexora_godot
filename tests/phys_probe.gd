@@ -47,7 +47,9 @@ func _run_until_stop(e, watch: Array, max_t := 12.0) -> Dictionary:
 	return out
 
 func _initialize() -> void:
-	print("PR=", EngineS.PR, " BR=", EngineS.BR, " field W=", 0)
+	var e0 = _mk_engine()
+	print("PR=", EngineS.PR, " BR=", EngineS.BR, " pitch W=", e0.Fr - e0.Fl, " L=", e0.Fb - e0.Ft)
+	_kickoff_check()
 	# A: free disc shot, full and half power, straight up the left channel
 	for pw in [1.0, 0.5, 0.25]:
 		var e = _mk_engine()
@@ -62,7 +64,7 @@ func _initialize() -> void:
 		var r := _run_until_stop(e, [d])
 		print("FREE_DISC p=", pw, " ", r[d])
 	# B: disc hits ball head-on at full and half power
-	for pw in [1.0, 0.5]:
+	for pw in [1.0, 0.5, 0.25]:
 		var e = _mk_engine()
 		var d = null
 		for b in e.bodies:
@@ -74,11 +76,64 @@ func _initialize() -> void:
 		e.turn = 0; e.phase = "aim"
 		e.fire(d, 0.0, -pw * e.LMAX, pw * e.LMAX, true)
 		var r := _run_until_stop(e, [d, e.ball])
-		print("DISC->BALL p=", pw, " disc ", r[d], " ball ", r[e.ball], " maxstep ", r["ball_max_px_per_frame"])
+		var walls := 0
+		for ev in e.events:
+			if ev.t == "wall": walls += 1
+		print("DISC->BALL p=", pw, " ball_walls=", walls, " disc ", r[d], " ball ", r[e.ball], " maxstep ", r["ball_max_px_per_frame"])
 	for gapk in [0.7, 0.4]:
 		_gap_case(gapk)
+	_open_case()
 	_aim_case()
 	quit(0)
+
+func _open(e) -> void:
+	# remove the walls (pitch "infinitely" large) to measure pure glide distance / time
+	e.Fl = -1e6; e.Fr = 1e6; e.Ft = -1e6; e.Fb = 1e6
+	for g in e.goals: g.y = 1e6 * (-1 if g.d < 0 else 1); g.x1 = -10.0; g.x2 = 10.0
+
+func _open_case() -> void:
+	var L := 1323.0
+	for pw in [1.0, 0.5, 0.25]:
+		var e = _mk_engine()
+		var d = null
+		for b in e.bodies:
+			if b != e.ball and b.team == 0: d = b; break
+		_clear_except(e, [d])
+		_open(e)
+		d.x = 0; d.y = 0; d.px = 0; d.py = 0
+		e.turn = 0; e.phase = "aim"
+		e.fire(d, 0.0, -pw * e.LMAX, pw * e.LMAX, true)
+		var r := _run_until_stop(e, [d])
+		print("OPEN_DISC p=", pw, " ", r[d], " = ", snappedf(r[d].path / L, 0.01), " L")
+	for pw in [1.0, 0.5, 0.25]:
+		var e = _mk_engine()
+		var d = null
+		for b in e.bodies:
+			if b != e.ball and b.team == 0: d = b; break
+		_clear_except(e, [d, e.ball])
+		_open(e)
+		d.x = 0; d.y = 0; d.px = 0; d.py = 0
+		e.ball.x = 0; e.ball.y = -(d.r + e.ball.r + 60); e.ball.px = e.ball.x; e.ball.py = e.ball.y
+		e.turn = 0; e.phase = "aim"
+		e.fire(d, 0.0, -pw * e.LMAX, pw * e.LMAX, true)
+		var r := _run_until_stop(e, [d, e.ball])
+		print("OPEN_DISC->BALL p=", pw, " ball ", r[e.ball], " = ", snappedf(r[e.ball].path / L, 0.01), " L")
+
+func _kickoff_check() -> void:
+	# formations x kickoff: min clearance ball<->disc and disc<->disc (negative = overlap)
+	var worst_b := 1e9
+	var worst_d := 1e9
+	for fi in D.FORMS.size():
+		for kt in 2:
+			var e = EngineS.new({"seed": 1, "turn_time": 0, "forms": [fi, fi], "first": kt})
+			for i in e.bodies.size():
+				for j in range(i + 1, e.bodies.size()):
+					var a = e.bodies[i]
+					var b = e.bodies[j]
+					var cl: float = Vector2(a.x, a.y).distance_to(Vector2(b.x, b.y)) - a.r - b.r
+					if a == e.ball or b == e.ball: worst_b = minf(worst_b, cl)
+					else: worst_d = minf(worst_d, cl)
+	print("KICKOFF forms=", D.FORMS.size(), " min ball-disc clearance=", snappedf(worst_b, 0.1), " min disc-disc clearance=", snappedf(worst_d, 0.1))
 
 func _gap_case(gapk: float) -> void:
 	# C: ball driven hard into a 2-disc wall with a gap of 1.2 ball diameters: does it split / pass?

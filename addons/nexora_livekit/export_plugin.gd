@@ -70,6 +70,9 @@ const REMOVED_PERMISSIONS: PackedStringArray = [
 	"android.permission.BLUETOOTH_ADMIN",
 	"android.permission.BLUETOOTH_CONNECT",
 	"android.permission.BLUETOOTH_SCAN",
+	# signature|privileged permission merged in from a library manifest: useless for a normal app and some OEM
+	# installers (Xiaomi MIUI/HyperOS) refuse or flag packages that request it.
+	"android.permission.DUMP",
 ]
 
 

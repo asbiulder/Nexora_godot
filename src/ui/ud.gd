@@ -541,7 +541,7 @@ static func claim_ach(id: String) -> bool:
 		return false
 	claimed.append(id)
 	set_p({"claimedAch": claimed, "coins": int(q.get("coins", 0)) + int(a["coins"]), "gems": int(q.get("gems", 0)) + int(a["gems"])})
-	sfx("goal")
+	sfx("ui")
 	haptic("heavy")
 	var ml := Engine.get_main_loop() as SceneTree
 	var nav := ml.root.get_node_or_null("Nav")

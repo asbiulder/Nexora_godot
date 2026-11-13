@@ -351,7 +351,7 @@ func _buy(it: Dictionary) -> void:
 	var patch := UD.grant(it, p)
 	patch["coins"] = int(p["coins"]) - int(it["price"])
 	UD.set_p(patch)
-	UD.sfx("goal")
+	UD.sfx("ui")
 	UD.haptic("success")
 	toast(I18n.t("shop.x_unlocked") % it["name"], "ok")
 
@@ -364,6 +364,6 @@ func _exchange(gems: int, coins: int) -> void:
 	Nav.confirm(I18n.t("shop.convert_x_gems_into_x") % [NX.fa(gems), NX.fa(coins)], func():
 		var q := UD.p()
 		UD.set_p({"gems": int(q.get("gems", 0)) - gems, "coins": int(q.get("coins", 0)) + coins})
-		UD.sfx("goal")
+		UD.sfx("ui")
 		UD.haptic("success")
 		toast(I18n.t("nav.x_coins") % NX.fa(coins), "ok"))

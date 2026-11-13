@@ -198,6 +198,8 @@ jobs:
             echo "--- permissions:"; "$bt/aapt2" dump permissions "$a" || true
             echo "--- services/receivers:"; "$bt/aapt2" dump xmltree --file AndroidManifest.xml "$a" | grep -E -A2 "E: (service|receiver)" | grep -E "E: |name" || true
             if "$bt/aapt2" dump permissions "$a" | grep -E -q "CAMERA|FOREGROUND_SERVICE|POST_NOTIFICATIONS|SYSTEM_ALERT_WINDOW"; then echo "::error::$a still declares camera/foreground-service/notification permissions"; exit 1; fi
+            if "$bt/aapt2" dump permissions "$a" | grep -E -q "android.permission.DUMP"; then echo "::error::$a still declares android.permission.DUMP"; exit 1; fi
+            "$bt/aapt2" dump badging "$a" | grep -E -q "^package: name='com.nexora.nx'" || { echo "::error::$a package is not com.nexora.nx"; exit 1; }
             if "$bt/aapt2" dump permissions "$a" | grep -E -q "BLUETOOTH_CONNECT|BLUETOOTH_SCAN"; then echo "::error::$a still declares bluetooth runtime permissions"; exit 1; fi
             if "$bt/aapt2" dump permissions "$a" | grep -E -q "READ_PHONE_STATE|ACCESS_FINE_LOCATION|ACCESS_COARSE_LOCATION|READ_EXTERNAL_STORAGE|WRITE_EXTERNAL_STORAGE"; then echo "::warning::$a declares a dangerous permission beyond RECORD_AUDIO (see list above)"; fi
             "$bt/aapt2" dump badging "$a" | grep -E -q "targetSdkVersion:'35'" || { echo "::error::$a targetSdk is not 35"; exit 1; }

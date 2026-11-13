@@ -281,7 +281,7 @@ func _ball_act() -> void:
 	var ob: Array = (p.get("ownedBalls", []) as Array).duplicate()
 	ob.append(fball)
 	UD.set_p({"coins": int(p["coins"]) - price, "ownedBalls": ob, "ball": fball})
-	UD.sfx("goal")
+	UD.sfx("ui")
 	UD.haptic("success")
 	toast(I18n.t("team.new_ball_unlocked"), "ok")
 
@@ -339,7 +339,7 @@ func _field_act() -> void:
 	var of: Array = (p.get("ownedFields", []) as Array).duplicate()
 	of.append(ffield)
 	UD.set_p({"coins": int(p["coins"]) - price, "ownedFields": of, "field": ffield})
-	UD.sfx("goal")
+	UD.sfx("ui")
 	UD.haptic("success")
 	toast(I18n.t("team.new_field_unlocked"), "ok")
 

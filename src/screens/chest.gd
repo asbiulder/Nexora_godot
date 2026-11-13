@@ -84,7 +84,7 @@ func _ready() -> void:
 func _open() -> void:
 	if not is_inside_tree():
 		return
-	UD.sfx("goal")
+	UD.sfx("ui")
 	UD.haptic("heavy")
 	var tw := create_tween().set_parallel(true)
 	tw.tween_property(chest, "scale", Vector2(1.4, 1.4), 0.2)

@@ -629,7 +629,7 @@ func claim_daily() -> void:
 	var streak := (int(p.get("streak", 0)) % 7) + 1 if UD.now_ms() - last < 2 * UD.DAY else 1
 	var rw: Dictionary = UD.dget("DAILY", UD.DAILY)[streak - 1]
 	UD.set_p({"lastDaily": UD.now_ms(), "streak": streak, "coins": int(p.get("coins", 0)) + int(rw["coins"]), "gems": int(p.get("gems", 0)) + int(rw.get("gems", 0))})
-	UD.sfx("goal")
+	UD.sfx("ui")
 	UD.haptic("heavy")
 	var msg := I18n.t("nav.x_coins") % NX.fa(rw["coins"])
 	if int(rw.get("gems", 0)) > 0:

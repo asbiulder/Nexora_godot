@@ -4,7 +4,7 @@ extends RefCounted
 ## DEFAULT model "nx8": structure ported from the NX8 build's www/js/game.js (sim/walls/post/hit/fire/loop), with the
 ##   Nov 2026 real-physics pass: linear drag->speed shots (SHOT_MAX), exact aim (no scatter), Coulomb+viscous friction,
 ##   speed caps (DISC_VMAX/BALL_VMAX), plain elastic contacts (e disc-disc .8, disc-ball .9, walls .7), disc 2.5x ball mass,
-##   reduced ball spin. Sizes from the reference screenshot (disc 0.128, ball 0.058 of pitch width).
+##   reduced ball spin. Sizes: disc 0.128, ball ~0.07 of pitch width (ball enlarged Nov 2026 per user).
 ## cfg.model = "v4": the previous line-by-line port of src/game/engine.ts (reference only).
 ## Fixed 240 Hz sub-stepping, impulse-based circle collisions with positional correction,
 ## rolling 3D ball rotation, render interpolation (prev -> current).
@@ -19,7 +19,7 @@ const K := 1.27
 const PR := 49.0           # piece radius: reference screenshot disc diameter = 0.128 x pitch width (767 px -> 98 px)
 const PR_V4 := 49.0
 const POST_R8 := 5.0
-const BR := 22.0           # ball radius: reference ball diameter = 0.058 x pitch width (767 px -> 44 px)
+const BR := 27.0           # ball radius: diameter 54 px = ~0.07 x pitch width (767 px); user asked for a bigger ball (was 22)
 const BR8 := 25.5
 const RC := 70.0
 const LMAX := 210.0
@@ -51,17 +51,19 @@ const SPIN_VIS := 0.25
 const PM := 5.0             # disc mass (2.5x the ball)
 const BM := 2.0             # ball mass
 # --- real-physics feel (nx8 model, Nov 2026): all speeds in px/s, no K scaling ---
-const SHOT_MAX := 1350.0    # disc launch speed at full drag (LMAX); scales LINEARLY with drag length
-const DISC_VMAX := 1450.0   # hard cap on any disc speed (also after collisions) so motion stays readable on a phone
-const BALL_VMAX := 1700.0   # hard cap on ball speed (~28 px per 60 Hz frame)
-const DISC_FA := 360.0      # disc rolling friction: constant deceleration (px/s^2) ...
-const DISC_FC := 1.0        # ... plus speed-proportional drag (1/s)
-const BALL_FA := 300.0      # ball rolling friction: constant deceleration (px/s^2) ...
-const BALL_FC := 0.9        # ... plus speed-proportional drag (1/s)
-const V_STOP := 14.0        # below this speed a body comes to rest
+const SHOT_MAX := 1900.0    # disc launch speed at full drag (LMAX); scales LINEARLY with drag length
+const DISC_VMAX := 2000.0   # hard cap on any disc speed (also after collisions) so motion stays readable on a phone
+const BALL_VMAX := 2300.0   # hard cap on ball speed (~38 px per 60 Hz frame, exact-position render + trail keep it readable)
+const DISC_FA := 340.0      # disc rolling friction: constant deceleration (px/s^2) ...
+const DISC_FC := 0.7        # ... plus speed-proportional drag (1/s)
+const BALL_FA := 240.0      # ball rolling friction: constant deceleration (px/s^2) ...
+const BALL_FC := 0.55       # ... plus speed-proportional drag (1/s)
+const V_STOP := 6.0         # below this speed a body comes to rest (low: the soft tail below makes the stop invisible)
+const V_SOFT := 120.0       # below this speed the constant friction eases off (to 40%) -> smooth ease-out, no abrupt stop
 const E_DD := 0.8           # restitution disc-disc
 const E_DB := 0.9           # restitution disc-ball
-const E_WALL := 0.7         # restitution walls / goal frame (ball and discs)
+const E_WALL := 0.7         # restitution walls / goal frame (discs; ball goal posts)
+const E_WALL_B := 0.85      # restitution walls for the ball (livelier rebound, still loses energy each bounce)
 const SPIN_HIT := 0.12      # ball side-spin picked up from an off-centre contact (was 0.42)
 const SPIN_MAX := 12.0      # ball spin clamp (was 34)
 const SPIN_CURVE := 0.012   # how much side-spin bends the ball path (was 0.034)
@@ -285,7 +287,7 @@ func fire(b: NxBody, dx: float, dy: float, l: float, human := false) -> void:
 # ---------- simulation ----------
 func _eN(bl: bool, vn: float) -> float:
 	if not v4:
-		return E_WALL
+		return E_WALL_B if bl else E_WALL
 	if bl: return minf(0.64 - 0.24 * clampf((vn - 270 * K) / (730 * K), 0, 1), WALL_VOUT * K / maxf(1, vn))
 	return minf(0.72, WALL_VOUT * 1.4 * K / maxf(1, vn))
 
@@ -581,6 +583,7 @@ func _sim8(dt: float) -> void:
 			# rolling friction: constant deceleration + speed-proportional drag, then a hard readability cap
 			var fa := BALL_FA if bl else DISC_FA
 			var fc := BALL_FC if bl else DISC_FC
+			fa *= 0.4 + 0.6 * minf(1.0, sp / V_SOFT)
 			var ns := sp - (fa + fc * sp) * dt
 			if ns < V_STOP: b.vx = 0.0; b.vy = 0.0
 			else:
@@ -805,13 +808,14 @@ func tick_fx(dt: float) -> void:
 	var k := 0
 	for i in trail.size():
 		var p: Vector3 = trail[i]
-		p.z -= dt * (3.2 if v4 else 4.0)
+		p.z -= dt * (3.2 if v4 else 3.0)   # nx8: slower fade -> slightly longer ball trail at high speed
 		if p.z > 0: trail[k] = p; k += 1
 	trail.resize(k)
-	if trail.size() > 40:
-		var cut := trail.size() - 40
-		for i in 40: trail[i] = trail[i + cut]
-		trail.resize(40)
+	var tmax := 40 if v4 else 54
+	if trail.size() > tmax:
+		var cut := trail.size() - tmax
+		for i in tmax: trail[i] = trail[i + cut]
+		trail.resize(tmax)
 	for b: NxBody in bodies:
 		if b != ball:
 			if not v4 and b.sq != 0: b.sq = b.sq - dt * 5 if b.sq > 0.02 else 0.0
