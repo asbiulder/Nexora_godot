@@ -184,7 +184,7 @@ func _online_card() -> Control:
 					Nav.online("hub"))
 	v.add_child(card)
 	var links := Kit.hbox(18, true)
-	for l in [["arena", I18n.t("arena.arena"), "x_crown"], ["tours", I18n.t("hub.tournament"), "x_trophy"], ["leagues", I18n.t("tournaments.league"), "x_medal"], ["challenges", I18n.t("kb.challenge"), "c_calendar"]]:
+	for l in [["arena", I18n.t("arena.arena"), "x_crown"], ["tours", I18n.t("hub.tournament"), "x_trophy"], ["leagues", I18n.t("tournaments.league"), "x_medal"], ["challenges", I18n.t("kb.challenge"), "c_calendar"], ["social", I18n.t("home.social"), "x_team"]]:
 		var b := PanelContainer.new()
 		var sb := NX.box(Color(0.04, 0.063, 0.172, 0.85), 36, 3, NX.LINE)
 		b.add_theme_stylebox_override("panel", sb)

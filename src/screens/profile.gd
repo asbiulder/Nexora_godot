@@ -29,6 +29,11 @@ func _fill() -> void:
 	# ---------------- online account card
 	body.add_child(ent(padx(_account_card()), 0))
 
+	# ---------------- social (messages / clubs / friends)
+	body.add_child(Kit.section(I18n.t("home.social"), "SOCIAL", NX.PINK))
+	var soc := Kit.list_row(UD.ui2("x_team"), I18n.t("home.friends_clubs_chat"), I18n.t("social.open_the_online_section_for"), Kit.img(UD.menu("g_chevrons"), 60), func(): Nav.go("social"))
+	body.add_child(ent(padx(soc), 1))
+
 	body.add_child(Kit.section(I18n.t("profile.offline_profile"), "OFFLINE CAREER", rose))
 	# ---------------- career card
 	var pn := Kit.glass(rose, true)
