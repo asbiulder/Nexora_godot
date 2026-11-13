@@ -527,20 +527,30 @@ func toast(text: String, kind := "info") -> void:
 	h.add_child(Kit.img(UD.ui2("c_bell") if kind == "err" else (UD.ui2("x_star") if kind == "ok" else UD.ui2("c_mega")), 68))
 	var l := Kit.label(text, 36, NX.TEXT, true)
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	l.custom_minimum_size.x = 0
+	var maxw := layer.size.x * 0.9
+	# an autowrap Label has ~0 minimum width: give it its natural one-line width capped by the
+	# space left next to the icon BEFORE it is laid out, or it wraps one letter per line and the
+	# toast becomes a screen-tall column
+	l.custom_minimum_size.x = minf(UD.text_w(l) + 6.0, maxw - 84 - 68 - 16)
+	l.size.x = l.custom_minimum_size.x
 	h.add_child(l)
 	p.add_child(h)
 	layer.add_child(p)
 	_toast_node = p
-	var maxw := layer.size.x * 0.9
 	var fit := func():
-		if h.get_combined_minimum_size().x + 84 > maxw:
-			l.custom_minimum_size.x = maxw - 84 - 84
+		p.size = Vector2.ZERO
 		p.reset_size()
 		p.size.x = minf(p.size.x, maxw)
 		p.position = Vector2((layer.size.x - p.size.x) * 0.5, NX.safe_top + 170)
 		p.pivot_offset = p.size * 0.5
 	fit.call()
+	# second pass once the wrapped label has its real width (its min height depends on it)
+	(func():
+		if is_instance_valid(p):
+			p.size = Vector2.ZERO
+			p.reset_size()
+			p.position.x = (layer.size.x - p.size.x) * 0.5
+			p.pivot_offset = p.size * 0.5).call_deferred()
 	p.modulate.a = 0.0
 	p.scale = Vector2(0.9, 0.9)
 	var y0 := p.position.y

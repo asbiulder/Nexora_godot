@@ -208,6 +208,7 @@ static func scroll_list(sep := 24) -> Array:
 	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	v.add_theme_constant_override("separation", sep)
 	sc.add_child(v)
+	OUI.fill_width(sc)
 	return [sc, v]
 
 ## horizontal scroller: [ScrollContainer, HBoxContainer] (RTL: starts at the right)
@@ -588,3 +589,21 @@ static func stat_bars(power: int, accuracy: int, compact := false) -> Control:
 			h.add_child(n)
 		v.add_child(h)
 	return v
+
+## Persian speech bubble (mascot / oracle): wide, auto height, word-wrapped. The label gets its
+## natural one-line width capped at `max_w` so it never collapses into a one-letter column.
+static func speech(text: String, max_w := 756.0, size := 36, accent: Color = NX.CYAN) -> PanelContainer:
+	var p := PanelContainer.new()
+	p.mouse_filter = Control.MOUSE_FILTER_PASS
+	var sb := NX.box(Color(0.04, 0.07, 0.2, 0.97), 40, 3, NX.hdr(accent, 1.2), 18, Color(accent.r, accent.g, accent.b, 0.35))
+	sb.content_margin_left = 38; sb.content_margin_right = 38
+	sb.content_margin_top = 24; sb.content_margin_bottom = 26
+	p.add_theme_stylebox_override("panel", sb)
+	var l := label(text, size, NX.TEXT, true)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	l.custom_minimum_size.x = clampf(UD.text_w(l) + 6.0, 120.0, max_w - 76.0)
+	p.add_child(l)
+	p.set_meta("label", l)
+	return p

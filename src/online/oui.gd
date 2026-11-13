@@ -370,7 +370,7 @@ static func font(kind: String) -> Font:
 
 # ================================================================ widgets
 static func lbl(text: String, size: float = TS_BODY, color: Color = TEXT, kind: String = "body", align: int = HORIZONTAL_ALIGNMENT_RIGHT, wrap: bool = false, lines: int = 1) -> Label:
-	var l := Label.new()
+	var l: Label = Label.new() if wrap else FitLabel.new()
 	l.text = text
 	l.add_theme_font_override("font", font(kind))
 	l.add_theme_font_size_override("font_size", px(size))
@@ -384,15 +384,57 @@ static func lbl(text: String, size: float = TS_BODY, color: Color = TEXT, kind: 
 		if lines > 0:
 			l.max_lines_visible = lines
 	else:
+		# A clipped / ellipsis Label reports ~0 minimum width, so inside any container that does
+		# not stretch it (badges, pills, shrink HBoxes) it collapsed to 1 px ("…" or nothing).
+		# Keep its natural width as minimum (capped, so a long user name can still trim with "…"
+		# instead of pushing the row off-screen).
 		l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 		l.clip_text = true
+		if l is FitLabel:
+			(l as FitLabel).refit()
 	return l
 
 
-## label that takes the remaining width of an HBox
+## single-line label: minimum width = its natural text width (capped at `cap` px, beyond that it
+## trims with "…"). Label's native minimum ignores script overrides and is ~0 once clip/ellipsis
+## is on, so the width is kept in custom_minimum_size and refreshed whenever the text (and with
+## it the minimum size) changes.
+class FitLabel extends Label:
+	var cap := 390.0
+	var _last := "\u0001"
+	func _init() -> void:
+		minimum_size_changed.connect(refit)
+	func _notification(what: int) -> void:
+		# text set later (counters, names): Label redraws on every text change
+		if what == NOTIFICATION_DRAW and text != _last:
+			refit()
+	func refit() -> void:
+		var f := get_theme_font("font")
+		if f == null:
+			return
+		var fs := get_theme_font_size("font_size")
+		var w := 0.0
+		for line in text.split("\n"):
+			w = maxf(w, f.get_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x)
+		_last = text
+		var nw := minf(ceilf(w) + 4.0, cap)
+		if absf(custom_minimum_size.x - nw) > 0.5:
+			custom_minimum_size.x = nw
+
+
+
+
+
+## label that takes the remaining width of an HBox (trims with "…" when the row is too narrow)
 static func flbl(text: String, size: float = TS_BODY, color: Color = TEXT, kind: String = "body", wrap := false, lines := 1) -> Label:
 	var l := lbl(text, size, color, kind, HORIZONTAL_ALIGNMENT_RIGHT, wrap, lines)
 	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	if not wrap:
+		l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		l.clip_text = true
+		if l is FitLabel:
+			(l as FitLabel).cap = px(40)  # expands to the row anyway; may shrink to "…"
+			(l as FitLabel).refit()
 	return l
 
 
@@ -1036,7 +1078,20 @@ static func scroll() -> ScrollContainer:
 	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	sc.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
 	sc.follow_focus = true
+	fill_width(sc)
 	return sc
+
+
+## A ScrollContainer sizes its content to the content's MINIMUM width unless the content has
+## SIZE_EXPAND. Every vertical scroller wraps its body in a MarginContainer, whose minimum width
+## is only the widest non-wrapping child; autowrap/ellipsis labels report ~0, so whole pages and
+## sheets collapsed into a narrow column (cards at ~45% width, text wrapping one letter per line).
+## This makes every direct content child of `sc` fill the scroller's width.
+static func fill_width(sc: ScrollContainer) -> void:
+	sc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sc.child_entered_tree.connect(func(n: Node) -> void:
+		if n is Control and not (n is ScrollBar) and n.get_parent() == sc:
+			(n as Control).size_flags_horizontal = Control.SIZE_EXPAND_FILL)
 
 
 static func hscroll() -> ScrollContainer:

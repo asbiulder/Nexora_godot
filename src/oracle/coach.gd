@@ -425,15 +425,18 @@ class OracleBubble extends Control:
 		st.shadow_color = Color(OUI.CYAN, 0.35)
 		st.shadow_size = OUI.px(8)
 		speech.add_theme_stylebox_override("panel", st)
-		var w := minf(size.x - OUI.px(SPR + 40), OUI.px(280))
-		speech.custom_minimum_size.x = w
+		# wide bubble: up to 70% of the screen; never derived from a 0-size (not yet laid out) parent
+		var vw := size.x if size.x > 100 else get_viewport_rect().size.x
+		var w := minf(vw * 0.7, vw - OUI.px(SPR + 24))
 		var v := OUI.vbox(6)
 		var top := OUI.hbox(4)
 		top.layout_direction = Control.LAYOUT_DIRECTION_LTR
 		top.add_child(OUI.pill("✕", func() -> void: _close_speech(), OUI.DIM, 28, 28))
 		top.add_child(OUI.expand())
 		v.add_child(top)
-		var tl := OUI.lbl(text, 13, OUI.TEXT, "body", HORIZONTAL_ALIGNMENT_RIGHT, true, 0)
+		var tl := OUI.lbl(text, 15, OUI.TEXT, "body", HORIZONTAL_ALIGNMENT_RIGHT, true, 0)
+		var inner := w - OUI.px(24)
+		tl.custom_minimum_size.x = clampf(UD.text_w(tl) + 6.0, minf(OUI.px(140), inner), inner)
 		tl.visible_ratio = 0.0
 		v.add_child(tl)
 		var tw := tl.create_tween()

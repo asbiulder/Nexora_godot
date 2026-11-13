@@ -547,3 +547,15 @@ static func claim_ach(id: String) -> bool:
 		nav.toast("+%s سکه · +%s الماس" % [NX.fa(a["coins"]), NX.fa(a["gems"])], "ok")
 		nav.refresh_chrome()
 	return true
+
+## natural single-line pixel width of a Label's text with its current font + size
+## (used to give autowrap labels a sane minimum width instead of ~0)
+static func text_w(l: Label) -> float:
+	var f: Font = l.get_theme_font("font")
+	var fs: int = l.get_theme_font_size("font_size")
+	if f == null:
+		return 0.0
+	var w := 0.0
+	for line in l.text.split("\n"):
+		w = maxf(w, f.get_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x)
+	return w

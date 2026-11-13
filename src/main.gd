@@ -47,6 +47,10 @@ func _ready() -> void:
 	if OS.has_environment("NX_WALK") and ResourceLoader.exists("res://tests/ui_walk.gd"):
 		var w = load("res://tests/ui_walk.gd").new()
 		add_child(w)
+	# NX_TEXTWALK=1 runs tests/text_walk.gd (text/layout audit of every screen + screenshots)
+	elif OS.has_environment("NX_TEXTWALK") and ResourceLoader.exists("res://tests/text_walk.gd"):
+		var tw = load("res://tests/text_walk.gd").new()
+		add_child(tw)
 
 func _apply_quality() -> void:
 	var hq := str(UD.pv("quality", "high")) != "low"

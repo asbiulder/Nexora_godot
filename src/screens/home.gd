@@ -4,6 +4,8 @@ extends NxScreen
 
 var hero: Control
 var _hero_y := 0.0
+var _say: Control = null
+var _say_tw: Tween = null
 
 func build() -> void:
 	# menu track on Home (Sfx picks menu_music.mp3, else music.mp3); Settings' music toggle wins
@@ -77,7 +79,7 @@ func _fill() -> void:
 	var mas := Kit.img(mtex, Vector2(240, 350))
 	Kit.put(hero, mas, 150, hh - 300)
 	Kit.bob(mas, 14, 2.4, 0.4)
-	Kit.tap(mas, func(): UD.sfx("ui"); Nav.toast("سلام کاپیتان! آماده‌ی بازی هستی؟"), 0.9)
+	Kit.tap(mas, func(): UD.sfx("ui"); _mascot_say("سلام کاپیتان! آماده‌ی بازی هستی؟"), 0.9)
 	# hovering disc
 	var dsz := hw * 0.78
 	var disc := Panel.new()
@@ -371,3 +373,53 @@ func _mission(a: Dictionary, p: Dictionary) -> Control:
 		h.add_child(r)
 	pn.add_child(h)
 	return pn
+
+
+## speech bubble beside the mascot (was a toast that collapsed into a one-letter column):
+## right of the mascot, max 70% of the screen width, auto height, auto-dismiss.
+func _mascot_say(text: String) -> void:
+	if hero == null or not is_instance_valid(hero):
+		return
+	if _say and is_instance_valid(_say):
+		_say.queue_free()
+	if _say_tw:
+		_say_tw.kill()
+	var W := 1080.0
+	var b := Kit.speech(text, W * 0.7, 38)
+	b.mouse_filter = Control.MOUSE_FILTER_STOP
+	b.z_index = 5
+	hero.add_child(b)
+	b.reset_size()
+	var sz := b.get_combined_minimum_size()
+	b.size = sz
+	# mascot box: x 30..270, y (hh-475)..(hh-125); bubble's tail corner points at its head
+	var hh := hero.size.y
+	b.position = Vector2(clampf(286.0, 20.0, W - sz.x - 20.0), maxf(20.0, hh - 470.0 - sz.y * 0.5))
+	b.pivot_offset = Vector2(0, sz.y)
+	(func():
+		if is_instance_valid(b):
+			b.size = Vector2.ZERO
+			b.reset_size()).call_deferred()
+	var tail := Polygon2D.new()
+	tail.color = Color(0.04, 0.07, 0.2, 0.97)
+	tail.polygon = PackedVector2Array([Vector2(4, sz.y - 70), Vector2(-26, sz.y - 30), Vector2(4, sz.y - 40)])
+	b.add_child(tail)
+	Kit.tap(b, func(): _hide_say(), 0.97)
+	_say = b
+	b.modulate.a = 0.0
+	b.scale = Vector2(0.85, 0.85)
+	_say_tw = b.create_tween()
+	_say_tw.set_parallel(true)
+	_say_tw.tween_property(b, "modulate:a", 1.0, 0.2)
+	_say_tw.tween_property(b, "scale", Vector2.ONE, 0.4).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_say_tw.chain().tween_interval(clampf(2.2 + text.length() * 0.06, 2.5, 7.0))
+	_say_tw.chain().tween_callback(_hide_say)
+
+func _hide_say() -> void:
+	var b := _say
+	_say = null
+	if b == null or not is_instance_valid(b):
+		return
+	var tw := b.create_tween()
+	tw.tween_property(b, "modulate:a", 0.0, 0.22)
+	tw.tween_callback(b.queue_free)
