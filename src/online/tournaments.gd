@@ -193,7 +193,10 @@ func _bind_tour_row(c: Control, item: Variant, _i: int) -> void:
 	b.im.texture = OUI.ui2("x_medal" if OUI.s(it.get("status")) == "finished" else "x_trophy")
 	b.name_l.text = OUI.s(it.get("name"))
 	OUI.clear(b.badges)
-	b.badges.add_child(OUI.badge(FORMAT_FA.get(OUI.s(it.get("format")), ""), OUI.VIOLET))
+	var fmt := OUI.s(it.get("format"))
+	var fmt_t: String = FORMAT_FA.get(fmt, fmt.replace("_", " ").capitalize())
+	if fmt_t != "":  # an unknown/empty format used to leave an empty pill
+		b.badges.add_child(OUI.badge(fmt_t, OUI.VIOLET))
 	b.badges.add_child(OUI.badge(OUI.s(it.get("mode")).to_upper(), OUI.SKY))
 	b.badges.add_child(OUI.badge(stf[0], stf[1], OUI.s(it.get("status")) == "running"))
 	var cnt := 0

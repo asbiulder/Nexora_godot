@@ -60,14 +60,23 @@ func _make_header() -> Control:
 	pts_l = OUI.lbl("", 32, Color("#e2c8ff"), "title")
 	mv.add_child(pts_l)
 	h.add_child(mv)
-	var sv := OUI.vbox(0)
-	streak_l = OUI.lbl("", 18, OUI.ORANGE, "title", HORIZONTAL_ALIGNMENT_CENTER)
-	sv.add_child(streak_l)
-	sv.add_child(OUI.lbl(I18n.t("arena.win_streak"), OUI.TS_TINY, OUI.DIM, "body", HORIZONTAL_ALIGNMENT_CENTER))
-	best_l = OUI.lbl("", OUI.TS_TINY, OUI.DIM2, "body", HORIZONTAL_ALIGNMENT_CENTER)
-	sv.add_child(best_l)
-	h.add_child(sv)
+	h.add_child(OUI.expand())
 	pv.add_child(h)
+	# stats row: two equal tiles (win streak · best streak), full width
+	var sr := OUI.hbox(OUI.S_S)
+	streak_l = OUI.lbl("", 20, OUI.ORANGE, "title", HORIZONTAL_ALIGNMENT_CENTER)
+	best_l = OUI.lbl("", 20, Color("#e2c8ff"), "title", HORIZONTAL_ALIGNMENT_CENTER)
+	for pair in [[streak_l, I18n.t("arena.win_streak")], [best_l, I18n.t("arena.best_x").replace("%s", "").strip_edges()]]:
+		var tile := OUI.row_box(OUI.S_S, 64)
+		tile.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var tv := OUI.vbox(0)
+		tv.alignment = BoxContainer.ALIGNMENT_CENTER
+		(pair[0] as Label).size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		tv.add_child(pair[0])
+		tv.add_child(OUI.lbl(str(pair[1]), OUI.TS_CAP, OUI.DIM, "body", HORIZONTAL_ALIGNMENT_CENTER))
+		tile.add_child(tv)
+		sr.add_child(tile)
+	pv.add_child(sr)
 	pv.add_child(OUI.lbl(I18n.t("arena.win_30_and_5_per"), OUI.TS_CAP, OUI.DIM, "body", I18n.AR, true, 2))
 	var bh := OUI.hbox(OUI.S_S)
 	var styles := ["violet", "primary", "gold"]
@@ -89,8 +98,8 @@ func _on_profile(p: Dictionary) -> void:
 	if not is_instance_valid(pts_l):
 		return
 	pts_l.text = OUI.fa(OUI.i(p.get("arena_points")))
-	streak_l.text = "🔥 %s" % OUI.fa(OUI.i(p.get("win_streak")))
-	best_l.text = I18n.t("arena.best_x") % OUI.fa(OUI.i(p.get("best_streak")))
+	streak_l.text = OUI.fa(OUI.i(p.get("win_streak")))
+	best_l.text = OUI.fa(OUI.i(p.get("best_streak")))
 
 
 func _load() -> void:

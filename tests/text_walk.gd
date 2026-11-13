@@ -130,6 +130,21 @@ func _run() -> void:
 			hb._open_create()
 			await _wait(1.2)
 			await _shot("hub_create")
+			if OS.has_environment("NX_ROOM"):
+				# press the sheet's create button -> real lobby
+				var go := _find_button(Nav.main.sheet_layer, I18n.t("hub.create_room"))
+				if go:
+					go.emit_signal("pressed")
+					await _wait(5.0)
+					await _shot("lobby_room")
+					var lb = Nav.screen
+					if lb and lb.has_method("_open_settings"):
+						lb._open_settings()
+						await _wait(1.2)
+						await _shot("lobby_settings")
+						Nav.close_sheet(true)
+					OUI.leave_room(true)
+					await _wait(1.5)
 			Nav.close_sheet(true)
 			await _wait(0.4)
 	for n in ["account", "challenges", "tournaments", "arena", "social", "oracle", "lobby", "club", "public_profile"]:
@@ -148,3 +163,12 @@ func _in_hscroll(n: Node) -> bool:
 			return false
 		p = p.get_parent()
 	return false
+
+func _find_button(n: Node, txt: String) -> Button:
+	for c in n.get_children():
+		if c is Button and (c as Button).text == txt and (c as Button).is_visible_in_tree():
+			return c
+		var r := _find_button(c, txt)
+		if r:
+			return r
+	return null

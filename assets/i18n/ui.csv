@@ -69,8 +69,8 @@ arena.arena_ladder,نردبان آرنا,Arena ladder
 arena.arena_rating,امتیاز آرنا,Arena rating
 arena.be_the_first_to_win,اولین برد آرنا مال تو باشد!,Be the first to win in the Arena!
 arena.best_x,بهترین %s,Best %s
-arena.find_opponent,یافتن حریف,Find opponent
-arena.nfind_opponent,\nیافتن حریف,\nFind opponent
+arena.find_match,یافتن حریف,Find match
+arena.nfind_match,\nیافتن حریف,\nFind match
 arena.no_one_has_an_arena,هنوز کسی امتیاز آرنا ندارد,No one has an Arena rating yet
 arena.win_30_and_5_per,برد: ۳۰+ و ۵+ برای هر برد پیاپی · باخت: ۲۰−,Win: +30 and +5 per streak win · Loss: −20
 arena.win_streak,برد پیاپی,Win streak
