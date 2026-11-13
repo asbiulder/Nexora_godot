@@ -25,6 +25,11 @@ const TAU_ := TAU
 const LMAX := 210.0
 const HOST_SILENCE := 8.0
 const FIRST_SNAP_WAIT := 12.0
+## after HOST_SILENCE we ask the server to settle the match (it agrees once the host is 30 s silent there);
+## give up and go back to the lobby after this much total silence
+const HOST_GIVE_UP := 60.0
+## our own link may be down this long before we give up (the host keeps simulating meanwhile)
+const SELF_OFFLINE_GIVE_UP := 45.0
 
 var link: Variant = null          # RoomLink
 var match_id := ""
@@ -45,7 +50,8 @@ var _view_is_mv := false
 var hs := {"turn_count": [0, 0], "seq": 0, "ctrl": "", "last_send": 0.0, "q": 0, "evs": [], "t0": 0.0, "last_aim": 0.0}
 # client state
 var cs := {"buf": [], "offs": [], "applied": -1, "last_recv": 0.0, "pending_shot": 0.0, "shot": null, "res": null,
-	"end_at": 0.0, "prev": PackedFloat64Array(), "ctrl": "", "seq": 0, "got": false, "host_gone_at": 0.0}
+	"end_at": 0.0, "prev": PackedFloat64Array(), "ctrl": "", "seq": 0, "got": false, "host_gone_at": 0.0,
+	"claim_at": 0.0, "claiming": false, "off_at": 0.0}
 var co := {"mine": false, "touched": false, "power": 0.0, "last_tip": 0.0, "misses": 0, "turn_n": 0, "reminded": -1}
 var _local: Variant = null        # {b, sx, sy} while my finger is down
 var _unsub: Callable
@@ -115,6 +121,8 @@ func _ready() -> void:
 	_unsub = link.on_game(_on_msg)
 	if not link.changed.is_connected(_on_link_changed):
 		link.changed.connect(_on_link_changed)
+	if Supa.has_signal("app_resumed"):
+		Supa.app_resumed.connect(_on_resumed)
 	_oracle_call("set_scene", ["match"])
 	var sfx := _sfx_node()
 	if sfx:
@@ -140,15 +148,16 @@ func _teardown() -> void:
 		_unsub.call()
 	if link and is_instance_valid(link) and link.changed.is_connected(_on_link_changed):
 		link.changed.disconnect(_on_link_changed)
+	if Supa.has_signal("app_resumed") and Supa.app_resumed.is_connected(_on_resumed):
+		Supa.app_resumed.disconnect(_on_resumed)
 	var sfx := _sfx_node()
 	if sfx:
 		sfx.crowd(false)
-	# host leaving the screen mid-match ends it for everyone (abandon rpc)
+	# host leaving the screen mid-match ends it for everyone (forfeit if opponents are here, else abandon)
 	if is_host and done == "no" and link and is_instance_valid(link) and match_id != "":
 		done = "aborted"
 		_send({"k": "abort"})
-		Supa.call_rpc("abandon_match", {"p_match": match_id})
-		link.ping()
+		_host_quit_rpc()
 
 # ======================================================================== config
 static func cfg_from_room(room: Dictionary) -> Dictionary:
@@ -937,7 +946,7 @@ func _on_msg(m: Variant, from: String) -> void:
 			# the end event was missed (late join / dropped snapshot): end now
 			done = "ended"
 			cs.end_at = _now()
-	elif k == "abort" and not is_host and done != "finished" and done != "aborted":
+	elif k == "abort" and not is_host and done != "finished" and done != "aborted" and (from == "" or from == str(room0.get("host", ""))):
 		done = "aborted"
 		_toast("میزبان بازی را لغو کرد")
 		_exit("aborted")
@@ -1053,17 +1062,36 @@ func _client_tick(dt: float, now: float) -> void:
 				sh.tries = int(sh.tries) + 1
 				sh.at = now
 				_send(sh.msg.duplicate())
-	# host lost: snapshot silence (8 s), or host absent from presence while snapshots stopped (4 s)
+	# host lost. Our OWN link being down is not the host's fault: wait (the host keeps simulating and
+	# snapshots resume on reconnect) up to SELF_OFFLINE_GIVE_UP. With our link up and the host silent
+	# (8 s, or 4 s while absent from presence), ask the server to settle the match every 5 s; it agrees
+	# once the host has been silent 30 s there (forfeit if opponents are present, else abandon).
 	if done == "no":
-		var silent := now - float(cs.last_recv)
-		var host := str(room0.get("host", ""))
-		var host_online: bool = link.state.online.has(host) or not link.state.connected
-		var limit := HOST_SILENCE if cs.got else FIRST_SNAP_WAIT
-		if silent > limit or (not host_online and silent > 4.0 and cs.got):
-			done = "aborted"
-			_toast("ارتباط با میزبان قطع شد")
-			_exit("hostLost")
-			return
+		if not link.state.connected:
+			if float(cs.off_at) == 0.0:
+				cs.off_at = now
+			if now - float(cs.off_at) > SELF_OFFLINE_GIVE_UP:
+				done = "aborted"
+				_toast("ارتباط با میزبان قطع شد")
+				_exit("hostLost")
+				return
+		else:
+			if float(cs.off_at) > 0.0:
+				# back online: silence while we were offline does not count against the host
+				cs.off_at = 0.0
+				cs.last_recv = maxf(float(cs.last_recv), now - 2.0)
+			var silent := now - float(cs.last_recv)
+			var host := str(room0.get("host", ""))
+			var host_online: bool = link.state.online.has(host)
+			var limit := HOST_SILENCE if cs.got else FIRST_SNAP_WAIT
+			if silent > limit or (not host_online and silent > 4.0 and cs.got):
+				if silent > HOST_GIVE_UP or (not cs.got and int(start.my_team) < 0):
+					done = "aborted"
+					_toast("ارتباط با میزبان قطع شد")
+					_exit("hostLost")
+					return
+				if int(start.my_team) >= 0 and not cs.claiming and now - float(cs.claim_at) > 5.0:
+					_claim_host_lost()
 	if done == "ended":
 		if cs.res != null and now - float(cs.end_at) > 0.9:
 			done = "finished"
@@ -1071,6 +1099,47 @@ func _client_tick(dt: float, now: float) -> void:
 		elif cs.res == null and now - float(cs.end_at) > 10.0:
 			done = "finished"
 			_finish_from_db()
+
+func _host_quit_rpc() -> void:
+	if link and is_instance_valid(link) and link.has_method("host_quit"):
+		link.host_quit(match_id, [int(eng.score[0]), int(eng.score[1])])
+	else:
+		Supa.call_rpc("abandon_match", {"p_match": match_id})
+		if link and is_instance_valid(link):
+			link.ping()
+
+func _claim_host_lost() -> void:
+	if not link.has_method("claim_host_lost"):
+		return
+	cs.claiming = true
+	cs.claim_at = _now()
+	var r: Dictionary = await link.claim_host_lost(match_id, [int(eng.score[0]), int(eng.score[1])])
+	cs.claiming = false
+	if not is_inside_tree() or done != "no":
+		return
+	if r.ok and r.data is Dictionary:
+		var d: Dictionary = r.data
+		if str(d.get("outcome", "")) == "forfeit":
+			done = "finished"
+			var sc := [int(_num(d.get("score_a"), eng.score[0])), int(_num(d.get("score_b"), eng.score[1]))]
+			_toast("میزبان قطع شد؛ نتیجه ثبت شد")
+			_finish(_outcome(sc, d.get("rating_delta"), true))
+			return
+		done = "aborted"
+		_toast("ارتباط با میزبان قطع شد")
+		_exit("hostLost")
+	elif str(r.get("raw", "")).contains("not live"):
+		done = "ended"
+		cs.end_at = _now() - 9.0   # settled meanwhile (host reported): read the result from the DB
+	# "host still online" -> keep waiting, retry in 5 s
+
+## back from the background: never count our own pause as host silence
+func _on_resumed(_away: float) -> void:
+	cs.last_recv = _now()
+	if not is_host:
+		cs.offs.clear()       # clock offset re-estimated from fresh snapshots
+		cs.buf = []
+		cs.got = false        # snap to the next snapshot instead of interpolating across the gap
 
 func _finish_from_db() -> void:
 	var r: Dictionary = await Supa.select("matches", "select=score_a,score_b,status&id=eq." + match_id, true)
@@ -1092,7 +1161,7 @@ func _hud_tick(ctrl: String) -> void:
 	var tl := 1.0
 	if float(cfg.turn_time) > 0 and eng.phase == "aim":
 		tl = maxf(0.0, float(eng.tleft) / float(cfg.turn_time))
-	var wait: bool = not is_host and not cs.got
+	var wait: bool = not is_host and (not cs.got or not link.state.connected or (done == "no" and _now() - float(cs.last_recv) > HOST_SILENCE))
 	var s0 := int(eng.score[0])
 	var s1 := int(eng.score[1])
 	var my_turn: bool = ctrl == me and eng.phase == "aim" and int(start.my_team) >= 0
@@ -1252,8 +1321,7 @@ func _do_quit() -> void:
 	if is_host:
 		done = "aborted"
 		_send({"k": "abort"})
-		Supa.call_rpc("abandon_match", {"p_match": match_id})
-		link.ping()
+		_host_quit_rpc()
 	else:
 		done = "aborted"
 	_exit("quit")
