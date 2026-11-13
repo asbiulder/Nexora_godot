@@ -624,6 +624,17 @@ func _send(m: Dictionary) -> void:
 		link.send_game(m)
 
 # ======================================================================== events → feedback
+## goal sound: exactly one Sfx.play_goal() per goal on every client (host and guests; 1.2 s guard against a re-sent event)
+var _goal_ms := -100000
+func _goal_sound(sfx: Node) -> void:
+	var now := Time.get_ticks_msec()
+	if now - _goal_ms < 1200: return
+	_goal_ms = now
+	if sfx == null: return
+	if sfx.has_method("play_goal"): sfx.play_goal()
+	else:
+		sfx.play("goal"); sfx.play("roar")
+
 func _on_event(ev: Dictionary) -> void:
 	var t := str(ev.t)
 	var sfx := _sfx_node()
@@ -661,9 +672,8 @@ func _on_event(ev: Dictionary) -> void:
 			_banner_show("گل مردود", "با ضربه‌ی اول نمی‌شه گل زد", NX.DIM)
 		else:
 			co.touched = true
+			_goal_sound(sfx)
 			if sfx:
-				sfx.play("goal")
-				sfx.play("roar")
 				sfx.haptic("heavy")
 			var tm := int(ev.team)
 			_banner_show("گل!", start.names[tm], NX.CYAN if tm == 0 else NX.RED)

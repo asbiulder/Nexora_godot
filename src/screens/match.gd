@@ -472,6 +472,17 @@ func _process(delta: float) -> void:
 	if _dragging and eng.drag == null: _dragging = false
 	_refresh_hud()
 
+## goal sound: exactly one Sfx.play_goal() per goal (1.2 s guard; the engine pauses 1.8 s after a goal)
+var _goal_ms := -100000
+func _goal_sound(sfx: Node) -> void:
+	var now := Time.get_ticks_msec()
+	if now - _goal_ms < 1200: return
+	_goal_ms = now
+	if sfx == null: return
+	if sfx.has_method("play_goal"): sfx.play_goal()
+	else:
+		sfx.play("goal"); sfx.play("roar")
+
 func _on_event(ev: Dictionary) -> void:
 	var sfx := UD.node("Sfx")
 	match String(ev.get("t", "")):
@@ -504,8 +515,7 @@ func _on_event(ev: Dictionary) -> void:
 			else:
 				var tm := int(ev.get("team", 0))
 				co.touched = true
-				if sfx:
-					sfx.play("goal"); sfx.play("roar")
+				_goal_sound(sfx)
 				UD.haptic("heavy")
 				show_banner("گل!", names[tm], NX.CYAN if tm == 0 else NX.RED, true)
 				if _human(tm): _coach_call("react", ["goal"])
