@@ -1,10 +1,10 @@
 class_name NxEngine
 extends RefCounted
 ## NEXORA physics engine.
-## DEFAULT model "nx8": structure ported from the NX8 build's www/js/game.js (sim/walls/post/hit/fire/loop), with the
-##   Nov 2026 real-physics pass: linear drag->speed shots (SHOT_MAX), exact aim (no scatter), Coulomb+viscous friction,
-##   speed caps (DISC_VMAX/BALL_VMAX), plain elastic contacts (e disc-disc .8, disc-ball .9, walls .7), disc 2.5x ball mass,
-##   reduced ball spin. Sizes: disc 0.128, ball ~0.07 of pitch width (ball enlarged Nov 2026 per user).
+## DEFAULT model "nx8": POOL (billiards) physics (Nov 2026): shots go exactly along the aim with speed linear in drag
+##   length (SHOT_MAX), straight-line motion (no spin/curve), constant cloth friction (linear speed decay), equal masses,
+##   near-elastic body contacts (E_BODY .95) resolved at the time of impact, cushions E_CUSHION .85 with angle in = out,
+##   adaptive substeps. Sizes: disc 0.128, ball ~0.07 of pitch width. Also used by online matches (host simulates).
 ## cfg.model = "v4": the previous line-by-line port of src/game/engine.ts (reference only).
 ## Fixed 240 Hz sub-stepping, impulse-based circle collisions with positional correction,
 ## rolling 3D ball rotation, render interpolation (prev -> current).
@@ -47,28 +47,28 @@ const LAUNCH_T := 0.075     # s, ball launch ramp duration
 const LAUNCH_MIN := 0.6     # fraction of travel speed at the instant of the strike
 const ROLL_VIS := 0.35
 const SPIN_VIS := 0.25
-# --- Godot feel (nx8 model) ---
-const PM := 5.0             # disc mass (2.5x the ball)
-const BM := 2.0             # ball mass
-# --- real-physics feel (nx8 model, Nov 2026): all speeds in px/s, no K scaling ---
+# --- nx8 model: POOL (billiards) physics, Nov 2026 ---
+# Every body is treated like a pool ball on cloth: straight lines, constant rolling friction (linear speed decay),
+# near-elastic equal-mass collisions (centered hit stops the striker, cut shots split ~90°), cushions that mirror
+# the angle (in = out) and keep 85% of the speed. Continuous collision (time-of-impact rewind) + adaptive substeps.
+const PM := 1.0             # disc mass   (equal masses: pool-ball momentum transfer)
+const BM := 1.0             # ball mass
 const SHOT_MAX := 1900.0    # disc launch speed at full drag (LMAX); scales LINEARLY with drag length
-const DISC_VMAX := 2000.0   # hard cap on any disc speed (also after collisions) so motion stays readable on a phone
-const BALL_VMAX := 2300.0   # hard cap on ball speed (~38 px per 60 Hz frame, exact-position render + trail keep it readable)
-const DISC_FA := 340.0      # disc rolling friction: constant deceleration (px/s^2) ...
-const DISC_FC := 0.7        # ... plus speed-proportional drag (1/s)
-const BALL_FA := 240.0      # ball rolling friction: constant deceleration (px/s^2) ...
-const BALL_FC := 0.55       # ... plus speed-proportional drag (1/s)
-const V_STOP := 6.0         # below this speed a body comes to rest (low: the soft tail below makes the stop invisible)
-const V_SOFT := 120.0       # below this speed the constant friction eases off (to 40%) -> smooth ease-out, no abrupt stop
-const E_DD := 0.8           # restitution disc-disc
-const E_DB := 0.9           # restitution disc-ball
-const E_WALL := 0.7         # restitution walls / goal frame (discs; ball goal posts)
-const E_WALL_B := 0.85      # restitution walls for the ball (livelier rebound, still loses energy each bounce)
-const SPIN_HIT := 0.12      # ball side-spin picked up from an off-centre contact (was 0.42)
-const SPIN_MAX := 12.0      # ball spin clamp (was 34)
-const SPIN_CURVE := 0.012   # how much side-spin bends the ball path (was 0.034)
-const SPIN_DECAY := 2.6     # 1/s spin decay while rolling (was 1.25)
-const ROLL_K := 0.6         # visual roll rate vs true rolling (less dizzy ball)
+const DISC_VMAX := 2000.0   # max launch speed (power stats / VIP can push a shot up to here)
+const V_SAFE := 2600.0      # numerical safety clamp only (elastic contacts never exceed the launch speed)
+const FRICTION := 360.0     # rolling (cloth) friction: constant deceleration in px/s^2, same for discs and ball
+const V_STOP := 2.0         # a body whose speed would drop below this stops (constant decel -> clean finite stop)
+const E_BODY := 0.95        # restitution between any two bodies (disc-disc, disc-ball)
+const E_CUSHION := 0.85     # restitution off walls / goal frame / posts; tangential speed scaled the same -> angle in = angle out
+const SUB_PX := 4.0         # max travel per substep (px): substeps chosen so no body moves more than this per substep
+const SUB_MAX := 16
+const ROLL_K := 0.6         # visual roll rate vs true rolling (render only)
+# legacy names kept for any external readers
+const E_WALL := E_CUSHION
+const E_WALL_B := E_CUSHION
+const E_DD := E_BODY
+const E_DB := E_BODY
+const BALL_VMAX := V_SAFE
 const CORNER_NUDGE := 70.0  # px/s push out of a sharp corner for a body resting against both walls
 
 const GOAL_COLS := [Color("#ffd23a"), Color("#ffffff"), Color("#3bd0ff"), Color("#ff4a7a"), Color("#7bff5a")]
@@ -277,7 +277,7 @@ func fire(b: NxBody, dx: float, dy: float, l: float, human := false) -> void:
 	var vx := ux * v
 	var vy := uy * v
 	if v4: b.tvx = vx * 1.02; b.tvy = vy * 1.02; b.ramp = 0.06; b.vx = vx * 0.5; b.vy = vy * 0.5; b.boost = 0.22
-	else: b.vx = vx; b.vy = vy; b.ramp = 0.0; b.boost = 0.0; b.tvx = 0.0; b.tvy = 0.0
+	else: b.vx = vx; b.vy = vy; b.ramp = 0.0; b.boost = 0.0; b.tvx = 0.0; b.tvy = 0.0; b.spin = 0.0
 	if not v4 and b.team != turn: turn = b.team
 	phase = "move"; idle = 0.0; shots += 1; drag = null
 	if v4: cam = maxf(cam, 0.18)   # nx8/Godot: no camera kick on shots (crisp, no shake)
@@ -462,54 +462,70 @@ func _hit(a: NxBody, b: NxBody) -> void:
 		if a != ball: a.spin = clampf(a.spin - tv / a.r * 0.12, -18, 18)
 		if b != ball: b.spin = clampf(b.spin - tv / b.r * 0.12, -18, 18)
 
-## nx8 contact (Nov 2026 real-physics pass): plain mass-weighted elastic impulse between two circles.
-## disc-disc e = E_DD, disc-ball e = E_DB, masses PM / BM; no damping hacks, so a hard-struck ball shoves
-## discs apart (splits a gap) instead of bouncing off them as if they were walls.
+## nx8 POOL contact: equal-mass, near-elastic (E_BODY) impulse along the line of centres, resolved at the exact
+## time of impact (the pair is rewound to the instant they touched, the impulse applied with the true contact normal,
+## then advanced again), so centered hits transfer ~all speed and cut shots split at ~90° regardless of step size.
+## No spin, no damping hacks, no speed caps beyond a numerical safety clamp.
 func _cap(b: NxBody) -> void:
-	var cap := BALL_VMAX if b == ball else DISC_VMAX
 	var s2 := b.vx * b.vx + b.vy * b.vy
-	if s2 > cap * cap:
-		var k := cap / sqrt(s2)
+	if s2 > V_SAFE * V_SAFE:
+		var k := V_SAFE / sqrt(s2)
 		b.vx *= k; b.vy *= k
 
-func _hit8(a: NxBody, b: NxBody) -> void:
+func _hit8(a: NxBody, b: NxBody, h: float) -> void:
 	var dx := b.x - a.x
 	var dy := b.y - a.y
-	var d := sqrt(dx * dx + dy * dy)
+	var dd := dx * dx + dy * dy
 	var m := a.r + b.r
-	if d >= m: return
-	if d < 1e-4: dx = 1.0; dy = 0.0; d = 1.0
-	var nx := dx / d
-	var ny := dy / d
+	if dd >= m * m: return
+	var rvx := b.vx - a.vx
+	var rvy := b.vy - a.vy
+	var dv := dx * rvx + dy * rvy          # < 0 while approaching
 	var sm := a.im + b.im
 	var isB := a == ball or b == ball
-	var wa := a.im / sm
-	var wb := b.im / sm
-	var pen := maxf(m - d - 0.2, 0) * 0.9
-	a.x -= nx * pen * wa; a.y -= ny * pen * wa; b.x += nx * pen * wb; b.y += ny * pen * wb
-	var vn := (b.vx - a.vx) * nx + (b.vy - a.vy) * ny
-	if vn >= 0: return
-	var e := (E_DB if isB else E_DD) if vn < -25.0 else 0.0
-	var j := -(1 + e) * vn / sm
-	a.vx -= j * nx * a.im; a.vy -= j * ny * a.im; b.vx += j * nx * b.im; b.vy += j * ny * b.im
-	_cap(a); _cap(b)
+	var vn := 0.0
+	if dv < 0.0:
+		# continuous collision: rewind both bodies to the time of impact |d - rv*s| = m
+		var vv := rvx * rvx + rvy * rvy
+		var s := 0.0
+		if vv > 1e-9:
+			s = (dv + sqrt(maxf(0.0, dv * dv - vv * (dd - m * m)))) / vv
+			s = clampf(s, 0.0, h)
+		a.x -= a.vx * s; a.y -= a.vy * s; b.x -= b.vx * s; b.y -= b.vy * s
+		dx = b.x - a.x; dy = b.y - a.y
+		var d := sqrt(dx * dx + dy * dy)
+		if d < 1e-4: dx = 0.0; dy = -1.0; d = 1.0
+		var nx := dx / d
+		var ny := dy / d
+		vn = rvx * nx + rvy * ny
+		if vn < 0.0:
+			var j := -(1.0 + E_BODY) * vn / sm
+			a.vx -= j * nx * a.im; a.vy -= j * ny * a.im; b.vx += j * nx * b.im; b.vy += j * ny * b.im
+			_cap(a); _cap(b)
+		a.x += a.vx * s; a.y += a.vy * s; b.x += b.vx * s; b.y += b.vy * s
+	# any overlap left (bodies pushed together by a third body / a wall) is removed positionally, no velocity change
+	dx = b.x - a.x; dy = b.y - a.y
+	dd = dx * dx + dy * dy
+	if dd < m * m:
+		var d2 := sqrt(dd)
+		var ux := 0.0
+		var uy := -1.0
+		if d2 > 1e-4: ux = dx / d2; uy = dy / d2
+		var pen := m - d2
+		a.x -= ux * pen * a.im / sm; a.y -= uy * pen * a.im / sm
+		b.x += ux * pen * b.im / sm; b.y += uy * pen * b.im / sm
 	if vn < -150:
 		events.append({"t": "hit", "ball": isB, "power": -vn / 1900})
 		if not isB and vn < -520:
 			var q := minf(1, -vn / 1900.0)
 			a.sq = maxf(a.sq, q); b.sq = maxf(b.sq, q)
-	var tv := -ny * (b.vx - a.vx) + nx * (b.vy - a.vy)
-	if isB:
-		ball.spin += (1.0 if ball == b else -1.0) * tv / ball.r * SPIN_HIT
-		ball.spin = clampf(ball.spin, -SPIN_MAX, SPIN_MAX)
-		var pw := minf(1, -vn / 2100.0)
-		if pw > 0.2:
-			var o := a if ball == b else b
-			ball.sq = maxf(ball.sq, pw * 0.6); o.sq = maxf(o.sq, pw * 0.5)
-			if pw > 0.45:
-				burst((a.x + b.x) / 2, (a.y + b.y) / 2, int(roundf(4 + pw * 8)), 200 + pw * 260, HIT_COLS, 0.3, 2)
-	if a != ball: a.spin = clampf(a.spin - tv / a.r * 0.05, -10, 10)
-	if b != ball: b.spin = clampf(b.spin - tv / b.r * 0.05, -10, 10)
+		if isB:
+			var pw := minf(1, -vn / 2100.0)
+			if pw > 0.2:
+				var o := a if ball == b else b
+				ball.sq = maxf(ball.sq, pw * 0.6); o.sq = maxf(o.sq, pw * 0.5)
+				if pw > 0.45:
+					burst((a.x + b.x) / 2, (a.y + b.y) / 2, int(roundf(4 + pw * 8)), 200 + pw * 260, HIT_COLS, 0.3, 2)
 
 func _rotate(b: NxBody, wx: float, wy: float, wz: float, dt: float) -> void:
 	var w := sqrt(wx * wx + wy * wy + wz * wz)
@@ -547,7 +563,7 @@ func _rotate(b: NxBody, wx: float, wy: float, wz: float, dt: float) -> void:
 	var l0 := sqrt(n0 * n0 + n1 * n1 + n2 * n2)
 	b.r0 = n0 / l0; b.r1 = n1 / l0; b.r2 = n2 / l0
 
-## nx8 ball-only goal post (game.js post()): radius r+5, kp 1.7-.16·…, no velocity cap
+## nx8 ball-only goal post: round post, cushion restitution, angle in = angle out about the contact normal
 func _post8(b: NxBody, px: float, py: float) -> void:
 	var dx := b.x - px
 	var dy := b.y - py
@@ -559,59 +575,115 @@ func _post8(b: NxBody, px: float, py: float) -> void:
 	var vn := b.vx * nx + b.vy * ny
 	b.x = px + nx * m; b.y = py + ny * m
 	if vn < 0:
-		var kp := 1.0 + E_WALL
-		b.vx -= kp * vn * nx; b.vy -= kp * vn * ny
+		# mirror the velocity about the tangent and scale the whole vector by E_CUSHION
+		b.vx = E_CUSHION * (b.vx - 2.0 * vn * nx); b.vy = E_CUSHION * (b.vy - 2.0 * vn * ny)
 		if b == ball:
 			events.append({"t": "post", "power": -vn / 1800})
 
-## nx8 sub-step (game.js sim())
+## cushion bounce on an axis-aligned wall: normal component reversed, whole velocity scaled by E_CUSHION
+## (so the reflection angle equals the incidence angle), overshoot mirrored back.
+func _cushion_x(b: NxBody, wall: float, side: float) -> void:
+	# side = +1 for a wall on the left (body must stay at x >= wall), -1 for a wall on the right
+	var over := (wall - b.x) * side
+	if over <= 0.0: return
+	if b.vx * side < 0.0:
+		var vs := sqrt(b.vx * b.vx + b.vy * b.vy)
+		if b == ball and vs > 200: events.append({"t": "wall", "power": vs / 1800})
+		b.vx = -b.vx * E_CUSHION; b.vy *= E_CUSHION
+		b.x = wall + side * over * E_CUSHION
+	else:
+		b.x = wall
+
+func _cushion_y(b: NxBody, wall: float, side: float, ev := true) -> void:
+	var over := (wall - b.y) * side
+	if over <= 0.0: return
+	if b.vy * side < 0.0:
+		var vs := sqrt(b.vx * b.vx + b.vy * b.vy)
+		if ev and b == ball and vs > 200: events.append({"t": "wall", "power": vs / 1800})
+		b.vy = -b.vy * E_CUSHION; b.vx *= E_CUSHION
+		b.y = wall + side * over * E_CUSHION
+	else:
+		b.y = wall
+
+func _walls8(b: NxBody) -> void:
+	if b != ball and b.gout != null:
+		var g0: Goal = b.gout
+		var dq := g0.d * (b.y - g0.y)
+		if dq > -b.r * 1.05: b.vy = -g0.d * 270 * K; b.vx *= 0.6
+		else: b.vy = 0.0; b.vx *= 0.2; b.gout = null
+	var bl := b == ball
+	var r := b.r
+	_cushion_x(b, Fl + r, 1.0)
+	_cushion_x(b, Fr - r, -1.0)
+	var vs := sqrt(b.vx * b.vx + b.vy * b.vy)
+	for g: Goal in goals:
+		var dp := g.d * (b.y - g.y)
+		if dp <= -r: continue
+		var lo := g.x1 + (0.0 if bl else r)
+		var hi := g.x2 - (0.0 if bl else r)
+		var inside: bool = (b.x > g.x1 and b.x < g.x2) if bl else (dp > 0 or (b.x >= lo and b.x <= hi))
+		if inside:
+			# inside the goal mouth / net
+			var gl := phase == "goal" and bl
+			var back := g.y + g.d * DEPTH
+			if not bl and dp > r * 0.3 and vs < 150 * K and b.gout == null: b.gout = g
+			if dp + r > DEPTH:
+				b.y = back - g.d * r
+				if g.d * b.vy > 0:
+					b.vy = -b.vy * (0.2 if gl else E_CUSHION)
+					b.vx *= (0.6 if gl else E_CUSHION)
+			if dp > (r * 0.6 if bl else 0.0):
+				var ee := 0.3 if gl else E_CUSHION
+				if b.x < g.x1 + r:
+					b.x = g.x1 + r
+					if b.vx < 0: b.vx = -b.vx * ee; b.vy *= (1.0 if gl else ee)
+				if b.x > g.x2 - r:
+					b.x = g.x2 - r
+					if b.vx > 0: b.vx = -b.vx * ee; b.vy *= (1.0 if gl else ee)
+		else:
+			# goal-line cushion beside the mouth
+			_cushion_y(b, g.y - g.d * r, -float(g.d))
+	_corner_nudge(b)
+
+## nx8 POOL step: adaptive substeps (no body travels more than SUB_PX per substep) + time-of-impact contacts
 func _sim8(dt: float) -> void:
+	# energy bound: with equal masses and e <= 1 no body can ever exceed sqrt(sum v^2) during this step
+	var e2 := 0.0
+	for b: NxBody in bodies: e2 += b.vx * b.vx + b.vy * b.vy
+	var n := clampi(int(ceil(sqrt(e2) * dt / SUB_PX)), 1, SUB_MAX)
+	var h := dt / n
+	for i in n:
+		_sub8(h)
+		if phase == "move":
+			for g: Goal in goals:
+				if ball.x > g.x1 and ball.x < g.x2 and ((ball.y < g.y - ball.r * 0.8) if g.d < 0 else (ball.y > g.y + ball.r * 0.8)):
+					_scored(g.team)
+					break
+
+func _sub8(h: float) -> void:
 	for b: NxBody in bodies:
-		if b.ramp > 0:
-			var k := minf(1, dt / b.ramp)
-			b.vx += (b.tvx - b.vx) * k; b.vy += (b.tvy - b.vy) * k; b.ramp -= dt
-			if b.ramp <= 0: b.ramp = 0.0
 		if b.vox != 0 or b.voy != 0:
-			var q := 1 - minf(1, dt * 15)
+			var q := 1 - minf(1, h * 15)
 			b.vox *= q; b.voy *= q
 			if absf(b.vox) < 0.04: b.vox = 0.0
 			if absf(b.voy) < 0.04: b.voy = 0.0
-		b.x += b.vx * dt; b.y += b.vy * dt
+		b.x += b.vx * h; b.y += b.vy * h
 		var sp := sqrt(b.vx * b.vx + b.vy * b.vy)
-		var bl := b == ball
 		if sp > 0:
-			# rolling friction: constant deceleration + speed-proportional drag, then a hard readability cap
-			var fa := BALL_FA if bl else DISC_FA
-			var fc := BALL_FC if bl else DISC_FC
-			fa *= 0.4 + 0.6 * minf(1.0, sp / V_SOFT)
-			var ns := sp - (fa + fc * sp) * dt
+			# cloth rolling friction: constant deceleration along the current direction (straight line, linear speed decay)
+			var ns := sp - FRICTION * h
 			if ns < V_STOP: b.vx = 0.0; b.vy = 0.0
 			else:
-				ns = minf(ns, BALL_VMAX if bl else DISC_VMAX)
-				var k2 := ns / sp
-				if bl and b.spin != 0.0:
-					# a little side-spin bends the path (kept small: user wants less spin)
-					var mrot := b.spin * SPIN_CURVE * dt
-					var cs := cos(mrot)
-					var sn := sin(mrot)
-					var vx := b.vx * cs - b.vy * sn
-					var vy := b.vx * sn + b.vy * cs
-					b.vx = vx * k2; b.vy = vy * k2
-				else:
-					b.vx *= k2; b.vy *= k2
-		if bl:
-			var sp2 := sqrt(b.vx * b.vx + b.vy * b.vy)
-			b.spin *= 1 - (SPIN_DECAY if sp2 > 0 else 5.0) * dt
-			if absf(b.spin) < 0.02: b.spin = 0.0
-			b.sq *= 1 - 9 * dt
-			# visual rolling (reduced vs true rolling so the ball face reads calmer); small side spin about the vertical
-			var roll := ROLL_K / b.r
-			var wz := b.spin * 0.4
-			if sp2 > 0 or wz != 0: _rotate(b, -b.vy * roll, b.vx * roll, wz, dt)
-			b.ang += b.spin * dt
-		else:
-			b.spin *= 1 - 4.2 * dt; b.ang += b.spin * dt
-		_walls(b)
+				var k2 := minf(ns, V_SAFE) / sp
+				b.vx *= k2; b.vy *= k2
+		b.spin = 0.0
+		if b == ball:
+			b.sq *= 1 - 9 * h
+			# visual rolling only (pure roll about the axis perpendicular to travel, no side spin)
+			if b.vx != 0.0 or b.vy != 0.0:
+				var roll := ROLL_K / b.r
+				_rotate(b, -b.vy * roll, b.vx * roll, 0.0, h)
+		_walls8(b)
 	var n := bodies.size()
 	for it in 2:
 		for a in n:
@@ -623,15 +695,11 @@ func _sim8(dt: float) -> void:
 				if ddx >= mm or ddx <= -mm: continue
 				var ddy := bc.y - ba.y
 				if ddy >= mm or ddy <= -mm: continue
-				_hit8(ba, bc)
+				_hit8(ba, bc, h if it == 0 else 0.0)
 	if ball:
 		for g: Goal in goals:
 			_post8(ball, g.x1, g.y); _post8(ball, g.x2, g.y)
-	for b: NxBody in bodies: _walls(b)
-	if phase == "move":
-		for g: Goal in goals:
-			if ball.x > g.x1 and ball.x < g.x2 and ((ball.y < g.y - ball.r * 0.8) if g.d < 0 else (ball.y > g.y + ball.r * 0.8)):
-				_scored(g.team)
+	for b: NxBody in bodies: _walls8(b)
 
 func _sim(dt: float) -> void:
 	if not v4: _sim8(dt); return
