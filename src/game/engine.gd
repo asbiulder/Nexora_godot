@@ -2,8 +2,8 @@ class_name NxEngine
 extends RefCounted
 ## NEXORA physics engine.
 ## DEFAULT model "nx8": POOL (billiards) physics (Nov 2026): shots go exactly along the aim with speed linear in drag
-##   length (SHOT_MAX), straight-line motion (no spin/curve), constant cloth friction (linear speed decay), equal masses,
-##   near-elastic body contacts (E_BODY .95) resolved at the time of impact, cushions E_CUSHION .85 with angle in = out,
+##   length (SHOT_MAX), straight-line motion (no spin/curve), constant cloth friction (linear speed decay), discs 3x the ball's mass,
+##   body contacts disc-disc E_BODY .95 / disc-ball E_DISC_BALL .70, light contacts softer, resolved at the time of impact, cushions E_CUSHION .85 with angle in = out,
 ##   adaptive substeps. Sizes: disc 0.128, ball ~0.07 of pitch width. Also used by online matches (host simulates).
 ## cfg.model = "v4": the previous line-by-line port of src/game/engine.ts (reference only).
 ## Fixed 240 Hz sub-stepping, impulse-based circle collisions with positional correction,
@@ -51,14 +51,25 @@ const SPIN_VIS := 0.25
 # Every body is treated like a pool ball on cloth: straight lines, constant rolling friction (linear speed decay),
 # near-elastic equal-mass collisions (centered hit stops the striker, cut shots split ~90°), cushions that mirror
 # the angle (in = out) and keep 85% of the speed. Continuous collision (time-of-impact rewind) + adaptive substeps.
-const PM := 1.0             # disc mass   (equal masses: pool-ball momentum transfer)
-const BM := 1.0             # ball mass
+const PM := 6.0             # disc mass (was 1.0). User, Nov 14 2026: discs AND ball should feel ~2x heavier, discs
+const BM := 2.0             # ball mass (was 1.0).  heavier than the ball -> disc:ball = 3:1 (mass-weighted impulses;
+                            # disc-disc stays equal mass). Only the ratio changes motion; the absolute doubling is the
+                            # user's "2x heavier" request, the extra heaviness feel comes from the soft-contact/settle terms.
 const SHOT_MAX := 1900.0    # disc launch speed at full drag (LMAX); scales LINEARLY with drag length
 const DISC_VMAX := 2000.0   # max launch speed (power stats / VIP can push a shot up to here)
-const V_SAFE := 2600.0      # numerical safety clamp only (elastic contacts never exceed the launch speed)
+const V_SAFE := 3300.0      # numerical safety clamp only: a heavy disc (3x) at DISC_VMAX can launch the ball to
+                            # (1+e)*PM/(PM+BM) = 1.275x its speed = ~2550 px/s (V_SAFE leaves margin), so the clamp sits above that
 const FRICTION := 360.0     # rolling (cloth) friction: constant deceleration in px/s^2, same for discs and ball
-const V_STOP := 2.0         # a body whose speed would drop below this stops (constant decel -> clean finite stop)
-const E_BODY := 0.95        # restitution between any two bodies (disc-disc, disc-ball)
+const V_STOP := 6.0         # a body whose speed would drop below this stops (was 2.0; heavier, cleaner stop)
+const V_SETTLE := 80.0      # below this speed friction is doubled so bodies settle instead of creeping/jiggling
+const SETTLE_K := 2.0
+const E_SOFT := 0.55        # restitution of very light body contacts (rises linearly to E_BODY at V_SOFT)
+const V_SOFT := 240.0       # px/s normal approach speed at or above which contacts use the full E_BODY
+const E_BODY := 0.95        # restitution disc-disc (unchanged)
+const E_DISC_BALL := 0.70   # restitution disc-ball (was 0.95). With the 3:1 mass ratio, 0.95 launched the ball at 1.46x
+                            # the disc's speed (~8 pitch lengths of roll) - a light, flying ball. 0.70 keeps a strong shot
+                            # (ball leaves at 1.275x the disc speed) while the ball feels heavier and a ball hitting a disc
+                            # thuds (disc gets 42%, ball rebounds 27%) instead of knocking it away.
 const E_CUSHION := 0.85     # restitution off walls / goal frame / posts; tangential speed scaled the same -> angle in = angle out
 const SUB_PX := 4.0         # max travel per substep (px): substeps chosen so no body moves more than this per substep
 const SUB_MAX := 16
@@ -440,7 +451,7 @@ func _hit(a: NxBody, b: NxBody) -> void:
 		events.append({"t": "hit", "ball": isB, "power": -vn / 1900})
 		if not isB and vn < -420 * K:
 			var q := minf(1, -vn / (1500 * K))
-			a.sq = maxf(a.sq, q); b.sq = maxf(b.sq, q)
+			a.sq = maxf(a.sq, q * 0.5); b.sq = maxf(b.sq, q * 0.5)   # heavier discs: half the squash pulse
 			cam = maxf(cam, q * 0.1)
 		if isB and v4 and not classic: ball.lt = LAUNCH_T
 	if isB:
@@ -453,7 +464,7 @@ func _hit(a: NxBody, b: NxBody) -> void:
 				ball.sq = maxf(ball.sq, pw); o.sq = maxf(o.sq, pw * 0.7); cam = maxf(cam, pw * 0.4)
 				burst((a.x + b.x) / 2, (a.y + b.y) / 2, int(roundf(6 + pw * 10)), 260 + pw * 300, HIT_COLS, 0.35, 2)
 			else:
-				ball.sq = maxf(ball.sq, pw * 0.6); o.sq = maxf(o.sq, pw * 0.5); cam = maxf(cam, pw * 0.35)
+				ball.sq = maxf(ball.sq, pw * 0.6); o.sq = maxf(o.sq, pw * 0.25); cam = maxf(cam, pw * 0.35)
 				if pw > 0.45:
 					burst((a.x + b.x) / 2, (a.y + b.y) / 2, int(roundf(4 + pw * 8)), 200 + pw * 260, HIT_COLS, 0.3, 2)
 	if not v4:
@@ -462,7 +473,7 @@ func _hit(a: NxBody, b: NxBody) -> void:
 		if a != ball: a.spin = clampf(a.spin - tv / a.r * 0.12, -18, 18)
 		if b != ball: b.spin = clampf(b.spin - tv / b.r * 0.12, -18, 18)
 
-## nx8 POOL contact: equal-mass, near-elastic (E_BODY) impulse along the line of centres, resolved at the exact
+## nx8 POOL contact: mass-weighted (disc PM=3, ball BM=1), near-elastic (E_BODY) impulse along the line of centres, resolved at the exact
 ## time of impact (the pair is rewound to the instant they touched, the impulse applied with the true contact normal,
 ## then advanced again), so centered hits transfer ~all speed and cut shots split at ~90° regardless of step size.
 ## No spin, no damping hacks, no speed caps beyond a numerical safety clamp.
@@ -499,7 +510,10 @@ func _hit8(a: NxBody, b: NxBody, h: float) -> void:
 		var ny := dy / d
 		vn = rvx * nx + rvy * ny
 		if vn < 0.0:
-			var j := -(1.0 + E_BODY) * vn / sm
+			# light contacts thud instead of bouncing (less jiggle); real hits stay at E_BODY
+			var e_full := E_DISC_BALL if isB else E_BODY
+			var ee := e_full if -vn >= V_SOFT else lerpf(minf(E_SOFT, e_full), e_full, -vn / V_SOFT)
+			var j := -(1.0 + ee) * vn / sm
 			a.vx -= j * nx * a.im; a.vy -= j * ny * a.im; b.vx += j * nx * b.im; b.vy += j * ny * b.im
 			_cap(a); _cap(b)
 		a.x += a.vx * s; a.y += a.vy * s; b.x += b.vx * s; b.y += b.vy * s
@@ -518,12 +532,12 @@ func _hit8(a: NxBody, b: NxBody, h: float) -> void:
 		events.append({"t": "hit", "ball": isB, "power": -vn / 1900})
 		if not isB and vn < -520:
 			var q := minf(1, -vn / 1900.0)
-			a.sq = maxf(a.sq, q); b.sq = maxf(b.sq, q)
+			a.sq = maxf(a.sq, q * 0.5); b.sq = maxf(b.sq, q * 0.5)   # heavier discs: half the squash pulse
 		if isB:
 			var pw := minf(1, -vn / 2100.0)
 			if pw > 0.2:
 				var o := a if ball == b else b
-				ball.sq = maxf(ball.sq, pw * 0.6); o.sq = maxf(o.sq, pw * 0.5)
+				ball.sq = maxf(ball.sq, pw * 0.6); o.sq = maxf(o.sq, pw * 0.25)
 				if pw > 0.45:
 					burst((a.x + b.x) / 2, (a.y + b.y) / 2, int(roundf(4 + pw * 8)), 200 + pw * 260, HIT_COLS, 0.3, 2)
 
@@ -647,10 +661,15 @@ func _walls8(b: NxBody) -> void:
 
 ## nx8 POOL step: adaptive substeps (no body travels more than SUB_PX per substep) + time-of-impact contacts
 func _sim8(dt: float) -> void:
-	# energy bound: with equal masses and e <= 1 no body can ever exceed sqrt(sum v^2) during this step
+	# energy bound: with e <= 1 kinetic energy never grows, so no body can exceed sqrt(sum m v^2 / m_min) this step
+	# (m = 1/im; with heavier discs this bounds the ball's post-hit speed too)
 	var e2 := 0.0
-	for b: NxBody in bodies: e2 += b.vx * b.vx + b.vy * b.vy
-	var n := clampi(int(ceil(sqrt(e2) * dt / SUB_PX)), 1, SUB_MAX)
+	var mmin := 1e9
+	for b: NxBody in bodies:
+		var mb := 1.0 / maxf(b.im, 1e-6)
+		e2 += mb * (b.vx * b.vx + b.vy * b.vy)
+		mmin = minf(mmin, mb)
+	var n := clampi(int(ceil(sqrt(e2 / mmin) * dt / SUB_PX)), 1, SUB_MAX)
 	var h := dt / n
 	for i in n:
 		_sub8(h)
@@ -671,7 +690,7 @@ func _sub8(h: float) -> void:
 		var sp := sqrt(b.vx * b.vx + b.vy * b.vy)
 		if sp > 0:
 			# cloth rolling friction: constant deceleration along the current direction (straight line, linear speed decay)
-			var ns := sp - FRICTION * h
+			var ns := sp - FRICTION * (SETTLE_K if sp < V_SETTLE else 1.0) * h
 			if ns < V_STOP: b.vx = 0.0; b.vy = 0.0
 			else:
 				var k2 := minf(ns, V_SAFE) / sp

@@ -55,7 +55,8 @@ var _aim_on := false
 var _aim_ux := 0.0
 var _aim_uy := -1.0
 var _aim_p := 0.0
-const AIM_MAX_K := 2.2   # max drawn aim-arrow length beyond the disc rim, in disc radii (at full power)
+const AIM_MAX_K := 4.0   # drawn aim-arrow length beyond the disc rim at full power, in disc radii (was 2.2)
+const AIM_MIN_K := 0.35  # ... at the lowest power (short stub), grows linearly in between (user: short -> long)
 
 # nodes
 var bg: Layer
@@ -791,11 +792,11 @@ func _draw_aim(c: Layer) -> void:
 	var p := pos[i] if i >= 0 else Vector2(b.x, b.y)
 	var r := b.r
 	var d0 := r + 4.0
-	# medium-radius arrow (user: was far too long): length beyond the rim grows LINEARLY with power up to
-	# AIM_MAX_K x disc radius (~108 px at full drag); power mapping itself (LMAX) is unchanged
-	var want := AIM_MAX_K * r * maxf(pw, 0.2) - (d0 - r)
+	# arrow length beyond the rim grows LINEARLY with power from AIM_MIN_K (short stub) up to
+	# AIM_MAX_K x disc radius (~17 px -> ~196 px); power mapping itself (LMAX) is unchanged
+	var want := r * (AIM_MIN_K + (AIM_MAX_K - AIM_MIN_K) * pw)
 	var room := _ray_room(p, u, _vis_rect(10.0 / maxf(0.01, s))) - d0
-	var T := clampf(minf(want, room), minf(30.0, want), want)
+	var T := clampf(minf(want, room), minf(16.0, want), want)
 	var sc := clampf(T / want, 0.55, 1.0) if room < want else 1.0
 	var hw := r * (0.62 + 0.3 * pw) * sc          # head width
 	var hl := minf(hw * 1.08, T * 0.62)          # head length (never longer than ~60% of the arrow)

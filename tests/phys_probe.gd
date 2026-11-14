@@ -199,6 +199,7 @@ func _impact(e, st, tgt, max_steps := 4000) -> Dictionary:
 
 func _pool_cases() -> void:
 	var L := 1323.0
+	_mass_cases()
 	print("--- POOL ---  FRICTION=", EngineS.FRICTION, " px/s^2  E_BODY=", EngineS.E_BODY, " E_CUSHION=", EngineS.E_CUSHION, " SHOT_MAX=", EngineS.SHOT_MAX)
 	# 1. straight lines: disc and ball launched at odd angles in an open field; max lateral deviation from the launch line
 	for who in ["disc", "ball"]:
@@ -357,21 +358,50 @@ func _pool_cases() -> void:
 		d.x = off; d.y = 0
 		e.ball.x = 0; e.ball.y = 900
 		e.phase = "move"
-		e.ball.vx = 0.0; e.ball.vy = -2600.0
+		e.ball.vx = 0.0; e.ball.vy = -2950.0
 		var hit := false
 		var minc := 1e9
 		for t in 240 * 3:
 			e._sim(e.STEP)
 			minc = minf(minc, Vector2(d.x - e.ball.x, d.y - e.ball.y).length() - d.r - e.ball.r)
 			if d.vx != 0 or d.vy != 0: hit = true
-		print("TUNNEL ball@2600 vs disc offset=", off, " (touch if <76) hit=", hit, " min_gap_px=", snappedf(minc, 0.01))
+		print("TUNNEL ball@2950 vs disc offset=", off, " (touch if <76) hit=", hit, " min_gap_px=", snappedf(minc, 0.01))
 	var ew = _mk_engine()
 	_clear_except(ew, [ew.ball])
 	ew.ball.x = ew.CX; ew.ball.y = ew.CY
 	ew.phase = "move"
-	ew.ball.vx = -2600.0; ew.ball.vy = 0.0
+	ew.ball.vx = -2950.0; ew.ball.vy = 0.0
 	var minx := 1e9
 	for t in 240 * 2:
 		ew._sim(ew.STEP)
 		minx = minf(minx, ew.ball.x - ew.ball.r - ew.Fl)
-	print("TUNNEL ball@2600 into side wall: min distance rim->wall=", snappedf(minx, 0.01), " (never < 0 = no tunnelling)")
+	print("TUNNEL ball@2950 into side wall: min distance rim->wall=", snappedf(minx, 0.01), " (never < 0 = no tunnelling)")
+
+## heavier discs (Nov 14 2026): ball hitting a resting disc, light contacts, full disc shot into the ball
+func _mass_cases() -> void:
+	print("--- MASS --- disc PM=", EngineS.PM, " ball BM=", EngineS.BM, " (ratio ", EngineS.PM / EngineS.BM, ")  V_SAFE=", EngineS.V_SAFE)
+	for vin in [1800.0, 900.0, 300.0, 120.0]:
+		var e = _mk_engine()
+		var d = _first_disc(e)
+		_clear_except(e, [d, e.ball])
+		_open(e)
+		d.x = 0; d.y = 0
+		e.ball.x = 0; e.ball.y = d.r + e.ball.r + 2
+		e.phase = "move"
+		e.ball.vx = 0.0; e.ball.vy = -vin
+		var r := _impact(e, e.ball, d)
+		var t := 0
+		while (d.vx != 0 or d.vy != 0 or e.ball.vx != 0 or e.ball.vy != 0) and t < 240 * 20:
+			e._sim(e.STEP); t += 1
+		print("MASS ball->disc v_in=", vin, " disc_out=", snappedf(r.tg.length(), 0.1), " (", snappedf(100.0 * r.tg.length() / r.pre.length(), 0.1), "%) ball_back=", snappedf(r.st.length(), 0.1), " disc pushed ", snappedf(Vector2(d.x, d.y).length(), 0.1), "px")
+	for pw in [1.0, 0.5]:
+		var e = _mk_engine()
+		var d = _first_disc(e)
+		_clear_except(e, [d, e.ball])
+		_open(e)
+		d.x = 0; d.y = 0
+		e.ball.x = 0; e.ball.y = -(d.r + e.ball.r + 30)
+		e.turn = 0; e.phase = "aim"
+		e.fire(d, 0.0, -pw * e.LMAX, pw * e.LMAX, true)
+		var r := _impact(e, d, e.ball)
+		print("MASS disc->ball p=", pw, " disc_in=", snappedf(r.pre.length(), 0.1), " ball_out=", snappedf(r.tg.length(), 0.1), " (", snappedf(100.0 * r.tg.length() / r.pre.length(), 0.1), "%) disc_keeps=", snappedf(r.st.length(), 0.1), " (", snappedf(100.0 * r.st.length() / r.pre.length(), 0.1), "%)")
