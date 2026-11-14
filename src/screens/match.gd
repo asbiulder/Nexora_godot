@@ -111,6 +111,7 @@ func _exit_tree() -> void:
 
 func on_back() -> bool:
 	if ended: return true
+	if _lo_open: return true   # Nav closes the loadout sheet itself
 	_set_paused(not paused)
 	return true
 
@@ -152,6 +153,7 @@ func _build_hud() -> void:
 	var ai := bool(cfg.get("ai", false))
 	h.setup(tx, names, [not bots, not bots and not ai])
 	h.pause_pressed.connect(func(): _set_paused(true))
+	h.loadout_pressed.connect(_open_loadout)
 	add_child(h)
 	hud = h
 	pause_btn = h.pause_btn
@@ -278,6 +280,60 @@ func _build_pause() -> void:
 	var tw := root.create_tween().set_parallel(true)
 	tw.tween_property(root, "modulate:a", 1.0, 0.18)
 	tw.tween_property(pn, "scale", Vector2.ONE, 0.45).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+# ------------------------------------------------------------------ loadout (formation / ball / disc) mid-match
+## Opens a sheet over the match (the match waits while it is open). Ball and disc skins swap right away
+## (visual only); the formation is applied at a dead ball: immediately if the kickoff has not been taken
+## yet, otherwise at the next kickoff (after a goal or a restart). Only the player's own side (team 0).
+var _lo_open := false
+var _lo_form := -1
+
+func _open_loadout() -> void:
+	if ended or paused or _lo_open or eng == null: return
+	_lo_open = true
+	_lo_form = -1
+	paused = true
+	_dragging = false
+	eng.cancel()
+	var sl := Kit.scroll_list(18)
+	var sc: ScrollContainer = sl[0]
+	var outer: VBoxContainer = sl[1]
+	var v := Kit.vbox(18)
+	var note := Kit.label(I18n.t("m3.loadout_next"), 28, NX.DIM)
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	note.horizontal_alignment = I18n.AR
+	v.add_child(note)
+	v.add_child(NxLoadout.new(_on_loadout_pick))
+	outer.add_child(Kit.margin(v, NX.PAD, 0, NX.PAD, 40))
+	outer.layout_direction = I18n.LD
+	Nav.sheet(sc, {"title": I18n.t("m3.loadout"), "height": 0.66})
+	Nav.sheet_closed.connect(_close_loadout, CONNECT_ONE_SHOT)
+
+func _on_loadout_pick(kind: String, val) -> void:
+	match kind:
+		"ball":
+			view.set_skin(int(val))
+		"team":
+			view.set_skin(-1, 0, str(val))
+			if hud and "tex" in hud:
+				hud.tex[0] = D.team_tex(str(val))
+				hud.queue_redraw()
+		"form":
+			_lo_form = int(val)
+
+func _close_loadout() -> void:
+	_lo_open = false
+	if not is_inside_tree() or ended: return
+	if _lo_form >= 0 and eng:
+		var f: Array = (eng.c_forms as Array).duplicate()
+		f[0] = _lo_form
+		eng.c_forms = f
+		cfg["forms"] = f
+		# dead ball before the kickoff: re-place now; otherwise the engine uses it at the next kickoff
+		if eng.phase == "aim" and int(eng.shots) == 0:
+			eng.reset(int(eng.turn))
+	_lo_form = -1
+	paused = false
 
 func _restart() -> void:
 	eng.score = [0, 0]

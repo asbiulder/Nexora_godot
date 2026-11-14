@@ -65,6 +65,10 @@ func leave() -> void:
 
 
 func on_back() -> bool:
+	# popups (leave confirm, chat / settings sheets) are closed first by Nav; then ask before leaving
+	if confirm and is_instance_valid(confirm):
+		_close_confirm()
+		return true
 	_ask_leave()
 	return true
 
@@ -206,7 +210,9 @@ func _render() -> void:
 			if x == null:
 				full = false
 	var not_ready := players.filter(func(p: Variant) -> bool: return OUI.s(p.get("role")) == "player" and not bool(p.get("ready", false)) and OUI.s(p.get("user_id")) != OUI.s(room.get("host")))
-	var can_start := is_host and full and not_ready.is_empty() and OUI.s(room.get("status")) == "waiting"
+	# v3: the host can always start once every seated player is ready — empty seats are played by the bot
+	# (online_match: "a team with nobody connected is played by the bot"; server start_match has no full-room check)
+	var can_start := is_host and am_player and not_ready.is_empty() and OUI.s(room.get("status")) == "waiting"
 	var speaking: Array = OUI.a(v.get("speaking"))
 	var playing := OUI.s(room.get("status")) == "playing"
 	var kind := OUI.s(room.get("kind"), "casual")
@@ -231,11 +237,8 @@ func _render() -> void:
 	bf.add_theme_constant_override("h_separation", OUI.px(4))
 	bf.add_theme_constant_override("v_separation", OUI.px(4))
 	bf.add_child(OUI.badge(OUI.rule_label(settings), OUI.VIOLET))
-	bf.add_child(OUI.badge(OUI.field_name(OUI.i(settings.get("field"))), OUI.SKY))
 	var ranked := bool(room.get("ranked", false))
 	bf.add_child(OUI.badge(I18n.t("hub.ranked") if ranked else I18n.t("lobby.friendly"), OUI.GOLD if ranked else OUI.GREEN))
-	if bool(room.get("is_private", false)):
-		bf.add_child(OUI.badge(I18n.t("hub.private"), OUI.PINK))
 	if OUI.s(room.get("tournament_match_id")) != "":
 		bf.add_child(OUI.badge(I18n.t("hub.tournament"), OUI.ORANGE))
 	if playing:
@@ -282,6 +285,7 @@ func _render() -> void:
 	body.add_child(teams)
 	# ---- spectators
 	var sp := OUI.panel(null)
+	sp.visible = specs.size() > 0   # v3: no empty spectators card
 	var sv := OUI.vbox(OUI.S_S)
 	var sh := OUI.hbox(OUI.S_S)
 	sh.add_child(OUI.flbl(I18n.t("lobby.spectators_x") % OUI.fa(specs.size()), OUI.TS_SMALL, OUI.TEXT, "bold"))
@@ -331,27 +335,37 @@ func _render() -> void:
 	body.add_child(OUI.tap(cp, _open_chat))
 	if is_host and not playing and OUI.s(room.get("tournament_match_id")) == "":
 		body.add_child(OUI.btn(I18n.t("lobby.room_settings"), _open_settings, "dark", true))
-	# ---- action bar
+	# ---- action bar: main action (start / ready / status) + a clear Leave button, always visible
 	OUI.clear(bar_slot)
+	var act_row := OUI.hbox(OUI.S_S)
+	var leave_b := OUI.btn(I18n.t("m3.leave"), _ask_leave, "dark")
+	leave_b.custom_minimum_size.x = OUI.px(120)
+	leave_b.add_theme_color_override("font_color", OUI.RED)
 	if playing:
 		bar_slot.add_child(OUI.btn(I18n.t("lobby.join_live_match"), _watch_live, "red"))
 	elif kind == "quick" or kind == "arena":
 		var np := players.filter(func(p: Variant) -> bool: return OUI.s(p.get("role")) == "player").size()
 		bar_slot.add_child(OUI.lbl(I18n.t("lobby.ready_to_start") if full else I18n.t("lobby.searching_for_opponents_x_x") % [OUI.fa(np), OUI.fa(n * 2)], OUI.TS_BODY, OUI.CYAN, "bold", HORIZONTAL_ALIGNMENT_CENTER))
 	elif is_host:
-		var reason := I18n.t("lobby.waiting_for_slots_to_fill") if not full else (I18n.t("lobby.waiting_for_x_player_s") % OUI.fa(not_ready.size()) if not_ready.size() > 0 else "")
+		var reason := (I18n.t("lobby.waiting_for_x_player_s") % OUI.fa(not_ready.size())) if not_ready.size() > 0 else (I18n.t("m3.bots_fill") if not full else "")
 		if reason != "":
 			bar_slot.add_child(OUI.lbl(reason, OUI.TS_CAP, OUI.DIM, "body", HORIZONTAL_ALIGNMENT_CENTER))
 		var sb := OUI.btn(I18n.t("lobby.starting") if busy == "start" else I18n.t("lobby.start_match"), _start, "gold" if can_start else "dark")
 		sb.disabled = not can_start or busy != ""
-		bar_slot.add_child(sb)
+		sb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		act_row.add_child(sb)
 	elif am_player:
 		var rd := bool(meP.get("ready", false))
 		var rb := OUI.btn(I18n.t("lobby.i_m_ready") if rd else I18n.t("lobby.ready_up"), _ready_toggle, "green" if rd else "primary")
 		rb.disabled = busy != ""
-		bar_slot.add_child(rb)
+		rb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		act_row.add_child(rb)
 	else:
 		bar_slot.add_child(OUI.lbl(I18n.t("lobby.tap_an_empty_slot_to"), OUI.TS_SMALL, OUI.DIM, "body", HORIZONTAL_ALIGNMENT_CENTER))
+	if act_row.get_child_count() == 0:
+		act_row.add_child(OUI.expand())
+	act_row.add_child(leave_b)
+	bar_slot.add_child(act_row)
 	# ---- quick / arena: as soon as every seat is filled (players are auto-ready) the host starts after 3-2-1
 	var auto := (kind == "quick" or kind == "arena") and OUI.s(room.get("status")) == "waiting" and full and not_ready.is_empty()
 	if auto and not counting:

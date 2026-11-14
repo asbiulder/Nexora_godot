@@ -1,6 +1,8 @@
 extends Control
-## Online hub (port of RN Hub.tsx + the connect/quick parts of OnlineRoot.tsx):
-## profile strip, quick match, shortcuts, create / join by code, live room list with mode filter.
+## v3 HOME = online rooms (the app's first screen; Nav "home", "hub" is an alias):
+## Create room + join by code on top, the collapsible category drawers (Play · Online · Team & Shop ·
+## Settings) for everything else, then the live room list with one-tap Join. The shell builds at once
+## and works offline (drawers + offline play); the room list fills in once the server connects.
 ## params: {quick?: "1v1"|"2v2"|"3v3"} (Oracle "find me a quick match")
 ## Tables/RPC: room_list (select), realtime rooms/room_players (hub:rooms), rpc quick_match, join_room, create_room.
 
@@ -27,12 +29,30 @@ func setup(p: Dictionary) -> void:
 	params = p
 
 
+## which drawer is open (one at a time; remembered while the app runs)
+static var open_drawer := ""
+var connected := false
+var _drawers: Dictionary = {}   # key -> [body: Control, chevron: Control]
+
+
 func _ready() -> void:
 	Nav.chrome(false)
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	layout_direction = I18n.LD
 	OUI.boot()
+	_build()
 	_connect()
+
+
+## tapping Home again / Nav.online("hub", quick): run the quick match if one was asked for
+func on_reselect(p: Dictionary = {}) -> void:
+	var q := OUI.s(p.get("quick", ""))
+	if q != "":
+		if connected:
+			_quick(q)
+		else:
+			params["quick"] = q
+			_quick_done = false
 
 
 func leave() -> void:
@@ -43,9 +63,10 @@ func leave() -> void:
 
 
 func on_back() -> bool:
-	# leave the room link (if any); Nav handles the actual navigation
-	if OUI.link != null:
-		OUI.leave_room(false)
+	# home: a drawer open → close it first; otherwise Nav asks before quitting
+	if open_drawer != "":
+		_toggle(open_drawer)
+		return true
 	return false
 
 
@@ -57,33 +78,18 @@ func _back() -> void:
 
 # ---------------------------------------------------------------- connect (guests sign in anonymously)
 func _connect() -> void:
-	OUI.clear(self)
-	var cc := CenterContainer.new()
-	cc.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	add_child(cc)
-	var v := OUI.vbox(OUI.S_M)
-	v.alignment = BoxContainer.ALIGNMENT_CENTER
-	cc.add_child(v)
-	var sp := OUI.spinner(40)
-	sp.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	v.add_child(sp)
-	v.add_child(OUI.lbl(I18n.t("hub.connecting_to_the_server"), OUI.TS_BODY, OUI.DIM, "body", HORIZONTAL_ALIGNMENT_CENTER))
-	var back := OUI.btn(I18n.t("hub.back"), _back, "dark", true)
-	back.custom_minimum_size.x = OUI.px(160)
-	back.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	v.add_child(back)
+	err_msg = ""
+	connected = false
+	_set_empty()
 	var id: String = await OUI.ensure()
 	if not is_inside_tree():
 		return
 	if id == "":
-		OUI.clear(v)
-		v.add_child(OUI.error_state(I18n.t("hub.couldn_t_connect_to_the"), _connect))
-		var b2 := OUI.btn(I18n.t("hub.back"), _back, "dark", true)
-		b2.custom_minimum_size.x = OUI.px(160)
-		b2.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-		v.add_child(b2)
+		err_msg = I18n.t("m3.offline_hint")
+		_set_empty()
 		return
-	_build()
+	connected = true
+	_start_live()
 
 
 func _build() -> void:
@@ -91,14 +97,23 @@ func _build() -> void:
 	var root := OUI.vbox(0)
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(root)
-	root.add_child(OUI.header(I18n.t("hub.online"), "ONLINE ARENA", _back, null, OUI.CYAN, _refresh))
-	vl = OUI.VList.new(132, _make_row, _bind_row, 8)
+	root.add_child(OUI.header(I18n.t("m3.title"), "", Callable(), _currency(), OUI.CYAN, _refresh))
+	vl = OUI.VList.new(76, _make_row, _bind_row, 8)
 	root.add_child(vl)
 	hdr = _make_header()
 	vl.set_header(hdr)
 	_set_empty()
 	OUI.fade_in(root)
 	OUI.ebus().profile_changed.connect(_on_profile)
+	var st := UD.node("Store")
+	if st and st.has_signal("changed"):
+		st.connect("changed", _on_store)
+
+
+func _start_live() -> void:
+	if ch != null:
+		_load()
+		return
 	_load()
 	# live room list
 	debounce = Timer.new()
@@ -130,9 +145,13 @@ func _soon() -> void:
 func _on_profile(_p: Dictionary) -> void:
 	if is_instance_valid(profile_slot):
 		_fill_profile()
+	_fill_currency()
 
 
 func _refresh() -> void:
+	if not connected:
+		_connect()
+		return
 	await _load()
 	if is_inside_tree():
 		OUI.toast(I18n.t("hub.updated"), "ok")
@@ -166,8 +185,10 @@ func _apply() -> void:
 
 
 func _set_empty() -> void:
+	if vl == null:
+		return
 	if err_msg != "":
-		vl.set_empty(OUI.error_state(err_msg, _load))
+		vl.set_empty(OUI.error_state(err_msg, _connect if not connected else _load))
 	elif not loaded:
 		vl.set_empty(OUI.skeleton(4))
 	else:
@@ -180,68 +201,31 @@ func _make_header() -> VBoxContainer:
 	var m := OUI.margin(v, OUI.S_L, OUI.S_M, OUI.S_L, OUI.S_S)
 	var outer := OUI.vbox(0)
 	outer.add_child(m)
-	# my online card
-	profile_slot = OUI.vbox(0)
-	v.add_child(profile_slot)
-	_fill_profile()
-	# quick match
-	var qp := OUI.panel(OUI.CYAN, OUI.S_M, true)
-	var qv := OUI.vbox(OUI.S_S)
-	var qh := OUI.hbox(OUI.S_S)
-	qh.add_child(OUI.img(OUI.ui2("x_ball"), 36))
-	var qt := OUI.vbox(0)
-	qt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	qt.add_child(OUI.lbl(I18n.t("hub.quick_match"), OUI.TS_H, OUI.TEXT, "title"))
-	qt.add_child(OUI.lbl(I18n.t("hub.find_the_closest_level_online"), OUI.TS_CAP, OUI.DIM))
-	qh.add_child(qt)
-	qv.add_child(qh)
-	var qb := OUI.hbox(OUI.S_S)
-	var styles := ["primary", "violet", "gold"]
-	for k in 3:
-		var mode: String = OUI.MODES[k]
-		var b := OUI.btn(mode.to_upper(), func() -> void: _quick(mode), styles[k], true, OUI.MODE_FA[mode])
-		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		quick_btns[mode] = b
-		qb.add_child(b)
-	qv.add_child(qb)
-	qp.add_child(qv)
-	OUI.enter(qp, 1)
-	v.add_child(qp)
-	# shortcuts
-	var sh := OUI.hbox(OUI.S_S)
-	for it in [["arena", I18n.t("arena.arena"), "x_crown", OUI.VIOLET], ["tournaments", I18n.t("hub.tournament"), "x_trophy", OUI.ORANGE], ["ranks", I18n.t("hub.leaderboard"), "x_medal", OUI.GOLD], ["challenges", I18n.t("hub.challenges"), "c_calendar", OUI.GREEN]]:
-		var tile := PanelContainer.new()
-		tile.add_theme_stylebox_override("panel", OUI.sb(Color(it[3], 0.14), 18, Color(it[3], 0.4), 1))
-		tile.custom_minimum_size.y = OUI.px(76)
-		var tv := OUI.vbox(2)
-		tv.alignment = BoxContainer.ALIGNMENT_CENTER
-		var im := OUI.img(OUI.ui2(it[2]), 36)
-		im.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-		tv.add_child(im)
-		tv.add_child(OUI.lbl(it[1], OUI.TS_CAP, OUI.TEXT, "bold", HORIZONTAL_ALIGNMENT_CENTER))
-		tile.add_child(tv)
-		var target: String = it[0]
-		var t := OUI.tap(tile, func() -> void: Nav.go(target, {}))
-		t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		sh.add_child(t)
-	v.add_child(sh)
-	# create / join by code
+	# 1 · create room (primary) + join by code
+	var cb := OUI.btn(I18n.t("hub.create_room"), _open_create, "primary")
+	v.add_child(cb)
 	var cj := OUI.hbox(OUI.S_S)
-	var cb := OUI.btn(I18n.t("hub.create_room"), _open_create, "green", true)
-	cb.custom_minimum_size.x = OUI.px(128)
-	cj.add_child(cb)
-	code_in = OUI.line_edit(I18n.t("hub.6_digit_code"), 6, false, false, 44)
+	code_in = OUI.line_edit(I18n.t("hub.6_digit_code"), 6, false, false, 48)
 	code_in.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	code_in.add_theme_font_override("font", OUI.font("head"))
 	code_in.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	code_in.text_changed.connect(_on_code)
 	code_in.text_submitted.connect(func(_t: String) -> void: _join_code())
 	cj.add_child(code_in)
-	cj.add_child(OUI.pill(I18n.t("hub.join"), _join_code, OUI.CYAN, 64, 44))
+	var jb := OUI.btn(I18n.t("hub.join"), _join_code, "dark")
+	jb.custom_minimum_size.x = OUI.px(96)
+	cj.add_child(jb)
 	v.add_child(cj)
-	# rooms title + filter
+	# 2 · everything else: collapsible category drawers
+	v.add_child(OUI.spacer(OUI.S_XS))
+	v.add_child(_drawer("play", I18n.t("m3.cat_play"), I18n.t("m3.cat_play_sub"), "play", _play_items))
+	v.add_child(_drawer("online", I18n.t("m3.cat_online"), I18n.t("m3.cat_online_sub"), "globe", _online_items))
+	v.add_child(_drawer("team", I18n.t("m3.cat_team"), I18n.t("m3.cat_team_sub"), "team", _team_items))
+	v.add_child(_drawer("settings", I18n.t("m3.cat_settings"), I18n.t("m3.cat_settings_sub"), "gear", _settings_items))
+	# 3 · room list title + mode filter
+	v.add_child(OUI.spacer(OUI.S_XS))
 	var th := OUI.hbox(OUI.S_S)
-	th.add_child(OUI.lbl(I18n.t("hub.open_rooms"), OUI.TS_H, OUI.TEXT, "bold"))
+	th.add_child(OUI.lbl(I18n.t("m3.rooms"), OUI.TS_H, OUI.TEXT, "bold"))
 	th.add_child(OUI.expand())
 	count_lbl = OUI.lbl("", OUI.TS_CAP, OUI.DIM)
 	th.add_child(count_lbl)
@@ -252,7 +236,170 @@ func _make_header() -> VBoxContainer:
 	return outer
 
 
+# ---------------------------------------------------------------- category drawers (accordion)
+func _drawer(key: String, title: String, sub: String, icon: String, fill: Callable) -> Control:
+	var box := OUI.vbox(0)
+	var head := PanelContainer.new()
+	head.add_theme_stylebox_override("panel", OUI.sb(OUI.PANEL_BG, 16, OUI.LINE, 1, OUI.S_M))
+	var h := OUI.hbox(OUI.S_M)
+	var ic := NxIcon.new(icon, OUI.CYAN)
+	ic.custom_minimum_size = Vector2(OUI.px(36), OUI.px(36))
+	ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	h.add_child(ic)
+	var tv := OUI.vbox(0)
+	tv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tv.add_child(OUI.lbl(title, OUI.TS_H, OUI.TEXT, "bold"))
+	var sl := OUI.lbl(sub, OUI.TS_CAP, OUI.DIM)
+	sl.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	sl.clip_text = true
+	tv.add_child(sl)
+	h.add_child(tv)
+	var chev := NxIcon.new("chev_down", OUI.DIM)
+	chev.custom_minimum_size = Vector2(OUI.px(24), OUI.px(24))
+	chev.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	h.add_child(chev)
+	head.add_child(h)
+	var t := OUI.tap(head, func() -> void: _toggle(key), false)
+	box.add_child(t)
+	var body := OUI.vbox(OUI.S_XS)
+	var bm := OUI.margin(body, OUI.S_S, OUI.S_XS, OUI.S_S, OUI.S_S)
+	box.add_child(bm)
+	fill.call(body)
+	bm.visible = open_drawer == key
+	chev.rotation = PI if open_drawer == key else 0.0
+	chev.resized.connect(func() -> void: chev.pivot_offset = chev.size * 0.5)
+	_drawers[key] = [bm, chev]
+	return box
+
+
+func _toggle(key: String) -> void:
+	open_drawer = "" if open_drawer == key else key
+	for k in _drawers:
+		var d: Array = _drawers[k]
+		var on: bool = k == open_drawer
+		var bm: Control = d[0]
+		var chev: Control = d[1]
+		if is_instance_valid(bm):
+			bm.visible = on
+			if on:
+				bm.modulate.a = 0.0
+				bm.create_tween().tween_property(bm, "modulate:a", 1.0, 0.18)
+		if is_instance_valid(chev):
+			chev.pivot_offset = chev.size * 0.5
+			chev.create_tween().tween_property(chev, "rotation", PI if on else 0.0, 0.18)
+
+
+## one option row inside a drawer: title (+ sub) and a chevron; tap runs cb
+func _item(title: String, sub: String, cb: Callable, dot := false) -> Control:
+	var pc := PanelContainer.new()
+	var st := OUI.sb(Color(1, 1, 1, 0.03), 14, Color(0, 0, 0, 0), 0)
+	st.content_margin_left = OUI.px(OUI.S_M)
+	st.content_margin_right = OUI.px(OUI.S_M)
+	st.content_margin_top = OUI.px(10)
+	st.content_margin_bottom = OUI.px(10)
+	pc.add_theme_stylebox_override("panel", st)
+	var h := OUI.hbox(OUI.S_S)
+	var tv := OUI.vbox(0)
+	tv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tv.add_child(OUI.lbl(title, OUI.TS_BODY, OUI.TEXT, "bold"))
+	if sub != "":
+		var sl := OUI.lbl(sub, OUI.TS_CAP, OUI.DIM)
+		sl.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		sl.clip_text = true
+		tv.add_child(sl)
+	h.add_child(tv)
+	if dot:
+		var d := NxIcon.new("dot", NX.RED)
+		d.custom_minimum_size = Vector2(OUI.px(10), OUI.px(10))
+		d.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		h.add_child(d)
+	var chev := NxIcon.new("chev_fwd", OUI.DIM2)
+	chev.custom_minimum_size = Vector2(OUI.px(18), OUI.px(18))
+	chev.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	h.add_child(chev)
+	pc.add_child(h)
+	return OUI.tap(pc, cb, false)
+
+
+func _play_items(b: VBoxContainer) -> void:
+	for m in Launch.modes():
+		var k: String = m["k"]
+		b.add_child(_item(m["name"], m["desc"], func() -> void: Nav.go("setup", {"mode": k})))
+	b.add_child(_item(I18n.t("arena.arena"), "", func() -> void: Nav.online("arena")))
+	b.add_child(_item(I18n.t("hub.tournament"), "", func() -> void: Nav.online("tournaments")))
+
+
+func _online_items(b: VBoxContainer) -> void:
+	# quick online match: one row of three mode buttons
+	b.add_child(OUI.lbl(I18n.t("m3.quick_online"), OUI.TS_SMALL, OUI.DIM, "bold"))
+	var qb := OUI.hbox(OUI.S_S)
+	for k in 3:
+		var mode: String = OUI.MODES[k]
+		var bt := OUI.btn(mode.to_upper(), func() -> void: _quick(mode), "dark", true, OUI.MODE_FA[mode])
+		bt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		quick_btns[mode] = bt
+		qb.add_child(bt)
+	b.add_child(qb)
+	b.add_child(_item(I18n.t("hub.leaderboard"), "", func() -> void: Nav.go("ranks", {})))
+	b.add_child(_item(I18n.t("hub.challenges"), "", func() -> void: Nav.go("challenges", {})))
+	b.add_child(_item(I18n.t("m3.friends"), "", func() -> void: Nav.go("social", {})))
+	b.add_child(_item(I18n.t("m3.assistant"), "", func() -> void: Nav.go("oracle", {})))
+
+
+func _team_items(b: VBoxContainer) -> void:
+	b.add_child(_item(I18n.t("m3.my_team"), I18n.t("m3.cat_team_sub"), func() -> void: Nav.go("team")))
+	b.add_child(_item(I18n.t("kb.shop"), "", func() -> void: Nav.go("shop")))
+	b.add_child(_item(I18n.t("daily.daily_reward"), "", func() -> void: Nav.go("daily"), UD.daily_ready()))
+	b.add_child(_item(I18n.t("m3.profile"), "", func() -> void: Nav.go("profile")))
+
+
+func _settings_items(b: VBoxContainer) -> void:
+	b.add_child(_item(I18n.t("kb.settings"), I18n.t("m3.cat_settings_sub"), func() -> void: Nav.go("settings")))
+	b.add_child(_item(I18n.t("settings.account"), "", func() -> void: Nav.go("account")))
+
+
+## compact coins / gems in the header (tap → shop)
+var _cur_l: Label
+var _gem_l: Label
+func _currency() -> Control:
+	var pc := PanelContainer.new()
+	var st := OUI.sb(NX.SURF2, 16, Color(0, 0, 0, 0), 0)
+	st.content_margin_left = OUI.px(10)
+	st.content_margin_right = OUI.px(10)
+	pc.add_theme_stylebox_override("panel", st)
+	var h := OUI.hbox(OUI.S_XS)
+	h.layout_direction = Control.LAYOUT_DIRECTION_LTR
+	h.add_child(OUI.img(UD.art("h_coin"), 20))
+	_cur_l = OUI.lbl("", OUI.TS_SMALL, OUI.TEXT, "bold")
+	h.add_child(_cur_l)
+	h.add_child(OUI.img(UD.art("h_gem"), 20))
+	_gem_l = OUI.lbl("", OUI.TS_SMALL, OUI.TEXT, "bold")
+	h.add_child(_gem_l)
+	pc.add_child(h)
+	_fill_currency()
+	var t := OUI.tap(pc, func() -> void: Nav.go("shop"))
+	t.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	return t
+
+
+func _fill_currency() -> void:
+	if not is_instance_valid(_cur_l):
+		return
+	var p := UD.p()
+	var op := UD.online_profile()
+	var gems := int(op.get("gems", p.get("gems", 0))) if not op.is_empty() else int(p.get("gems", 0))
+	_cur_l.text = NX.en_num(int(p.get("coins", 0)))
+	if is_instance_valid(_gem_l):
+		_gem_l.text = NX.en_num(gems)
+
+
+func _on_store() -> void:
+	_fill_currency()
+
+
 func _fill_profile() -> void:
+	if not is_instance_valid(profile_slot):
+		return
 	OUI.clear(profile_slot)
 	var p := OUI.profile
 	if p.is_empty():
@@ -296,6 +443,10 @@ func _on_code(t: String) -> void:
 func _act(key: String, fn: Callable) -> void:
 	if busy != "":
 		return
+	if not connected:
+		OUI.toast_err(I18n.t("m3.not_connected"))
+		_connect()
+		return
 	busy = key
 	_busy_ui()
 	var r: Dictionary = await fn.call()
@@ -324,6 +475,10 @@ func _busy_ui() -> void:
 
 
 func _quick(m: String) -> void:
+	if not connected:
+		OUI.toast_err(I18n.t("m3.not_connected"))
+		_connect()
+		return
 	OracleCoach.react("search")
 	_act("quick" + m, func() -> Dictionary: return await Supa.call_rpc("quick_match", {"p_mode": m, "p_kind": "quick"}))
 
@@ -354,38 +509,39 @@ class RoomRow extends PanelContainer:
 
 
 func _make_row() -> Control:
+	# v3: one compact line per room — avatar · name / host · mode · players — one-tap Join (Watch when live/full)
 	var r := RoomRow.new()
-	r.add_theme_stylebox_override("panel", OUI.sb(OUI.PANEL_BG, 22, OUI.LINE, 1.5, OUI.S_M))
-	var v := OUI.vbox(OUI.S_S)
+	r.add_theme_stylebox_override("panel", OUI.sb(OUI.PANEL_BG, 16, OUI.LINE, 1, OUI.S_S))
 	var h := OUI.hbox(OUI.S_S)
-	r.av = NetImg.avatar(null, null, 44)
+	r.av = NetImg.avatar(null, null, 40)
 	h.add_child(r.av)
-	var mid := OUI.vbox(2)
+	var mid := OUI.vbox(0)
 	mid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	mid.alignment = BoxContainer.ALIGNMENT_CENTER
 	r.name_l = OUI.lbl("", OUI.TS_BODY, OUI.TEXT, "bold")
+	r.name_l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	r.name_l.clip_text = true
 	r.sub_l = OUI.lbl("", OUI.TS_CAP, OUI.DIM)
+	r.sub_l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	r.sub_l.clip_text = true
 	r.badges = OUI.hbox(OUI.S_XS)
 	mid.add_child(r.name_l)
 	mid.add_child(r.sub_l)
-	mid.add_child(r.badges)
 	h.add_child(mid)
-	var cv := OUI.vbox(0)
-	cv.custom_minimum_size.x = OUI.px(64)
-	r.cnt_l = OUI.lbl("", OUI.TS_H, OUI.TEXT, "title", HORIZONTAL_ALIGNMENT_CENTER)
-	r.spec_l = OUI.lbl("", OUI.TS_TINY, OUI.DIM, "body", HORIZONTAL_ALIGNMENT_CENTER)
-	cv.add_child(r.cnt_l)
-	cv.add_child(r.spec_l)
-	h.add_child(cv)
-	v.add_child(h)
-	var bh := OUI.hbox(OUI.S_S)
+	r.cnt_l = OUI.lbl("", OUI.TS_BODY, OUI.TEXT, "bold", HORIZONTAL_ALIGNMENT_CENTER)
+	r.cnt_l.custom_minimum_size.x = OUI.px(40)
+	h.add_child(r.cnt_l)
+	r.spec_l = OUI.lbl("", OUI.TS_TINY, OUI.DIM)
+	r.spec_l.visible = false
 	r.join_b = OUI.btn(I18n.t("hub.join"), func() -> void: _join(r.id, false), "primary", true)
-	r.join_b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	r.join_b.custom_minimum_size.x = OUI.px(84)
+	r.join_b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	r.watch_b = OUI.btn(I18n.t("hub.watch"), func() -> void: _join(r.id, true), "dark", true)
-	r.watch_b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	bh.add_child(r.join_b)
-	bh.add_child(r.watch_b)
-	v.add_child(bh)
-	r.add_child(v)
+	r.watch_b.custom_minimum_size.x = OUI.px(84)
+	r.watch_b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	h.add_child(r.join_b)
+	h.add_child(r.watch_b)
+	r.add_child(h)
 	return r
 
 
@@ -397,18 +553,15 @@ func _bind_row(c: Control, item: Variant, _idx: int) -> void:
 	var cap := OUI.i(it.get("capacity"), 2)
 	var full := players >= cap
 	var playing := OUI.s(it.get("status")) == "playing"
-	var kind: Array = OUI.KIND_FA.get(OUI.s(it.get("kind")), OUI.KIND_FA["casual"])
 	r.av.set_data(it.get("host_avatar"), it.get("host_avatar_url"), OUI.RED if playing else OUI.CYAN)
 	r.name_l.text = OUI.s(it.get("name"))
-	r.sub_l.text = I18n.t("hub.x_level_x_x") % [OUI.s(it.get("host_name")), OUI.fa(OUI.i(it.get("host_level"), 1)), OUI.rule_label(it.get("settings"))]
-	OUI.clear(r.badges)
-	r.badges.add_child(OUI.badge(OUI.s(it.get("mode")).to_upper(), OUI.SKY))
-	r.badges.add_child(OUI.badge(kind[0], kind[1]))
-	r.badges.add_child(OUI.badge(I18n.t("hub.live"), OUI.RED, true) if playing else OUI.badge(I18n.t("hub.waiting"), OUI.GREEN))
+	var kind: Array = OUI.KIND_FA.get(OUI.s(it.get("kind")), OUI.KIND_FA["casual"])
+	r.sub_l.text = "%s · %s · %s%s" % [OUI.s(it.get("mode")).to_upper(), I18n.f(str(kind[0])), OUI.s(it.get("host_name")), (" · " + I18n.t("hub.live")) if playing else ""]
 	r.cnt_l.text = "%s/%s" % [OUI.fa(players), OUI.fa(cap)]
 	r.cnt_l.add_theme_color_override("font_color", OUI.ORANGE if full else OUI.TEXT)
-	r.spec_l.text = "👁 %s" % OUI.fa(OUI.i(it.get("spectators")))
-	r.join_b.visible = not playing and not full
+	var can_join := not playing and not full
+	r.join_b.visible = can_join
+	r.watch_b.visible = not can_join
 	r.join_b.text = "…" if busy == "j" + r.id else I18n.t("hub.join")
 	r.watch_b.text = "…" if busy == "w" + r.id else I18n.t("hub.watch")
 	r.join_b.disabled = busy != ""
@@ -417,6 +570,10 @@ func _bind_row(c: Control, item: Variant, _idx: int) -> void:
 
 # ---------------------------------------------------------------- create room sheet
 func _open_create() -> void:
+	if not connected:
+		OUI.toast_err(I18n.t("m3.not_connected"))
+		_connect()
+		return
 	var st := {"name": "", "mode": "1v1", "priv": false, "ranked": true, "voice": true, "rule": "g3", "turn": 15, "field": 0}
 	var sc := OUI.scroll()
 	var v := OUI.vbox(OUI.S_XS)

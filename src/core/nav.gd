@@ -19,7 +19,10 @@ const TABS := ["home", "team", "play", "shop", "profile"]
 ## name -> [script path, kind]  kind: tab | screen (no chrome) | sheet | modal | fs (full-screen, no chrome, no backdrop)
 const REG := {
 	"intro": ["res://src/screens/intro.gd", "fs"],
-	"home": ["res://src/screens/home.gd", "tab"],
+	# v3: ONLINE is the default first screen — "home" is the online rooms screen (room list, create, join by
+	# code) with the collapsible category drawers for everything else; "hub" is an alias of it.
+	"home": ["res://src/online/hub.gd", "tab"],
+	"menu_v2": ["res://src/screens/home.gd", "tab"],
 	"team": ["res://src/screens/team.gd", "tab"],
 	"play": ["res://src/screens/play.gd", "tab"],
 	"shop": ["res://src/screens/shop.gd", "tab"],
@@ -70,6 +73,8 @@ var _toast_node: Control
 var _toast_tw: Tween
 var _music_on = null
 var _chrome_vis := true
+## screen-owned popups (OUI.modal etc.): [[node, on_close], ...] — Android back closes the top one first
+var _overlays: Array = []
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -136,6 +141,8 @@ func _instance(name: String, params: Dictionary) -> Control:
 
 # ------------------------------------------------------------------ go / back
 func go(name: String, params := {}, _push := true) -> void:
+	if name == "hub":
+		name = "home"
 	if main == null:
 		push_warning("Nav.go before main attached: " + name)
 		return
@@ -156,8 +163,10 @@ func go(name: String, params := {}, _push := true) -> void:
 		get_tree().create_timer(0.2).timeout.connect(func(): go(name, params, _push))
 		return
 	if name == current and kind == "tab":
+		close_sheet()
+		_close_all_modals()
 		if screen and screen.has_method("on_reselect"):
-			screen.on_reselect()
+			screen.on_reselect(params)
 		return
 	var c3 := _instance(name, params)
 	if c3 == null:
@@ -246,12 +255,32 @@ func _mount(name: String, params: Dictionary, c: Control) -> void:
 	_update_music(name)
 	screen_changed.emit(name)
 
+## register a popup a screen built itself so Android back closes it (topmost first)
+func push_overlay(node: Control, on_close: Callable = Callable()) -> void:
+	_overlays.append([node, on_close])
+
+func _close_top_overlay() -> bool:
+	while _overlays.size():
+		var o: Array = _overlays.pop_back()
+		var n = o[0]
+		if n == null or not is_instance_valid(n) or not (n as Node).is_inside_tree() or (n as Node).is_queued_for_deletion():
+			continue
+		var cb: Callable = o[1]
+		if cb.is_valid():
+			cb.call()
+		else:
+			(n as Node).queue_free()
+		return true
+	return false
+
 func back() -> void:
 	if _modal:
 		close_modal()
 		return
 	if _sheet:
 		close_sheet()
+		return
+	if _close_top_overlay():
 		return
 	if screen and screen.has_method("on_back") and screen.on_back() == true:
 		return
@@ -263,6 +292,8 @@ func back() -> void:
 		return
 	if current != "home":
 		go("home")
+		return
+	if _busy:
 		return
 	confirm(I18n.t("nav.quit_nexora"), func(): get_tree().quit(), I18n.t("nav.quit"), I18n.t("nav.stay"))
 
@@ -291,7 +322,7 @@ func backdrop(theme: String, dim := -1.0) -> void:
 
 func insets() -> Dictionary:
 	var top := NX.safe_top + (NX.HUD_H + 10 if _chrome_vis else 24.0)
-	var bottom := maxf(26.0, NX.safe_bottom) + (NX.TAB_H + 20 if _chrome_vis else 24.0)
+	var bottom := maxf(26.0, NX.safe_bottom) + 24.0  # v3: no bottom tab bar
 	return {"top": top, "bottom": bottom}
 
 func refresh_chrome() -> void:
@@ -333,7 +364,7 @@ func sheet(content: Control, opts := {}) -> Control:
 	panel.size = Vector2(layer.size.x, h + 100)
 	panel.position = Vector2(0, H)
 	root.add_child(panel)
-	var bg := NxGrad.new([Color("#1e1752"), Color("#120d38"), Color("#08061e")], 72.0, 1.57, 0.05)
+	var bg := NxGrad.new([NX.BG2, NX.BG2, NX.BG2], 56.0, 1.57, 0.0)
 	bg.set_border(3.0, Color(accent.r, accent.g, accent.b, 0.4))
 	bg.set_glow(Color(accent.r * 1.3, accent.g * 1.3, accent.b * 1.3, 0.4), 50.0, 60.0)
 	bg.position = Vector2(-60, -60)
@@ -342,8 +373,8 @@ func sheet(content: Control, opts := {}) -> Control:
 	# bled into headers and rows
 	var back := Panel.new()
 	back.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var bsb := NX.box(Color("#0d0a2a"), 0)
-	bsb.corner_radius_top_left = 72; bsb.corner_radius_top_right = 72
+	var bsb := NX.box(NX.BG2, 0)
+	bsb.corner_radius_top_left = 56; bsb.corner_radius_top_right = 56
 	back.add_theme_stylebox_override("panel", bsb)
 	back.size = panel.size
 	panel.add_child(back)
@@ -353,6 +384,7 @@ func sheet(content: Control, opts := {}) -> Control:
 	scan.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	scan.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	scan.modulate.a = 0.35
+	scan.visible = false  # flat v3: no scanline texture
 	scan.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	scan.position = Vector2(20, 20)
 	scan.size = panel.size - Vector2(40, 40)
@@ -360,16 +392,23 @@ func sheet(content: Control, opts := {}) -> Control:
 	# header (drag handle)
 	var head := Control.new()
 	head.mouse_filter = Control.MOUSE_FILTER_STOP
-	head.size = Vector2(panel.size.x, 210 if opts.has("title") else 70)
+	head.size = Vector2(panel.size.x, 210 if opts.has("title") else 140)
 	panel.add_child(head)
 	var grip := ColorRect.new()
-	grip.color = NX.hdr(accent, 1.4)
+	grip.color = Color(1, 1, 1, 0.22)
 	grip.size = Vector2(120, 13)
 	grip.position = Vector2(panel.size.x * 0.5 - 60, 22)
 	grip.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	head.add_child(grip)
+	if not opts.has("title"):
+		# every popup gets the same close button in the same (top-left) corner
+		var cx := Kit.close_button(func(): close_sheet(), 88)
+		cx.position = Vector2(40, 40)
+		cx.size = Vector2(88, 88)
+		head.add_child(cx)
 	if opts.has("title"):
 		var row := Kit.hbox(20)
+		row.layout_direction = Control.LAYOUT_DIRECTION_LTR
 		row.position = Vector2(40, 58)
 		row.size = Vector2(panel.size.x - 80, 130)
 		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -377,7 +416,7 @@ func sheet(content: Control, opts := {}) -> Control:
 		var col := Kit.vbox(0)
 		col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		col.alignment = BoxContainer.ALIGNMENT_CENTER
-		if opts.get("en", "") != "":
+		if false and opts.get("en", "") != "":  # v3: no English caps sub-title (clutter)
 			var e := Kit.caps(str(opts["en"]), 23, NX.hdr(accent, 1.3), 8)
 			e.horizontal_alignment = I18n.AR
 			col.add_child(e)
@@ -463,7 +502,7 @@ func modal(content: Control, accent := NX.GOLD, width := 0.88) -> Control:
 	root.mouse_filter = Control.MOUSE_FILTER_STOP
 	layer.add_child(root)
 	var dim := ColorRect.new()
-	dim.color = Color(0.004, 0.012, 0.047, 0.8)
+	dim.color = Color(0.0, 0.0, 0.0, 0.6)
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	dim.modulate.a = 0.0
 	dim.gui_input.connect(func(ev): if ev is InputEventMouseButton and not ev.pressed: close_modal())
@@ -471,18 +510,23 @@ func modal(content: Control, accent := NX.GOLD, width := 0.88) -> Control:
 	var w: float = minf(layer.size.x * width, 1100)
 	var card := PanelContainer.new()
 	card.mouse_filter = Control.MOUSE_FILTER_STOP
-	var sb := NX.box(Color(0, 0, 0, 0), 68, 0, Color.TRANSPARENT, 60, Color(accent.r, accent.g, accent.b, 0.35))
+	var sb := NX.box(Color(0, 0, 0, 0), 48)
 	card.add_theme_stylebox_override("panel", sb)
 	card.custom_minimum_size = Vector2(w, 0)
-	var g := NxGrad.new([Color("#1d2a66"), Color("#0c1238"), Color("#070a22")], 66, 1.57, 0.08)
+	var g := NxGrad.new([NX.SURF, NX.SURF, NX.SURF], 48, 1.57, 0.0)
 	g.set_border(3.0, Color(accent.r * 1.2, accent.g * 1.2, accent.b * 1.2, 0.6))
 	card.add_child(g)
 	card.add_child(content)
 	root.add_child(card)
+	# same close button, same corner as sheets and screen headers (top-left of the card)
+	var cx := Kit.close_button(func(): close_modal(), 84)
+	cx.size = Vector2(84, 84)
+	root.add_child(cx)
 	var place := func():
 		card.reset_size()
 		card.position = (layer.size - card.size) * 0.5
 		card.pivot_offset = card.size * 0.5
+		cx.position = card.position + Vector2(22, 22)
 	content.resized.connect(place)
 	card.resized.connect(place)
 	place.call()
@@ -492,6 +536,8 @@ func modal(content: Control, accent := NX.GOLD, width := 0.88) -> Control:
 	tw.tween_property(card, "scale", Vector2.ONE, 0.55).set_trans(Tween.TRANS_SPRING).set_ease(Tween.EASE_OUT)
 	tw.tween_property(card, "modulate:a", 1.0, 0.2)
 	tw.tween_property(dim, "modulate:a", 1.0, 0.2)
+	cx.modulate.a = 0.0
+	cx.create_tween().tween_property(cx, "modulate:a", 1.0, 0.25).set_delay(0.12)
 	if _modal:
 		_modal_stack.append(_modal)
 	_modal = root
@@ -550,7 +596,7 @@ func toast(text: String, kind := "info") -> void:
 	var col: Color = NX.RED if kind == "err" else (NX.GREEN if kind == "ok" else NX.CYAN)
 	var p := PanelContainer.new()
 	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var sb := NX.box(Color(0.04, 0.063, 0.172, 0.96), 58, 3, NX.hdr(col, 1.3), 24, Color(col.r, col.g, col.b, 0.3))
+	var sb := NX.box(Color(NX.SURF2, 0.98), 40, 2, Color(col, 0.6))
 	sb.content_margin_left = 42; sb.content_margin_right = 42; sb.content_margin_top = 18; sb.content_margin_bottom = 18
 	p.add_theme_stylebox_override("panel", sb)
 	var h := Kit.hbox(16, true)

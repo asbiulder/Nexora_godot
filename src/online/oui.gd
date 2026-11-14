@@ -6,36 +6,37 @@ extends RefCounted
 ## Owner: OUI worker.
 
 # ---------------------------------------------------------------- palette (RN ui/theme.ts C)
-const BG := Color("#030614")
-const CYAN := Color("#4fe3ff")
-const SKY := Color("#7fc8ff")
-const BLUE := Color("#3b82ff")
-const INDIGO := Color("#6d5bff")
-const VIOLET := Color("#a35bff")
-const PINK := Color("#ff4fa3")
-const GOLD := Color("#ffd257")
-const ORANGE := Color("#ff8a3a")
-const RED := Color("#ff4a5a")
-const GREEN := Color("#3dffa8")
-const TEXT := Color("#eef4ff")
-const DIM := Color("#93a7d8")
-const DIM2 := Color("#5f6f9e")
-const LINE := Color(0.55, 0.52, 1.0, 0.28)  # v2 violet glass edge
-const LINE_HI := Color(120 / 255.0, 220 / 255.0, 1.0, 0.75)
-const ROW_BG := Color(16 / 255.0, 12 / 255.0, 44 / 255.0, 0.86)
-const PANEL_BG := Color(22 / 255.0, 16 / 255.0, 60 / 255.0, 0.80)
+# flat v3: plain dark surfaces + ONE accent (former neon hues all map to NX.ACCENT)
+const BG := Color("#0d1018")
+const CYAN := NX.ACCENT
+const SKY := NX.ACCENT
+const BLUE := NX.ACCENT
+const INDIGO := NX.ACCENT
+const VIOLET := NX.ACCENT
+const PINK := NX.ACCENT
+const GOLD := NX.GOLD
+const ORANGE := NX.ORANGE
+const RED := NX.RED
+const GREEN := NX.GREEN
+const TEXT := NX.TEXT
+const DIM := NX.DIM
+const DIM2 := NX.DIM2
+const LINE := Color(1, 1, 1, 0.08)
+const LINE_HI := Color(0.3, 0.6, 1.0, 0.6)
+const ROW_BG := NX.SURF
+const PANEL_BG := NX.SURF
 const GEM_BLUE := Color("#9fd8ff")
 
-## button gradients (RN G) — [top/border, body, highlight]
+## button colours [edge, body, top] — flat: one colour per style
 const G := {
-	"primary": [Color("#4fe3ff"), Color("#5b8cff"), Color("#a35bff")],
-	"gold": [Color("#8a5200"), Color("#d39420"), Color("#ffe08a")],
-	"green": [Color("#0a6b4a"), Color("#16b77a"), Color("#5dffbf")],
-	"red": [Color("#5a0f24"), Color("#a3203f"), Color("#ff5b74")],
-	"dark": [Color("#151f4a"), Color("#1d2b63"), Color("#2a3f86")],
-	"violet": [Color("#3a1d8a"), Color("#6d3bff"), Color("#c08bff")],
-	"ghost": [Color("#151f4a"), Color("#1d2b63"), Color("#2a3f86")],
-	"danger": [Color("#5a0f24"), Color("#a3203f"), Color("#ff5b74")],
+	"primary": [NX.ACCENT, NX.ACCENT, NX.ACCENT],
+	"gold": [NX.ACCENT, NX.ACCENT, NX.ACCENT],
+	"green": [NX.GREEN, NX.GREEN, NX.GREEN],
+	"red": [NX.RED, NX.RED, NX.RED],
+	"dark": [NX.SURF2, NX.SURF2, NX.SURF2],
+	"violet": [NX.ACCENT, NX.ACCENT, NX.ACCENT],
+	"ghost": [NX.SURF2, NX.SURF2, NX.SURF2],
+	"danger": [NX.RED, NX.RED, NX.RED],
 }
 
 ## RN dp -> Godot px (base width 1080 vs ~400dp phone)
@@ -468,7 +469,8 @@ static func panel(accent: Variant = null, pad: float = S_M, glow := false) -> Pa
 	var border := ac if accent is Color and ac.a > 0 else LINE
 	if accent is Color and ac.a > 0:
 		border = Color(ac, 0.55)
-	pc.add_theme_stylebox_override("panel", sb(PANEL_BG, 22, border, 1.5, pad, Color(ac, 0.35) if glow else Color(0, 0, 0, 0), 8 if glow else 0))
+	pc.add_theme_stylebox_override("panel", sb(PANEL_BG, 16, LINE if not (accent is Color and ac.a > 0) else Color(border, 0.35), 1, pad))
+	if glow: pass  # flat v3: no glow
 	return pc
 
 
@@ -572,9 +574,7 @@ static func _btn_style(cols: Array, state: String, radius: float) -> StyleBoxFla
 	elif state == "disabled":
 		body = Color(body.darkened(0.45), 0.7)
 		top = Color(top, 0.3)
-	var st := sb(body, radius, Color(top, 0.85), 1.5)
-	st.shadow_color = Color(cols[0], 0.45 if state != "disabled" else 0.0)
-	st.shadow_size = px(4)
+	var st := sb(body, radius, Color(top, 0.0), 0)
 	st.content_margin_left = px(10)
 	st.content_margin_right = px(10)
 	st.content_margin_top = px(4)
@@ -1023,21 +1023,20 @@ static func unread_dot(n: int) -> Control:
 static func header(title: String, en: String, on_back: Callable, right: Control = null, accent: Color = CYAN, on_refresh: Callable = Callable()) -> Control:
 	var wrap := PanelContainer.new()
 	var st := StyleBoxFlat.new()
-	st.bg_color = Color(2 / 255.0, 4 / 255.0, 14 / 255.0, 0.88)
+	st.bg_color = Color(NX.BG, 0.96)
 	st.content_margin_left = px(S_M)
 	st.content_margin_right = px(S_M)
 	st.content_margin_top = px(S_S) + top_inset()
 	st.content_margin_bottom = px(S_M)
-	st.shadow_color = Color(0, 0, 0, 0.5)
-	st.shadow_size = px(10)
 	wrap.add_theme_stylebox_override("panel", st)
 	var h := hbox(S_S)
 	h.layout_direction = Control.LAYOUT_DIRECTION_LTR
 	wrap.add_child(h)
-	var back := pill("‹", on_back, TEXT, 44, 44)
-	back.add_theme_font_override("font", font("title"))
-	back.add_theme_font_size_override("font_size", px(26))
-	h.add_child(back)
+	# v3: one back control everywhere — the round close/back button, top-left (none on the root screen)
+	if on_back.is_valid():
+		var back := Kit.back_button(on_back, px(40))
+		back.set_meta("back", true)
+		h.add_child(back)
 	if on_refresh.is_valid():
 		var rb := pill("⟳", on_refresh, CYAN, 44, 44)
 		rb.add_theme_font_size_override("font_size", px(20))
@@ -1046,7 +1045,7 @@ static func header(title: String, en: String, on_back: Callable, right: Control 
 		h.add_child(right)
 	var v := vbox(0)
 	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	if en != "":
+	if false and en != "":  # v3: no English caps sub-title
 		var e := lbl(en, 9, accent, "head", I18n.AR)
 		e.add_theme_constant_override("outline_size", 0)
 		v.add_child(e)
@@ -1141,7 +1140,7 @@ static func open_sheet(title: String, en: String, content: Control, accent: Colo
 ## centered modal card over a dim veil (RN Modal) added into `host`
 static func modal(host: Control, content: Control, accent: Color = CYAN, on_close: Callable = Callable()) -> Control:
 	var veil := ColorRect.new()
-	veil.color = Color(2 / 255.0, 4 / 255.0, 14 / 255.0, 0.78)
+	veil.color = Color(0, 0, 0, 0.6)
 	veil.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	veil.mouse_filter = Control.MOUSE_FILTER_STOP
 	veil.layout_direction = I18n.LD
@@ -1150,7 +1149,17 @@ static func modal(host: Control, content: Control, accent: Color = CYAN, on_clos
 	veil.add_child(cc)
 	var p := panel(accent, S_L, true)
 	p.custom_minimum_size.x = minf(px(380), host.size.x * 0.88 if host.size.x > 0 else px(340))
-	p.add_child(content)
+	if on_close.is_valid():
+		# v3: same close button, same corner (top-left) as every other popup
+		var wrapv := vbox(S_XS)
+		var top := hbox(0)
+		top.layout_direction = Control.LAYOUT_DIRECTION_LTR
+		top.add_child(Kit.close_button(on_close, px(34)))
+		wrapv.add_child(top)
+		wrapv.add_child(content)
+		p.add_child(wrapv)
+	else:
+		p.add_child(content)
 	cc.add_child(p)
 	veil.gui_input.connect(func(ev: InputEvent) -> void:
 		if ev is InputEventMouseButton and ev.pressed and on_close.is_valid():
@@ -1158,6 +1167,7 @@ static func modal(host: Control, content: Control, accent: Color = CYAN, on_clos
 			if not r.has_point(ev.global_position):
 				on_close.call())
 	host.add_child(veil)
+	Nav.push_overlay(veil, on_close)  # Android back closes this popup first
 	fade_in(veil, 0.15)
 	p.pivot_offset = p.size * 0.5
 	p.scale = Vector2(0.92, 0.92)

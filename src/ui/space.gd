@@ -40,7 +40,7 @@ func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	clip_contents = true
 	var bg := ColorRect.new()
-	bg.color = NX.VEIL
+	bg.color = NX.BG
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
@@ -107,6 +107,17 @@ func _fit(t: TextureRect) -> void:
 
 ## theme: base|win|lose|system|hub|stadium|holo; dim: extra darkening (RN dim prop)
 func set_theme_name(t: String, dim_ := -1.0) -> void:
+	# flat v3: one plain dark surface for every screen (no nebula art, stars or planet)
+	theme_name = t
+	dim = maxf(0.0, dim_)
+	for s in stars:
+		s.visible = false
+	planet.visible = false
+	if shade:
+		shade.visible = false
+
+## v2 nebula art per theme (kept for reference / a future "rich backdrop" option; unused in flat v3)
+func _theme_art_v2(t: String, dim_ := -1.0) -> void:
 	if dim_ < 0:
 		dim_ = 0.0 if t in ["stadium", "holo", "hub"] or t.begins_with("m_") else 0.15 if t == "base" else 0.0
 	_set_shade(t, dim_)
@@ -164,7 +175,7 @@ func _set_shade(t: String, d: float) -> void:
 func set_stars(on: bool) -> void:
 	_stars_on = on
 	for s in stars:
-		s.visible = on
+		s.visible = false  # flat v3
 
 ## small parallax offset for star layers (e.g. from a scroll position)
 func set_drift(y: float) -> void:

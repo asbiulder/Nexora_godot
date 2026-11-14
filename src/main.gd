@@ -39,6 +39,7 @@ func _ready() -> void:
 	var st := UD.node("Store")
 	if st and st.has_signal("changed"):
 		st.connect("changed", _apply_quality)
+	Nav.screen_changed.connect(func(_n: String): _apply_quality())
 	var first := "intro"
 	if I18n.skip_intro:  # reloaded after a language switch: straight back to Home
 		I18n.skip_intro = false
@@ -69,7 +70,8 @@ func _apply_quality() -> void:
 	backdrop.set_stars(hq)
 	var env := ($WorldEnvironment as WorldEnvironment).environment
 	if env:
-		env.glow_enabled = hq
+		# flat v3 menus: bloom only inside matches (pitch / disc art unchanged), never on menu screens
+		env.glow_enabled = hq and Nav.current in ["match", "online_match"]
 
 func _update_safe_area() -> void:
 	var vp := get_viewport_rect().size

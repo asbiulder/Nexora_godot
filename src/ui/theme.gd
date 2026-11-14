@@ -5,48 +5,53 @@ extends RefCounted
 
 const U := 2.6  # RN dp -> px
 
-# ---- colours (RN theme.ts + SPEC) ----
-const BG := Color("#040510")
-const BG2 := Color("#060b22")
-const CYAN := Color("#39d5ff")
-const SKY := Color("#7fc8ff")
-const BLUE := Color("#3b82ff")
-const INDIGO := Color("#6d5bff")
-const VIOLET := Color("#a35bff")
-const PINK := Color("#ff4a7a")
-const ROSE := Color("#ff7bd5")
-const GOLD := Color("#ffd257")
-const ORANGE := Color("#ff8a3a")
-const RED := Color("#ff4a5a")
-const GREEN := Color("#4dff8a")
-const MINT := Color("#3dffa8")
-const TEXT := Color("#eaf4ff")
-const DIM := Color("#8ea3d6")
-const DIM2 := Color("#5f6f9e")
-const LINE := Color(0.55, 0.52, 1.0, 0.30)  # v2: violet-blue glass edge
-const LINE_HI := Color(0.47, 0.86, 1.0, 0.75)
-const PANEL := Color(0.055, 0.05, 0.17, 0.80)  # v2 glass: deep indigo @ .80
-const DARK_TXT := Color("#04122a")
-const VEIL := Color("#02030b")
+# ---- colours: flat v3 (plain dark surfaces, ONE accent colour, rounded cards) ----
+## Every former neon hue (cyan / sky / blue / indigo / violet / pink / rose) maps to the single accent so
+## older screens become one-accent without touching their code; gold / green / red keep their meaning.
+const ACCENT := Color("#4c9aff")
+const SURF := Color("#161b26")
+const SURF2 := Color("#1f2533")
+const BG := Color("#0d1018")
+const BG2 := Color("#111521")
+const CYAN := ACCENT
+const SKY := ACCENT
+const BLUE := ACCENT
+const INDIGO := ACCENT
+const VIOLET := ACCENT
+const PINK := ACCENT
+const ROSE := ACCENT
+const GOLD := Color("#f2c14e")
+const ORANGE := Color("#f59e0b")
+const RED := Color("#ef5350")
+const GREEN := Color("#34c98a")
+const MINT := Color("#34c98a")
+const TEXT := Color("#e8ecf4")
+const DIM := Color("#8d97ab")
+const DIM2 := Color("#5d6779")
+const LINE := Color(1, 1, 1, 0.08)
+const LINE_HI := Color(0.3, 0.6, 1.0, 0.6)
+const PANEL := Color(0.086, 0.106, 0.149, 0.97)
+const DARK_TXT := Color("#0d1018")
+const VEIL := Color("#0b0e15")
 
 # emissive (HDR > 1) accents: picked up by the WorldEnvironment glow in main
-static func hdr(c: Color, k := 1.8) -> Color:
-	return Color(c.r * k, c.g * k, c.b * k, c.a)
+static func hdr(c: Color, _k := 1.8) -> Color:
+	return c  # flat v3: no emissive boost (menu glow is off; matches keep their own art)
 
 static func a(c: Color, alpha: float) -> Color:
 	return Color(c.r, c.g, c.b, alpha)
 
 # ---- gradients (3 stops like RN G.*) ----
 const G := {
-	"primary": [Color("#ff9a66"), Color("#ff4f8b"), Color("#8a3fe0")],  # v2 neon orange -> pink -> violet
-	"blue": [Color("#4fe3ff"), Color("#5b8cff"), Color("#a35bff")],
-	"gold": [Color("#8a5200"), Color("#d39420"), Color("#ffe08a")],
-	"green": [Color("#0a6b4a"), Color("#16b77a"), Color("#5dffbf")],
-	"red": [Color("#5a0f24"), Color("#a3203f"), Color("#ff5b74")],
-	"danger": [Color("#5a0f24"), Color("#a3203f"), Color("#ff5b74")],
-	"dark": [Color("#1a1747"), Color("#24205e"), Color("#33307f")],
-	"ghost": [Color(0.08, 0.12, 0.29, 0.85), Color(0.11, 0.17, 0.39, 0.85), Color(0.16, 0.25, 0.53, 0.85)],
-	"violet": [Color("#3a1d8a"), Color("#6d3bff"), Color("#c08bff")],
+	"primary": [ACCENT, ACCENT, ACCENT],
+	"blue": [ACCENT, ACCENT, ACCENT],
+	"gold": [ACCENT, ACCENT, ACCENT],
+	"green": [GREEN, GREEN, GREEN],
+	"red": [RED, RED, RED],
+	"danger": [RED, RED, RED],
+	"dark": [SURF2, SURF2, SURF2],
+	"ghost": [SURF2, SURF2, SURF2],
+	"violet": [ACCENT, ACCENT, ACCENT],
 }
 
 static func grad(style: String) -> Array:
@@ -54,8 +59,8 @@ static func grad(style: String) -> Array:
 
 # ---- fonts ----
 const FONT_PATHS := {
-	"title": "res://assets/fonts/Orbitron_900Black.ttf",
-	"head": "res://assets/fonts/Orbitron_700Bold.ttf",
+	"title": "res://assets/fonts/Exo2_800ExtraBold.ttf",
+	"head": "res://assets/fonts/Exo2_700Bold.ttf",
 	"body": "res://assets/fonts/Exo2_700Bold.ttf",
 	"medium": "res://assets/fonts/Exo2_500Medium.ttf",
 	"bold": "res://assets/fonts/Exo2_800ExtraBold.ttf",
@@ -162,9 +167,8 @@ static func box(bg: Color, radius := 44, border := 0.0, border_col := Color.TRAN
 	sb.corner_detail = 10
 	return sb
 
-static func glass_box(accent := Color.TRANSPARENT, glow := false) -> StyleBoxFlat:
-	var bc := LINE if accent.a == 0 else Color(accent.r, accent.g, accent.b, 0.42)
-	var sb := box(PANEL, RADIUS, 3, bc, 26 if glow else 14, Color(accent.r, accent.g, accent.b, 0.35) if glow else Color(0, 0, 0, 0.45))
+static func glass_box(_accent := Color.TRANSPARENT, _glow := false) -> StyleBoxFlat:
+	var sb := box(PANEL, 36, 2, LINE)  # flat v3: plain card, no glow / shadow / accent edge
 	sb.content_margin_left = 30
 	sb.content_margin_right = 30
 	sb.content_margin_top = 28

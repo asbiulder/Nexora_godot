@@ -25,14 +25,4 @@ func set_pad(h: float, v := -1.0) -> NxGlass:
 	sb.content_margin_bottom = v if v >= 0 else h
 	return self
 
-func _draw() -> void:
-	var w := size.x
-	var h := size.y
-	# top sheen
-	var top := 4.0
-	var hh: float = h * 0.42
-	var pts := PackedVector2Array([Vector2(18, top), Vector2(w - 18, top), Vector2(w - 6, hh), Vector2(6, hh)])
-	var cols := PackedColorArray([Color(1, 1, 1, 0.075), Color(1, 1, 1, 0.075), Color(1, 1, 1, 0), Color(1, 1, 1, 0)])
-	draw_polygon(pts, cols)
-	if accent.a > 0:
-		draw_line(Vector2(72, 2), Vector2(w - 72, 2), NX.hdr(accent, 1.6), 4.0, true)
+## flat v3: no sheen / accent line; the stylebox alone draws the card

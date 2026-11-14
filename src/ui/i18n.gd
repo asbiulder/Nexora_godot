@@ -14,7 +14,7 @@ extends RefCounted
 ## Language: Store profile key "lang" ("fa" | "en"), default "fa". I18n.set_lang() switches the
 ## locale, layout direction (RTL/LTR) and reloads the UI.
 
-const TABLES := ["res://assets/i18n/ui.csv", "res://assets/i18n/game_hud.csv", "res://assets/i18n/menu_v2.csv"]
+const TABLES := ["res://assets/i18n/ui.csv", "res://assets/i18n/game_hud.csv", "res://assets/i18n/menu_v2.csv", "res://assets/i18n/menu_v3.csv"]
 const LANGS := ["fa", "en"]
 
 static var lang := "fa"

@@ -36,7 +36,9 @@ func _cell_w() -> float:
 	return (size.x - 16.0) / max(1, items.size())
 
 func _cell_x(i: int) -> float:
-	# RTL: item 0 sits at the right edge
+	# item 0 sits at the reading start: right edge in Persian (RTL), left edge in English
+	if I18n.is_en():
+		return 8.0 + _cell_w() * i
 	return size.x - 8.0 - _cell_w() * (i + 1)
 
 func _layout() -> void:
@@ -52,7 +54,7 @@ func _layout() -> void:
 	queue_redraw()
 
 func _draw() -> void:
-	draw_style_box(NX.box(Color(0.024, 0.04, 0.118, 0.8), int(size.y * 0.5), 3, NX.LINE), Rect2(Vector2.ZERO, size))
+	draw_style_box(NX.box(NX.SURF, int(size.y * 0.5), 2, NX.LINE), Rect2(Vector2.ZERO, size))
 
 func _gui_input(ev: InputEvent) -> void:
 	if ev is InputEventMouseButton and ev.button_index == MOUSE_BUTTON_LEFT and not ev.pressed:

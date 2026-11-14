@@ -124,6 +124,18 @@ func setup(engine: NxEngine, opts := {}) -> void:
 	if opts.has("size"):
 		fit(opts.size, float(opts.get("top_margin", 0.0)), float(opts.get("bottom_margin", 0.0)))
 
+## swap the ball skin and/or one side's disc skin mid-match (visual only: physics, stats and the pitch are untouched).
+## ball < 0 keeps the ball; team_id == "" keeps that side.
+func set_skin(ball: int = -1, side: int = 0, team_id: String = "") -> void:
+	if ball >= 0 and ball != ball_idx:
+		ball_idx = ball
+		tex_ball = mip(D.ball_tex(ball_idx))
+		var tc: Array = D.TRAILS[ball_idx % D.TRAILS.size()].c
+		_trail_cols = [Color(tc[0]), Color(tc[1] if tc.size() > 1 else tc[0]), Color(tc[2] if tc.size() > 2 else "#ffffff")]
+	if team_id != "" and side >= 0 and side < 2 and team_id != team_ids[side]:
+		team_ids[side] = team_id
+		tex_team[side] = mip(D.team_tex(team_id))
+
 func set_engine(engine: NxEngine) -> void:
 	e = engine
 

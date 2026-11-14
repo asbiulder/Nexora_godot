@@ -11,6 +11,7 @@ extends Control
 ##   h.pause_pressed.connect(...)
 
 signal pause_pressed
+signal loadout_pressed
 
 const TEAM := [Color("#39d5ff"), Color("#ff4a5a")]
 const TEAM2 := [Color("#3b6bff"), Color("#ff8a3a")]
@@ -37,6 +38,7 @@ var clock_l: Label
 var name_l: Array = [null, null]
 var chip_l: Array = [null, null]
 var pause_btn: Control
+var loadout_btn: Control
 
 static func t(key: String, fa: String) -> String:
 	var s := TranslationServer.translate(key)
@@ -84,6 +86,11 @@ func _build() -> void:
 	pause_btn = _PauseBtn.new()
 	pause_btn.pressed.connect(func(): pause_pressed.emit())
 	add_child(pause_btn)
+	# small loadout button (formation / ball / disc) right under the pause button
+	loadout_btn = _PauseBtn.new()
+	loadout_btn.icon = "sliders"
+	loadout_btn.pressed.connect(func(): loadout_pressed.emit())
+	add_child(loadout_btn)
 	resized.connect(_layout)
 	_layout()
 
@@ -133,6 +140,10 @@ func _layout() -> void:
 	_pb = Rect2(0, (h * 0.86 - pd) * 0.5, pd, pd)
 	pause_btn.position = _pb.position
 	pause_btn.size = _pb.size
+	if loadout_btn:
+		var ls := pd * 0.78
+		loadout_btn.size = Vector2(ls, ls)
+		loadout_btn.position = Vector2(_pb.position.x + (pd - ls) * 0.5, _pb.end.y + h * 0.12)
 	var x0 := pd + h * 0.14
 	var bw := w - x0
 	var pw := clampf(bw * 0.27, h * 1.6, h * 2.6)
@@ -316,6 +327,7 @@ static func _offset(p: PackedVector2Array, o: Vector2) -> PackedVector2Array:
 class _PauseBtn extends Control:
 	signal pressed
 	var _down := false
+	var icon := "pause"
 	func _init() -> void:
 		mouse_filter = Control.MOUSE_FILTER_STOP
 		tooltip_text = ""
@@ -343,6 +355,13 @@ class _PauseBtn extends Control:
 		draw_polygon(pts, cols)
 		draw_circle(c, r * 0.86, Color("#0b1233"))
 		draw_arc(c, r * 0.86, PI * 1.05, PI * 1.75, 20, Color(1, 1, 1, 0.22), r * 0.08, true)
+		if icon == "sliders":
+			var col := Color(0.92, 0.96, 1.0) if not _down else NX.CYAN
+			for i in 3:
+				var y := c.y + (i - 1) * r * 0.36
+				draw_line(Vector2(c.x - r * 0.46, y), Vector2(c.x + r * 0.46, y), col, maxf(2.0, r * 0.08), true)
+				draw_circle(Vector2(c.x + [-0.2, 0.22, -0.02][i] * r, y), r * 0.11, col, true, -1.0, true)
+			return
 		var bw := r * 0.17
 		var bh := r * 0.78
 		for sx in [-1.0, 1.0]:

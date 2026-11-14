@@ -105,15 +105,31 @@ static func close_button(cb: Callable, d := 96.0) -> Control:
 	NxTap.attach(c, cb, 0.88)
 	return c
 
+## round back button (screens): same size, look and corner (top-left) as the popup close button
+static func back_button(cb: Callable, d := 96.0) -> Control:
+	var c := CloseX.new()
+	c.arrow = true
+	c.custom_minimum_size = Vector2(d, d)
+	c.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	c.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	NxTap.attach(c, cb, 0.88)
+	return c
+
 class CloseX extends Control:
+	var arrow := false   # true: back chevron (screens), false: X (popups)
 	func _draw() -> void:
 		var c := size * 0.5
 		var r := minf(size.x, size.y) * 0.5 - 2
-		draw_circle(c, r, Color(0.06, 0.05, 0.18, 0.92), true, -1.0, true)
-		draw_arc(c, r - 1, 0, TAU, 48, Color(0.56, 0.5, 1.0, 0.5), 3.0, true)
-		var k := r * 0.34
-		draw_line(c + Vector2(-k, -k), c + Vector2(k, k), Color(1, 0.86, 0.92), 5.0, true)
-		draw_line(c + Vector2(k, -k), c + Vector2(-k, k), Color(1, 0.86, 0.92), 5.0, true)
+		draw_circle(c, r, NX.SURF2, true, -1.0, true)
+		draw_arc(c, r - 1, 0, TAU, 48, Color(1, 1, 1, 0.12), 2.0, true)
+		var k := r * 0.32
+		var w := maxf(3.0, r * 0.09)
+		if arrow:
+			# always points left: the button lives top-left in both languages
+			draw_polyline(PackedVector2Array([c + Vector2(k * 0.45, -k), c + Vector2(-k * 0.55, 0), c + Vector2(k * 0.45, k)]), NX.TEXT, w, true)
+		else:
+			draw_line(c + Vector2(-k, -k), c + Vector2(k, k), NX.TEXT, w, true)
+			draw_line(c + Vector2(k, -k), c + Vector2(-k, k), NX.TEXT, w, true)
 
 static func badge_dot(v = true) -> Control:
 	var hold := Control.new()

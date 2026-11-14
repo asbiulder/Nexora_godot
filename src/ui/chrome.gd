@@ -40,6 +40,7 @@ var gift_art: TextureRect
 var gift_badge: Control
 var _gift_tw: Tween
 var _last_sig := ""
+var back_btn: Control
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -61,8 +62,8 @@ func _ready() -> void:
 	_layout()
 	refresh()
 
-static func glass_sb(r: int, border := Color(0.56, 0.5, 1.0, 0.34), bg := Color(0.06, 0.05, 0.18, 0.86)) -> StyleBoxFlat:
-	return NX.box(bg, r, 3, border, 16, Color(0.02, 0.0, 0.08, 0.5))
+static func glass_sb(r: int, _border := Color(0.56, 0.5, 1.0, 0.34), _bg := Color(0.06, 0.05, 0.18, 0.86)) -> StyleBoxFlat:
+	return NX.box(NX.SURF2, r, 2, NX.LINE)  # flat v3
 
 # ------------------------------------------------------------------ HUD
 func _build_hud() -> void:
@@ -74,7 +75,7 @@ func _build_hud() -> void:
 	hud_bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	hud_bg.stretch_mode = TextureRect.STRETCH_SCALE
 	var g := Gradient.new()
-	g.colors = PackedColorArray([Color(0.02, 0.01, 0.06, 0.9), Color(0.02, 0.01, 0.06, 0.5), Color(0.02, 0.01, 0.06, 0)])
+	g.colors = PackedColorArray([Color(NX.BG, 0.96), Color(NX.BG, 0.85), Color(NX.BG, 0)])
 	g.offsets = PackedFloat32Array([0, 0.55, 1])
 	var gt := GradientTexture2D.new()
 	gt.gradient = g
@@ -91,8 +92,12 @@ func _build_hud() -> void:
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud.add_child(row)
 
-	# profile: avatar ring (level badge) + name/XP pill
+	# v3: back button, top-left — chrome only shows on inner screens now (the online home has its own header)
+	back_btn = Kit.back_button(func(): Nav.back(), 96)
+	row.add_child(back_btn)
+	# profile: avatar ring (level badge) + name/XP pill (hidden in v3: lives in the home drawers)
 	var me := Control.new()
+	me.visible = false
 	me.custom_minimum_size = Vector2(330, 120)
 	me.mouse_filter = Control.MOUSE_FILTER_PASS
 	var pill := Panel.new()
@@ -158,7 +163,10 @@ func _build_hud() -> void:
 	gift_badge = NxNeon.dot(Vector2(62, -2))
 	gift.add_child(gift_badge)
 	row.add_child(gift)
-	row.add_child(_round(UD.art("h_gear"), func(): Nav.go("settings")))
+	gift.visible = false   # v3: daily reward + settings live in the home drawers
+	var gear := _round(UD.art("h_gear"), func(): Nav.go("settings"))
+	gear.visible = false
+	row.add_child(gear)
 
 func _pill(icon: Texture2D) -> Control:
 	var p := PanelContainer.new()
@@ -209,6 +217,7 @@ func _round(icon: Texture2D, cb: Callable) -> Control:
 # ------------------------------------------------------------------ tab bar
 func _build_tabbar() -> void:
 	tabbar = Control.new()
+	tabbar.visible = false   # v3: no bottom tab bar (duplicate entry points); categories live in home drawers
 	tabbar.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(tabbar)
 	bar_bg = Panel.new()
@@ -356,8 +365,8 @@ func _style_tabs(animate: bool) -> void:
 func show_hud(v: bool) -> void:
 	hud.visible = v
 
-func show_tabs(v: bool) -> void:
-	tabbar.visible = v
+func show_tabs(_v: bool) -> void:
+	tabbar.visible = false
 
 # ------------------------------------------------------------------ data refresh
 func refresh() -> void:
