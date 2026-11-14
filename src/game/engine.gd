@@ -51,14 +51,16 @@ const SPIN_VIS := 0.25
 # Every body is treated like a pool ball on cloth: straight lines, constant rolling friction (linear speed decay),
 # near-elastic equal-mass collisions (centered hit stops the striker, cut shots split ~90°), cushions that mirror
 # the angle (in = out) and keep 85% of the speed. Continuous collision (time-of-impact rewind) + adaptive substeps.
-const PM := 6.0             # disc mass (was 1.0). User, Nov 14 2026: discs AND ball should feel ~2x heavier, discs
-const BM := 2.0             # ball mass (was 1.0).  heavier than the ball -> disc:ball = 3:1 (mass-weighted impulses;
-                            # disc-disc stays equal mass). Only the ratio changes motion; the absolute doubling is the
-                            # user's "2x heavier" request, the extra heaviness feel comes from the soft-contact/settle terms.
+const PM := 36.0            # disc mass — foosball-style: discs are heavy/rigid, the ball is light.
+                            # 18:1 vs the ball means a disc barely moves when it touches the ball
+                            # (≈9% speed change) while the ball flies off with ≈1.6x the disc speed.
+const BM := 2.0             # ball mass (light, billiard-like)
+const DISC_DISC_K := 0.45   # fraction of the disc-disc impulse actually applied: discs shove each
+                            # other a little (foosball figures) instead of bouncing like billiard balls
 const SHOT_MAX := 1900.0    # disc launch speed at full drag (LMAX); scales LINEARLY with drag length
 const DISC_VMAX := 2000.0   # max launch speed (power stats / VIP can push a shot up to here)
-const V_SAFE := 3300.0      # numerical safety clamp only: a heavy disc (3x) at DISC_VMAX can launch the ball to
-                            # (1+e)*PM/(PM+BM) = 1.275x its speed = ~2550 px/s (V_SAFE leaves margin), so the clamp sits above that
+const V_SAFE := 4200.0      # numerical safety clamp: heavy disc (18x) at DISC_VMAX can launch the ball to
+                            # ≈1.61x its speed ≈ 3220 px/s; margin above that
 const FRICTION := 360.0     # rolling (cloth) friction: constant deceleration in px/s^2, same for discs and ball
 const V_STOP := 6.0         # a body whose speed would drop below this stops (was 2.0; heavier, cleaner stop)
 const V_SETTLE := 80.0      # below this speed friction is doubled so bodies settle instead of creeping/jiggling
@@ -515,6 +517,9 @@ func _hit8(a: NxBody, b: NxBody, h: float) -> void:
 			var e_full := E_DISC_BALL if isB else E_BODY
 			var ee := e_full if -vn >= V_SOFT else lerpf(minf(E_SOFT, e_full), e_full, -vn / V_SOFT)
 			var j := -(1.0 + ee) * vn / sm
+			if not isB:
+				# foosball: discs are rigid figures, disc-disc hits only nudge each other
+				j *= DISC_DISC_K
 			a.vx -= j * nx * a.im; a.vy -= j * ny * a.im; b.vx += j * nx * b.im; b.vy += j * ny * b.im
 			_cap(a); _cap(b)
 		a.x += a.vx * s; a.y += a.vy * s; b.x += b.vx * s; b.y += b.vy * s
