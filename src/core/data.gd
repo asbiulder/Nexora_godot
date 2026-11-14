@@ -357,11 +357,38 @@ static func disc_stats(id: String) -> Dictionary:
 	if disc_catalog.has(id):
 		var d: Dictionary = disc_catalog[id]
 		return {"power": float(d.get("power", 5)), "accuracy": float(d.get("accuracy", 5))}
+	if id == "":
+		return {"power": 5.0, "accuracy": 5.0}
+	# offline / unloaded catalog: deterministic per-category spread so every disc
+	# really feels different (club 4-6 … legendary 9-10); matches the UI stat bars.
 	var cat := ""
-	if _team_idx.has(id): cat = TEAMS[_team_idx[id]].cat
-	var base := 8.0 if (cat == "leg" or cat == "vip") else (5.0 if (cat == "club" or cat == "nat") else 6.0)
-	if id == "": base = 5.0
-	return {"power": base, "accuracy": base}
+	var idx := 0
+	if _team_idx.has(id):
+		var t: Dictionary = TEAMS[_team_idx[id]]
+		cat = String(t.cat)
+		idx = int(t.idx)
+	var p := 5.0
+	var a := 5.0
+	match cat:
+		"club":
+			p = 4.0 + (idx % 3); a = 4.0 + ((idx * 7) % 3)
+		"nat":
+			p = 5.0 + (idx % 3); a = 5.0 + ((idx * 5) % 3)
+		"elite":
+			p = 6.0 + (idx % 3); a = 6.0 + ((idx * 3) % 3)
+		"spt", "gal":
+			p = 6.0 + (idx % 2); a = 6.0 + ((idx * 4) % 3)
+		"car":
+			p = 7.0 + (idx % 2); a = 5.0 + ((idx * 6) % 3)
+		"lux", "emb":
+			p = 6.0 + (idx % 3); a = 6.0 + ((idx * 7) % 3)
+		"chrome":
+			p = 7.0 + (idx % 2); a = 6.0 + ((idx * 8) % 2)
+		"vip":
+			p = 8.0 + (idx % 2); a = 7.0 + ((idx * 5) % 2)
+		"leg":
+			p = 9.0 + (idx % 2); a = 8.0 + ((idx * 5) % 2)
+	return {"power": p, "accuracy": a}
 
 static func opp_pool() -> Array:
 	var o: Array = []

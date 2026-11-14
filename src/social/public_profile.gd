@@ -10,6 +10,8 @@ var p: Dictionary = {}
 var stats: Dictionary = {}
 var club: Dictionary = {}
 var following := false
+var liked := false
+var likes_n := 0
 var blocked := false
 var busy := false
 var body: VBoxContainer
@@ -57,9 +59,14 @@ func _load() -> void:
 	var s: Dictionary = await OUI.get_rows("profile_stats?select=*&id=eq." + id)
 	var f: Dictionary = {}
 	var b: Dictionary = {}
+	var lk: Dictionary = {}
+	var lk_n := 0
 	if u != "":
 		f = await OUI.get_rows("follows?select=followee&follower=eq.%s&followee=eq.%s" % [u, id])
 		b = await OUI.get_rows("user_blocks?select=blocked&blocker=eq.%s&blocked=eq.%s" % [u, id])
+		lk = await OUI.get_rows("profile_likes?select=liked&liker=eq.%s&liked=eq.%s" % [u, id])
+	var ls: Dictionary = await OUI.get_rows("profile_like_stats?select=likes&id=eq." + id)
+	lk_n = OUI.i(OUI.d(OUI.one(ls)).get("likes")) if OUI.one(ls) != null else 0
 	var c: Dictionary = {}
 	if OUI.s(p.get("club_id")) != "":
 		c = await OUI.get_rows("clubs?select=id,name,tag,emblem&id=eq." + OUI.s(p.get("club_id")))
@@ -68,6 +75,8 @@ func _load() -> void:
 		return
 	stats = OUI.d(OUI.one(s))
 	following = OUI.one(f) != null
+	liked = OUI.one(lk) != null
+	likes_n = lk_n
 	blocked = OUI.one(b) != null
 	club = OUI.d(OUI.one(c))
 	_render()
@@ -127,9 +136,13 @@ func _render() -> void:
 		var fb := OUI.btn(I18n.t("public_profile.following") if following else I18n.t("public_profile.follow"), _toggle_follow, "dark" if following else "primary", true)
 		fb.disabled = busy
 		fb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var lb := OUI.btn(("❤️ " + OUI.fa(likes_n)) + (" " + I18n.t("public_profile.liked") if liked else ""), _toggle_like, "red" if liked else "dark", true)
+		lb.disabled = busy
+		lb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		var mb := OUI.btn(I18n.t("kb.message"), _message, "green", true)
 		mb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		ah.add_child(fb)
+		ah.add_child(lb)
 		ah.add_child(mb)
 		hv.add_child(ah)
 	hp.add_child(hv)
@@ -200,6 +213,31 @@ func _toggle_follow() -> void:
 	following = not following
 	OUI.buzz("medium")
 	if following:
+		OUI.sfx("ready")
+	_render()
+
+
+func _toggle_like() -> void:
+	var u := OUI.uid()
+	if u == "" or busy:
+		return
+	busy = true
+	var r: Dictionary
+	if liked:
+		r = await OUI.del("profile_likes?liker=eq.%s&liked=eq.%s" % [u, id])
+	else:
+		r = await OUI.post("profile_likes", {"liker": u, "liked": id})
+	busy = false
+	if not is_inside_tree():
+		return
+	if not OUI.ok(r):
+		OUI.toast_err(OUI.err(r))
+		_render()
+		return
+	likes_n = maxi(0, likes_n + (-1 if liked else 1))
+	liked = not liked
+	OUI.buzz("light")
+	if liked:
 		OUI.sfx("ready")
 	_render()
 

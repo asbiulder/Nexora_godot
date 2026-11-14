@@ -1371,6 +1371,10 @@ static func disc_stats(id: Variant) -> Dictionary:
 	if dz != null:
 		var st: Dictionary = dz.stats(k)
 		return {"power": i(st.get("power"), 5), "accuracy": i(st.get("accuracy"), 5)}
+	# same offline fallback as Data.disc_stats so UI bars match real shot power
+	var d: Variant = Data.disc_stats(k)
+	if d is Dictionary and d.has("power"):
+		return {"power": i(d.get("power"), 5), "accuracy": i(d.get("accuracy"), 5)}
 	return {"power": 5, "accuracy": 5}
 
 

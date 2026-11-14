@@ -105,31 +105,31 @@ func _fill() -> void:
 	sh.tween_interval(0.9)
 	body.add_child(ent(Kit.center(play), 0))
 
-	# ---------------- five glass tiles
-	var tiles := Kit.hbox(16, true)
+	# ---------------- main menu categories (clear, logical grouping — matches the hub drawers)
+	var tiles := Kit.hbox(14, true)
 	var tdef := [
-		["t_trophy", I18n.t("v2.achievements"), func(): Nav.go("profile"), false],
-		["t_friends", I18n.t("v2.friends"), func(): Nav.go("social"), false],
-		["t_games", I18n.t("v2.games"), func(): Nav.go("play"), false],
-		["t_shop", I18n.t("v2.shop"), func(): Nav.go("shop"), UD.chest_ready()],
-		["t_events", I18n.t("v2.events"), func(): Nav.online("tournaments"), false],
+		["🎮", I18n.t("m3.cat_play"), func(): Nav.go("play"), NX.CYAN],
+		["🌐", I18n.t("m3.cat_online"), func(): Nav.online("hub"), NX.GREEN],
+		["🛒", I18n.t("m3.cat_team"), func(): Nav.go("team"), NX.GOLD],
+		["🏆", I18n.t("hub.leaderboard"), func(): Nav.online("ranks"), NX.VIOLET],
+		["⚙️", I18n.t("m3.cat_settings"), func(): Nav.go("settings"), NX.PINK],
 	]
 	for i in tdef.size():
 		var td: Array = tdef[i]
-		var c := NxNeon.new(36, 10, Color("#39d5ff"), Color("#ff4f8b"))
+		var c := NxNeon.new(36, 10, td[3], Color("#ff4f8b"))
 		c.custom_minimum_size = Vector2(0, 196)
 		c.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		var v := Kit.vbox(10)
 		v.alignment = BoxContainer.ALIGNMENT_CENTER
-		v.add_child(Kit.center(Kit.img(UD.art(td[0]), 78)))
-		var l := Kit.label(td[1], 22 if I18n.is_en() else 25, NX.TEXT, true)
+		var ic := Kit.label(str(td[0]), 54, NX.TEXT, true)
+		ic.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		v.add_child(ic)
+		var l := Kit.label(td[1], 22 if I18n.is_en() else 26, NX.TEXT, true)
 		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		l.clip_text = true
 		l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 		v.add_child(l)
 		c.add_child(v)
-		if td[3]:
-			c.add_child(NxNeon.dot(Vector2(10, 4)))
 		var cc := c
 		cc.resized.connect(func(): cc.pivot_offset = cc.size * 0.5)
 		Kit.tap(cc, td[2], 0.93)

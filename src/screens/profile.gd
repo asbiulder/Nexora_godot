@@ -137,7 +137,7 @@ func _fill() -> void:
 	var rows := Kit.vbox(0)
 	rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var gd := int(p.get("goalsFor", 0)) - int(p.get("goalsAgainst", 0))
-	for r in [[I18n.t("profile.best_win_streak"), NX.fa(int(p.get("bestStreak", 0)))], [I18n.t("profile.current_win_streak"), NX.fa(int(p.get("winStreak", 0)))], [I18n.t("profile.goal_difference"), ("+" if gd >= 0 else "") + NX.fa(gd)], [I18n.t("profile.discs_unlocked"), NX.fa((p.get("ownedTeams", []) as Array).size())]]:
+	for r in [[I18n.t("profile.best_win_streak"), NX.fa(int(p.get("bestStreak", 0)))], [I18n.t("profile.current_win_streak"), NX.fa(int(p.get("winStreak", 0)))], [I18n.t("profile.goal_difference"), ("+" if gd >= 0 else "") + NX.fa(gd)], [I18n.t("profile.discs_unlocked"), NX.fa(UD.teams().size())]]:
 		var row := Kit.hbox(10, true)
 		row.custom_minimum_size.y = 74
 		row.add_child(Kit.label(r[0], 31, NX.DIM))

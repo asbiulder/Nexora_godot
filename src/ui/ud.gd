@@ -429,46 +429,27 @@ static func disc_stats(id: String) -> Dictionary:
 		var r = dz.stats(id)
 		if r is Dictionary and r.has("power"):
 			return r
+	# same fallback as Data.disc_stats (single source of truth offline)
+	if has("Data", "disc_stats"):
+		var d = node("Data").disc_stats(id)
+		if d is Dictionary and d.has("power"):
+			return d
 	var t := team_by_id(id)
 	var base := 8 if t["cat"] in ["leg", "vip"] else (5 if t["cat"] in ["club", "nat"] else 6)
 	return {"power": base, "accuracy": base}
 
 static func is_free_disc(id: String) -> bool:
-	var dz := discs()
-	if dz and dz.has_method("is_free"):
-		return bool(dz.is_free(id))
-	var re := RegEx.create_from_string("^(club|nat)\\d+$")
-	return re.search(id) != null or id == "elite0"
+	return true
 
 static func disc_owned(id: String) -> bool:
-	if is_free_disc(id):
-		return true
-	var dz := discs()
-	if dz and dz.has_method("has"):
-		return bool(dz.has(id))
-	return id in (p().get("ownedTeams", []) as Array)
+	return true
 
 static func disc_price(id: String) -> int:
-	var dz := discs()
-	if dz and dz.has_method("price"):
-		return int(dz.price(id))
-	return 0 if is_free_disc(id) else team_price(team_by_id(id))
+	return 0
 
 ## gem-priced, not-owned discs from the online catalog: Array of {id,name,price_gems,power,accuracy}
 static func gem_discs() -> Array:
-	var dz := discs()
-	if dz == null:
-		return []
-	var cat = dz.get("catalog")
-	if not cat is Dictionary:
-		return []
-	var o := []
-	for k in cat:
-		var d = cat[k]
-		if d is Dictionary and int(d.get("price_gems", 0)) > 0 and not disc_owned(str(k)):
-			o.append(d)
-	o.sort_custom(func(x, y): return int(x["price_gems"]) < int(y["price_gems"]))
-	return o
+	return []
 
 ## NET disc catalog node (Supa.discs, src/net/discs.gd) or null
 static func discs() -> Object:

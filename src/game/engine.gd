@@ -106,7 +106,7 @@ class Particle:
 	var k: int
 	var g: float
 
-static func power_mul(p: float) -> float: return 0.75 + (minf(10, maxf(1, p)) - 1) / 9.0 * 0.5
+static func power_mul(p: float) -> float: return 0.72 + (minf(10, maxf(1, p)) - 1) / 9.0 * 0.72
 static func aim_dev_deg(a: float) -> float: return (10 - minf(10, maxf(1, a))) / 9.0 * 4.0
 static func aim_preview(a: float) -> float: return 0.45 + (minf(10, maxf(1, a)) - 1) / 9.0 * 0.75
 
@@ -279,8 +279,9 @@ func fire(b: NxBody, dx: float, dy: float, l: float, human := false) -> void:
 	if not v4: v = minf(v, DISC_VMAX)
 	var ux := dx / l
 	var uy := dy / l
-	# nx8: the shot goes exactly along the aim arrow (no random deviation); v4 reference keeps its scatter
-	if v4 and human and c_stats != null:
+	# shot aim: human shots follow the aim arrow with a spread that depends on the
+	# disc's accuracy stat (1★ ≈ ±4° … 10★ ≈ ±0°); AI stays perfectly mechanical.
+	if human and c_stats != null:
 		var dev := aim_dev_deg(float(stats_of(team).accuracy)) * PI / 180.0
 		if dev > 0:
 			var a := atan2(uy, ux) + (rng.randf() + rng.randf() - 1) * dev

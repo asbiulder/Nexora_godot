@@ -541,11 +541,10 @@ func _preset_picker() -> void:
 	var grid := HFlowContainer.new()
 	grid.add_theme_constant_override("h_separation", OUI.px(8))
 	grid.add_theme_constant_override("v_separation", OUI.px(8))
+	# all discs are free now: show the whole catalog as avatar choices
 	var keys: Array = []
-	for k in 24:
-		keys.append("club%d" % k)
-	for k in 24:
-		keys.append("nat%d" % k)
+	for t in UD.teams():
+		keys.append(UD.team_key(t))
 	for key in keys:
 		var kk: String = key
 		var pc := PanelContainer.new()

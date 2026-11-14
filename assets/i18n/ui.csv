@@ -525,6 +525,9 @@ public_profile.followers,دنبال‌کننده,Followers
 public_profile.following,دنبال می‌کنی ✓,Following ✓
 public_profile.following_2,دنبال‌شده,Following
 public_profile.last_seen_x_ago,آخرین بازدید %s پیش,Last seen %s ago
+public_profile.like,لایک,Like
+public_profile.liked,لایک شده ✓,Liked ✓
+public_profile.likes,لایک,Likes
 public_profile.player_not_found,بازیکن پیدا نشد,Player not found
 public_profile.profile,پروفایل,Profile
 public_profile.trophies,جام,Trophies
