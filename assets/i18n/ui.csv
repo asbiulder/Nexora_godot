@@ -274,6 +274,7 @@ hub.couldn_t_connect_to_the,اتصال به سرور برقرار نشد,Couldn'
 hub.create_a_room_and_invite,یک اتاق بساز و دوستانت را با کد دعوت کن,Create a room and invite friends with the code
 hub.create_room,ساخت اتاق,Create room
 hub.creating,در حال ساخت…,Creating…
+hub.enter,ورود به بخش آنلاین,Enter online
 hub.e_g_galactic_final,مثلاً: فینال کهکشانی,e.g. Galactic Final
 hub.field,زمین,Field
 hub.find_the_closest_level_online,هم‌سطح‌ترین حریف آنلاین را پیدا کن,Find the closest-level online opponent
@@ -755,3 +756,5 @@ ui_bits.mic_on,میکروفون روشن,Mic on
 ui_bits.no_messages_yet_say_hi,هنوز پیامی نیست؛ سلام کن!,No messages yet — say hi!
 ui_bits.voice_chat_is_off_for,چت صوتی برای این اتاق خاموش است,Voice chat is off for this room
 ui_bits.voice_chat_only_works_in,چت صوتی فقط در نسخه‌ی اندروید فعال است,Voice chat only works in the Android app
+ui_bits.voice_chat_on,چت صوتی روشن است,Voice chat is on
+ui_bits.leave_voice,قطع چت صوتی,Leave voice chat

@@ -576,13 +576,18 @@ func _open_chat() -> void:
 func _open_settings() -> void:
 	var room := _room()
 	var settings := OUI.d(room.get("settings"))
-	var st := {"rule": OUI.settings_to_rule(settings), "turn": OUI.i(settings.get("turn"), 15) if settings.get("turn") != null else 15, "field": OUI.i(settings.get("field"))}
+	var st := {"rule": OUI.settings_to_rule(settings), "turn": OUI.i(settings.get("turn"), 15) if settings.get("turn") != null else 15, "field": OUI.i(settings.get("field")), "mode": OUI.s(room.get("mode"), "1v1")}
 	var sc := OUI.scroll()
 	var v := OUI.vbox(OUI.S_XS)
 	sc.add_child(OUI.margin(v, OUI.S_L, 0, OUI.S_L, OUI.S_XL))
 	var nf := OUI.field(I18n.t("hub.room_name"), "", 40)
 	(nf.get_meta("input") as LineEdit).text = OUI.s(room.get("name"))
 	v.add_child(nf)
+	v.add_child(OUI.cap_label(I18n.t("hub.mode")))
+	var mi: Array = []
+	for m in OUI.MODES:
+		mi.append([m, OUI.MODE_FA[m]])
+	v.add_child(OUI.segment(mi, st["mode"], func(x: Variant) -> void: st["mode"] = str(x), OUI.SKY))
 	v.add_child(OUI.cap_label(I18n.t("lobby.match_rule")))
 	v.add_child(OUI.segment(OUI.RULES, st["rule"], func(x: Variant) -> void: st["rule"] = x, OUI.VIOLET))
 	v.add_child(OUI.cap_label(I18n.t("hub.turn_time")))
@@ -598,7 +603,7 @@ func _open_settings() -> void:
 		ns.merge(OUI.rule_to_settings(str(st["rule"])), true)
 		ns["turn"] = st["turn"]
 		ns["field"] = st["field"]
-		var r: Dictionary = await Supa.call_rpc("update_room", {"p_room": _rid(), "p_settings": ns, "p_name": OUI.field_value(nf).strip_edges().substr(0, 40)})
+		var r: Dictionary = await Supa.call_rpc("update_room", {"p_room": _rid(), "p_settings": ns, "p_name": OUI.field_value(nf).strip_edges().substr(0, 40), "p_mode": st["mode"]})
 		if OUI.ok(r):
 			link.ping()
 			await link.refresh()

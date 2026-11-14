@@ -331,6 +331,8 @@ class ChatPanel extends VBoxContainer:
 	var _in: LineEdit
 	var _shown := 0
 	var _me := ""
+	var _mic: Button
+	var _voice_row: Control
 	func _init(l: Variant = null, cmp := false) -> void:
 		link = l
 		compact = cmp
@@ -343,14 +345,21 @@ class ChatPanel extends VBoxContainer:
 		_list = OUI.vbox(2)
 		_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		_sc.add_child(OUI.margin(_list, 8, 8, 8, 8))
+		# voice status strip (separate from text messages)
+		_voice_row = OUI.vbox(0)
+		_voice_row.visible = false
+		add_child(_voice_row)
+		# input row: mic + small text field + send (simple, compact)
 		var row := OUI.hbox(8)
 		row.layout_direction = Control.LAYOUT_DIRECTION_LTR
-		var send := OUI.pill("➤", _send, OUI.CYAN, 44, 44)
-		row.add_child(send)
+		_mic = OUI.pill("🎙", _toggle_voice, OUI.CYAN, 44, 44)
+		row.add_child(_mic)
 		_in = OUI.line_edit(I18n.t("ui_bits.message"), 200, false, false, 44)
 		_in.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		_in.text_submitted.connect(func(_t: String) -> void: _send())
 		row.add_child(_in)
+		var send := OUI.pill("➤", _send, OUI.CYAN, 44, 44)
+		row.add_child(send)
 		add_child(OUI.margin(row, 8, 8, 8, 8))
 		if link != null:
 			_me = str(link.me)
@@ -358,10 +367,59 @@ class ChatPanel extends VBoxContainer:
 			link.mark_read()
 			if link.has_signal("changed"):
 				link.changed.connect(_sync)
+			Voice.state_changed.connect(_on_voice)
+			_on_voice()
 		_sync()
 	func _exit_tree() -> void:
 		if link != null:
 			link.chat_open = false
+		Voice.state_changed.disconnect(_on_voice)
+	# ---- separate voice controls (join/leave the room's voice chat from the chat panel)
+	func _room_id() -> String:
+		if link == null:
+			return ""
+		var st := OUI.d(link.state)
+		return OUI.s(OUI.d(st.get("room")).get("id"))
+	func _on_voice(_s: Variant = null) -> void:
+		if _mic == null or not is_instance_valid(_mic):
+			return
+		var v: Variant = Voice.state
+		var st: Dictionary = v if v is Dictionary else {}
+		var status := str(st.get("status", "off"))
+		var on := status == "on"
+		var connecting := status == "connecting"
+		if not Voice.supported():
+			_mic.text = "🚫"
+			_mic.disabled = true
+			_mic.add_theme_color_override("font_color", OUI.DIM2)
+			_voice_row.visible = false
+			return
+		_mic.text = "🎙" if not on else "🔊"
+		_mic.disabled = connecting
+		_mic.add_theme_color_override("font_color", OUI.GREEN if on else (OUI.CYAN if not connecting else OUI.DIM))
+		_voice_row.visible = on
+		if on:
+			OUI.clear(_voice_row)
+			var mic := bool(st.get("mic", false))
+			var pub := bool(st.get("can_publish", true))
+			var h := OUI.hbox(8)
+			h.layout_direction = Control.LAYOUT_DIRECTION_LTR
+			h.add_child(OUI.lbl(I18n.t("ui_bits.voice_chat_on"), OUI.TS_CAP, OUI.GREEN, "bold"))
+			if pub:
+				h.add_child(OUI.pill("🎙" if mic else "🚫", func() -> void: Voice.set_mic(not mic), OUI.GREEN if mic else OUI.DIM2, 44, 44))
+			h.add_child(OUI.pill(I18n.t("ui_bits.leave_voice"), func() -> void: Voice.leave(), OUI.RED, 44, 44))
+			_voice_row.add_child(OUI.margin(h, 8, 2, 8, 0))
+	func _toggle_voice() -> void:
+		if not Voice.supported():
+			return
+		var v: Variant = Voice.state
+		var st: Dictionary = v if v is Dictionary else {}
+		if str(st.get("status", "off")) == "on":
+			Voice.leave()
+		else:
+			var rid := _room_id()
+			if rid != "":
+				Voice.join(rid)
 	func _send() -> void:
 		var t := _in.text.strip_edges()
 		if t == "" or link == null:

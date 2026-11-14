@@ -311,8 +311,6 @@ func _render_meta() -> void:
 	if _can_post():
 		var row := OUI.hbox(OUI.S_S)
 		row.layout_direction = Control.LAYOUT_DIRECTION_LTR
-		var send := OUI.pill("…" if sending else "➤", func() -> void: _send(""), OUI.CYAN, 44, 44)
-		row.add_child(send)
 		var old := txt.text if is_instance_valid(txt) else ""
 		txt = OUI.line_edit(I18n.t("ui_bits.message"), 2000, false, false, 44)
 		txt.text = old
@@ -320,6 +318,8 @@ func _render_meta() -> void:
 		txt.text_changed.connect(_on_type)
 		txt.text_submitted.connect(func(_t: String) -> void: _send(""))
 		row.add_child(txt)
+		var send := OUI.pill("…" if sending else "➤", func() -> void: _send(""), OUI.CYAN, 44, 44)
+		row.add_child(send)
 		row.add_child(OUI.pill("🖼", _send_image, OUI.DIM, 44, 44))
 		input_slot.add_child(row)
 	elif not conv.is_empty() and _me_member().is_empty() and bool(conv.get("is_public", false)):
