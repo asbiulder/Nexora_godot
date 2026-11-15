@@ -15,7 +15,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: flutter-android-apk-${{ github.ref }}
+  group: flutter-android-apk-${{ github.sha }}
   cancel-in-progress: true
 
 env:
