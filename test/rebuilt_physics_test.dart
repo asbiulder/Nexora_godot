@@ -69,6 +69,19 @@ bool _hasEvent(Engine e, EvType type) =>
 
 void main() {
   group('ratings and shots', () {
+    test('owner-requested feel tuning is applied to the stars profile', () {
+      expect(PHYSICS_CONFIG.shotMax, closeTo((3500 / 825) * 1.35, 1e-9));
+      expect(PHYSICS_CONFIG.ballSpinMultiplier, 1.35);
+      expect(PHYSICS_CONFIG.tBallWall, closeTo(.85 * .9, 1e-12));
+      expect(PHYSICS_CONFIG.tPuckWall, closeTo(.85 * .9, 1e-12));
+      expect(PHYSICS_CONFIG.ballDiameter, closeTo(.058 * 1.1, 1e-12));
+      expect(PHYSICS_CONFIG.playbackSpeed, .6);
+      expect(kTuneStars.ballR, closeTo(.0638 / 2 * PHYSICS_CONFIG.wPx, 1e-9));
+      expect(kTuneStars.rollK, .75);
+      expect(shotCurve(.05), greaterThan(.03), reason: 'a short flick should not be reduced to a nearly imperceptible nudge');
+      expect(shotCurve(1), 1, reason: 'full-pull power remains standard');
+    });
+
     test('all ten power ratings scale launch speed and clamp at the endpoints', () {
       expect(PHYSICS_CONFIG.useDiscStats, isTrue);
       double launch(double rating) {

@@ -34,10 +34,14 @@ void main() {
     expect(t.takeException(), isNull);
     expect(find.textContaining('تهران'), findsWidgets);
     expect(find.text('ساخت'), findsOneWidget);
-    expect(find.text(formatFa(3)), findsOneWidget);
-    await t.tap(find.text(formatFa(3)));
+    expect(find.text('تک‌بازی'), findsOneWidget);
+    expect(find.text('مجموع گل'), findsOneWidget);
+    expect(find.text('اول به برد'), findsOneWidget);
+    expect(find.textContaining('تأیید کنم'), findsOneWidget);
+    expect(find.textContaining('جایزهٔ واقعی'), findsOneWidget);
+    await t.tap(find.text('مجموع گل'));
     await t.pump(const Duration(milliseconds: 300));
-    expect(find.text(formatFa(3)), findsNWidgets(2)); // chip + stepper label
+    expect(find.text('۲ بازی'), findsOneWidget);
     final dir = Platform.environment['NX_SHOTS'];
     if (dir != null) {
       await t.runAsync(() async {

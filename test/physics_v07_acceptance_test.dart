@@ -74,7 +74,7 @@ void main() {
       '  ball r=${e.ball.r.toStringAsFixed(2)}px (${(2 * e.ball.r / W).toStringAsFixed(4)} W)',
     );
     expect(2 * e.bodies[0].r / W, closeTo(.134, 1e-9));
-    expect(2 * e.ball.r / W, closeTo(.058, 1e-9));
+    expect(2 * e.ball.r / W, closeTo(.0638, 1e-9));
     expect(
       1 / e.ball.im,
       closeTo(3 / e.bodies[0].im, 1e-9),
@@ -158,7 +158,7 @@ void main() {
 
   test('4. gap: ball at 3 W/s through two pucks spaced 2 Dp + Db + 0.02 W passes straight', () {
     final e = _lab(2), p1 = e.bodies[0], p2 = e.bodies[1], b = e.ball;
-    final gap = 2 * .134 * W + .058 * W + .02 * W;
+    final gap = 2 * .134 * W + .0638 * W + .02 * W;
     _place(p1, e.CX - gap / 2, e.CY, 0, 0);
     _place(p2, e.CX + gap / 2, e.CY, 0, 0);
     _place(b, e.CX, e.CY + .4 * W, 0, -3 * W);

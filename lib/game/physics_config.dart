@@ -14,6 +14,8 @@ class PhysicsConfig {
 
   // ---- sizes (collision radius == drawn radius) ----
   final double puckDiameter, ballDiameter;
+  /// Multiplier for spin imparted to the ball by puck and wall impacts.
+  final double ballSpinMultiplier;
 
   // ---- exponential friction v *= exp(-k dt) ----
   final double ballK, puckK;
@@ -83,6 +85,7 @@ class PhysicsConfig {
     this.useDiscStats = true,
     this.powerMulAt1 = .55,
     this.accDevAt1Deg = 8,
+    this.ballSpinMultiplier = 1.35,
     this.railBoost = .90,
     this.postBoost = .95,
     this.cornerBoost = 1.00,
@@ -124,7 +127,7 @@ class PhysicsConfig {
 const PHYSICS_CONFIG = PhysicsConfig(
   wPx: 825,
   puckDiameter: .134, // [measured] was .117 (98 px)
-  ballDiameter: .058, // [measured] was .052 (43.2 px)
+  ballDiameter: .0638, // +10% from .058 W per owner request
   ballK: 2.6, // owner 11-15 heavier; was 2.1
   // [measured, medium] tau .48 s; was 270 px/s^2 + 1.45/s (owner fit ~3.5/s)
   puckK: 3.6, // owner 11-15 heavier; was 2.9
@@ -143,11 +146,11 @@ const PHYSICS_CONFIG = PhysicsConfig(
   // [guess] was .85
   ePuckWall: .35, // owner 11-15; was .6
   // [guess] was .90
-  tBallWall: .85, // owner 11-15 more wall friction; was .96
+  tBallWall: .765, // +10% wall friction: 10% less tangential speed kept
   // [kept]
-  tPuckWall: .85, // owner 11-15; was .97
+  tPuckWall: .765, // +10% wall friction: 10% less tangential speed kept
   // [kept]
-  shotMax: 3500 / 825, // [kept] 3500 px/s = 4.24 W/s
+  shotMax: (3500 / 825) * 1.35, // +35% puck launch power per owner request
   ballKickSpeed: 3.8, // owner 11-15 heavier ball; was 5
   // [guess, low] owner: reference ~6.5, start at 5
   puckShotRef: 2, // [measured] reference flick ~2 W/s
@@ -155,7 +158,7 @@ const PHYSICS_CONFIG = PhysicsConfig(
   // [measured, low] reference peak ball speed
   maxSpeed: 7, // safety clamp; was 4200 px/s = 5.03 W/s
   postR: 5 / 825, // [kept]
-  playbackSpeed: .6, // owner: too fast, play at normal speed
+  playbackSpeed: .6, // calm presentation pace; does not reduce the actual shot-power curve
   useDiscStats: true, // owner: real 1..10 power/accuracy on every disc
   powerMulAt1: .55, // was .62 (statMul)
   accDevAt1Deg: 8, // was 4 (aimDevDeg)

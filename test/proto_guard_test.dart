@@ -15,6 +15,10 @@ void main() {
     expect(protoCheck(me: 'a', online: {'a': (true, kProtoVersion), 'b': (true, 9)}), kMsgUpdateThem);
     expect(snapProtoCheck({'pf': 'stars', 'pv': 9}), kMsgUpdateThem);
   });
+  test('v10 Flutter peer with previous physics must not enter v11 lockstep', () {
+    expect(protoCheck(me: 'a', online: {'a': (true, kProtoVersion), 'b': (true, 10)}), kMsgUpdateThem);
+    expect(snapProtoCheck({'pf': 'stars', 'pv': 10}), kMsgUpdateThem);
+  });
   test('newer peer -> I must update', () {
     expect(protoCheck(me: 'a', online: {'a': (true, kProtoVersion), 'b': (true, kProtoVersion + 1)}), kMsgUpdateMe);
   });

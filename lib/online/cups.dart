@@ -5,6 +5,7 @@ import 'dart:async';
 
 import 'package:flutter/services.dart' show Clipboard, ClipboardData, FilteringTextInputFormatter;
 import 'package:material_ui/material_ui.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/assets.dart';
@@ -19,19 +20,28 @@ import '../screens/formation_sheet.dart';
 import '../ui/chrome.dart';
 import '../ui/kit.dart';
 import 'cup_logic.dart';
+import 'cup_reminders.dart';
 import 'link.dart';
+import 'lobby.dart' show FieldPicker;
 import 'ui.dart';
 
 // ------------------------------------------------------------------ shared
 const _cupErr = [
   ('tournament not found', 'تورنمنتی با این کد پیدا نشد'),
   ('bad start time', 'زمان شروع باید دست‌کم ۲ دقیقه بعد و حداکثر ۶۰ روز بعد باشد'),
-  ('check-in not open', 'اعلام حضور از ۱۵ دقیقه قبل از شروع باز می‌شود'),
+  ('check-in not open', 'اعلام حضور از ۱۰ دقیقه قبل از شروع باز می‌شود'),
   ('not registered', 'در این تورنمنت ثبت‌نام نکرده‌ای'),
   ('too many open tournaments', 'حداکثر ۳ تورنمنت باز همزمان می‌توانی بسازی'),
   ('bad split', 'تقسیم جایزه نامعتبر است'),
   ('bad prize', 'جایزه باید بین ۰ تا ۱۰۰ الماس باشد'),
   ('bad format', 'فرمت نامعتبر است'),
+  ('bad series', 'قانون مسابقه یا تعداد بازی‌ها معتبر نیست'),
+  ('cash currency required', 'واحد پول جایزهٔ نقدی را وارد کن'),
+  ('organizer only', 'فقط برگزارکننده می‌تواند این کار را انجام دهد'),
+  ('approval request not found', 'درخواست عضویت پیدا نشد یا قبلاً بررسی شده است'),
+  ('lineup closed', 'مهلت انتخاب زمین و توپ تمام شده است'),
+  ('room host only', 'فقط میزبان بازی می‌تواند زمین و توپ را انتخاب کند'),
+  ('bad room assets', 'زمین یا توپ انتخاب‌شده معتبر نیست'),
 ];
 
 String cupErr(Object e) {
@@ -214,7 +224,7 @@ class _CupsScreenState extends State<CupsScreen> {
             ListRow(
               icon: ui2('x_trophy'),
               title: t.s('name'),
-              sub: '${jalaliLabel(_ts(t, 'starts_at') ?? DateTime.now())} · ${formatFa(t.i('games'))} · ${fa(counts[t.s('id')] ?? 0)}/${fa(t.i('max_players'))}${t.i('prize') > 0 ? ' · 💎${fa(t.i('prize'))}' : ''}',
+              sub: '${jalaliLabel(_ts(t, 'starts_at') ?? DateTime.now())} · ${cupSeriesLabel(t.s('series_mode'), t.i('games'), t.i('target_wins', 2))} · ${fa(counts[t.s('id')] ?? 0)}/${fa(t.i('max_players'))}${t.i('prize') > 0 ? ' · 💎${fa(t.i('prize'))}' : ''}${t.d('cash_prize') > 0 ? ' · 🏆${t.d('cash_prize')} ${t.s('cash_currency')}' : ''}',
               right: Badge2(kCupStatus[t.s('status')]?.$1 ?? '', color: kCupStatus[t.s('status')]?.$2 ?? C.dim, live: t.s('status') == 'running'),
               onTap: () => widget.onOpen(t.s('id')),
             ),
@@ -231,9 +241,22 @@ class CreateCupSheet extends StatefulWidget {
 
 class _CreateCupSheetState extends State<CreateCupSheet> {
   final name = TextEditingController();
-  int max = 16, games = 1, goals = 3, prize = 0, day = 0, hour = 20, minute = 0;
+  final prizeTitle = TextEditingController();
+  final cashAmount = TextEditingController(text: '0');
+  final cashCurrency = TextEditingController();
+  int max = 16, games = 1, targetWins = 2, goals = 3, prize = 0, day = 0, hour = 20, minute = 0;
+  String seriesMode = 'single';
   List<int> split = kCupDefaultSplit;
-  bool play = true, busy = false;
+  bool play = true, requireApproval = false, busy = false;
+
+  @override
+  void dispose() {
+    name.dispose();
+    prizeTitle.dispose();
+    cashAmount.dispose();
+    cashCurrency.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -276,19 +299,22 @@ class _CreateCupSheetState extends State<CreateCupSheet> {
       _label('ظرفیت (حداکثر ${fa(kCupMaxPlayers)} نفر)'),
       Segment<int>(value: max, onChange: (v) => setState(() => max = v), items: const [(4, '۴'), (8, '۸'), (16, '۱۶'), (32, '۳۲'), (64, '۶۴')], accent: C.green),
       Center(child: _stepper('${fa(max)} نفر', max > 2 ? () => setState(() => max--) : null, max < kCupMaxPlayers ? () => setState(() => max++) : null)),
-      _label('فرمت هر مسابقه'),
+      _label('فرمت مسابقه (قابل تنظیم)'),
       Wrap(textDirection: TextDirection.rtl, runSpacing: 6, children: [
-        for (final g in const [1, 2, 3, 5]) Chip2(formatFa(g), on: games == g, onTap: () => setState(() => games = g), accent: C.violet),
+        Chip2('تک‌بازی', on: seriesMode == 'single', onTap: () => setState(() { seriesMode = 'single'; games = 1; targetWins = 1; }), accent: C.violet),
+        Chip2('مجموع گل', on: seriesMode == 'aggregate', onTap: () => setState(() { seriesMode = 'aggregate'; games = 2; targetWins = 1; }), accent: C.violet),
+        Chip2('اول به برد', on: seriesMode == 'first_to', onTap: () => setState(() { seriesMode = 'first_to'; targetWins = 2; games = 3; }), accent: C.violet),
       ]),
-      Center(child: _stepper(formatFa(games), games > 1 ? () => setState(() => games--) : null, games < kCupMaxGames ? () => setState(() => games++) : null)),
-      T(games == 1 ? 'برنده‌ی یک بازی بالا می‌رود' : 'هر کس زودتر بیش از نیمی از بازی‌ها را ببرد بالا می‌رود؛ تساوی با تفاضل گل و بعد بازی تعیین‌کننده', size: 11, color: C.dim2, align: TextAlign.right),
+      if (seriesMode == 'aggregate') Center(child: _stepper('${fa(games)} بازی', games > 2 ? () => setState(() => games--) : null, games < kCupMaxGames ? () => setState(() => games++) : null)),
+      if (seriesMode == 'first_to') Center(child: _stepper('${fa(targetWins)} برد · حداکثر ${fa(2 * targetWins - 1)} بازی', targetWins > 1 ? () => setState(() { targetWins--; games = 2 * targetWins - 1; }) : null, targetWins < 5 ? () => setState(() { targetWins++; games = 2 * targetWins - 1; }) : null)),
+      T(seriesMode == 'single' ? 'نتیجه‌ی همان یک بازی تعیین‌کننده است.' : seriesMode == 'aggregate' ? 'برنده با مجموع گل‌های ${fa(games)} بازی مشخص می‌شود؛ تساوی به بازی تعیین‌کننده می‌رسد.' : 'هر بازیکنی که زودتر ${fa(targetWins)} برد بگیرد صعود می‌کند.', size: 11, color: C.dim2, align: TextAlign.right),
       _label('گل لازم برای بردن هر بازی'),
       Segment<int>(value: goals, onChange: (v) => setState(() => goals = v), items: const [(1, '۱'), (3, '۳'), (5, '۵')]),
       _label('زمان شروع (به وقت تهران)'),
       SizedBox(
         height: 44,
         child: ListView(scrollDirection: Axis.horizontal, reverse: true, children: [
-          for (var i = 0; i < 30; i++)
+          for (var i = 0; i < 60; i++)
             Builder(builder: (_) {
               final (_, jm, jd, wd) = _day(i);
               final l = i == 0 ? 'امروز' : i == 1 ? 'فردا' : '${kFaWeekdays[wd]} ${faDigits('$jd')} ${kJalaliMonths[jm - 1]}';
@@ -303,7 +329,21 @@ class _CreateCupSheetState extends State<CreateCupSheet> {
       ]),
       T('${jalaliLabel(st, year: true)} تهران', size: 13, color: tooSoon ? C.red : C.text, align: TextAlign.center),
       if (tooSoon) const T('این زمان گذشته یا خیلی نزدیک است', size: 11, color: C.red, align: TextAlign.center),
-      _label('جایزه (الماس، حداکثر ${fa(kCupMaxPrize)})'),
+      _label('جایزهٔ واقعی (ثبت و تسویهٔ دستی برگزارکننده)'),
+      Field2(prizeTitle, label: 'توضیح جایزه (مثلاً پول نقد، جام یا هدیه)', maxLength: 120),
+      const SizedBox(height: 6),
+      Row(textDirection: TextDirection.rtl, children: [
+        Expanded(child: TextField(controller: cashAmount, keyboardType: const TextInputType.numberWithOptions(decimal: true), inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))], decoration: const InputDecoration(labelText: 'مبلغ نقدی (اختیاری)'))),
+        const SizedBox(width: 10),
+        SizedBox(width: 112, child: TextField(controller: cashCurrency, textCapitalization: TextCapitalization.characters, maxLength: 12, decoration: const InputDecoration(counterText: '', labelText: 'ارز (مثلاً IRR)'))),
+      ]),
+      const T('اپ پول دریافت یا پرداخت نمی‌کند؛ مبلغ و وضعیت پرداخت برندگان ثبت می‌شود و برگزارکننده خارج از اپ تسویه می‌کند.', size: 10, color: C.orange, align: TextAlign.right),
+      _label('درخواست‌ها'),
+      Row(textDirection: TextDirection.rtl, children: [
+        const Expanded(child: T('ثبت‌نام‌کننده‌ها را پیش از قرعه‌کشی تأیید کنم', size: 12, align: TextAlign.right)),
+        Toggle(on: requireApproval, onChange: (v) => setState(() => requireApproval = v)),
+      ]),
+      _label('پاداش الماسی درون‌برنامه‌ای (اختیاری، حداکثر ${fa(kCupMaxPrize)})'),
       Row(textDirection: TextDirection.rtl, children: [
         tBold('💎 ${fa(prize)}', size: 15, color: const Color(0xff9fd8ff)),
         Expanded(
@@ -332,12 +372,18 @@ class _CreateCupSheetState extends State<CreateCupSheet> {
       ]),
       const SizedBox(height: 18),
       Btn(busy ? '…' : 'ساخت', colors: G.gold, disabled: busy || tooSoon || (prize > gems), onTap: () async {
-        if (name.text.trim().length < 3) return toast('نام تورنمنت حداقل ۳ حرف', 'err');
+          if (name.text.trim().length < 3) return toast('نام تورنمنت حداقل ۳ حرف', 'err');
+        final amount = double.tryParse(cashAmount.text.trim().replaceAll(',', '')) ?? 0;
+        final currency = cashCurrency.text.trim().toUpperCase();
+        if (amount < 0) return toast('مبلغ جایزه نمی‌تواند منفی باشد', 'err');
+        if (amount > 0 && currency.isEmpty) return toast('واحد پول جایزه را مشخص کن', 'err');
         setState(() => busy = true);
         try {
-          final t = Rec.of(await rpc('cup_create', {
+          final t = Rec.of(await rpc('cup_create_v2', {
             'p_name': name.text.trim(), 'p_max': max, 'p_games': games, 'p_goals': goals, 'p_starts': startsUtc.toIso8601String(),
-            'p_prize': prize, 'p_split': split, 'p_join': play,
+            'p_prize': prize, 'p_split': split, 'p_join': play, 'p_require_approval': requireApproval,
+            'p_series_mode': seriesMode, 'p_target_wins': targetWins, 'p_prize_title': prizeTitle.text.trim(),
+            'p_cash_prize': amount, 'p_cash_currency': currency,
           }));
           Auth.i.refreshProfile();
           toast('تورنمنت ساخته شد · کد ${faDigits(t.s('code'))}', 'ok');
@@ -364,7 +410,7 @@ class CupScreen extends StatefulWidget {
 
 class _CupScreenState extends State<CupScreen> {
   Rec? c;
-  List<Rec> players = [], matches = [];
+  List<Rec> players = [], matches = [], payouts = [];
   Map<String, String> names = {};
   String? err, busy;
   String tab = 'bracket';
@@ -389,6 +435,7 @@ class _CupScreenState extends State<CupScreen> {
         .onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: 'cups', filter: PostgresChangeFilter(type: PostgresChangeFilterType.eq, column: 'id', value: id), callback: (_) => soon())
         .onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: 'cup_players', filter: PostgresChangeFilter(type: PostgresChangeFilterType.eq, column: 'cup_id', value: id), callback: (_) => soon())
         .onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: 'cup_matches', filter: PostgresChangeFilter(type: PostgresChangeFilterType.eq, column: 'cup_id', value: id), callback: (_) => soon())
+        .onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: 'cup_payouts', filter: PostgresChangeFilter(type: PostgresChangeFilterType.eq, column: 'cup_id', value: id), callback: (_) => soon())
         .subscribe();
     var n = 0;
     _tick = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -413,6 +460,7 @@ class _CupScreenState extends State<CupScreen> {
         sb.from('cups').select().eq('id', widget.id).maybeSingle(),
         sb.from('cup_players').select('*, profiles(username, avatar, avatar_url)').eq('cup_id', widget.id).order('joined_at'),
         sb.from('cup_matches').select().eq('cup_id', widget.id).order('kind').order('round').order('idx'),
+        sb.from('cup_payouts').select().eq('cup_id', widget.id).order('place'),
       ]);
       if (!mounted) return;
       setState(() {
@@ -420,8 +468,23 @@ class _CupScreenState extends State<CupScreen> {
         c = r[0] == null ? null : Rec.of(r[0]);
         players = recs(r[1]);
         matches = recs(r[2]);
+        payouts = recs(r[3]);
         names = {for (final p in players) p.s('user_id'): p.rec('profiles').s('username', 'بازیکن')};
       });
+      final reminderCup = r[0] == null ? null : Rec.of(r[0]);
+      final reminderStart = reminderCup == null ? null : _ts(reminderCup, 'starts_at');
+      final uid = Auth.i.uid;
+      final mine = recs(r[1]).where((p) => p.s('user_id') == uid).firstOrNull;
+      if (reminderCup != null && reminderStart != null) {
+        unawaited(CupReminderService.i.sync(
+          cupId: reminderCup.s('id'),
+          name: reminderCup.s('name'),
+          startsAt: reminderStart,
+          eligible: reminderCup.s('status') == 'registration' && mine != null && const ['main','wait'].contains(mine.s('status')),
+        ));
+      } else {
+        unawaited(CupReminderService.i.cancel(widget.id));
+      }
       _autoEnter();
     } catch (e) {
       if (mounted) setState(() => err = errFa(e));
@@ -481,6 +544,7 @@ class _CupScreenState extends State<CupScreen> {
     final me = players.where((p) => p.s('user_id') == uid && p.s('status') != 'out').firstOrNull;
     final mains = players.where((p) => p.s('status') == 'main').toList();
     final waits = players.where((p) => p.s('status') == 'wait').toList();
+    final pending = players.where((p) => p.s('status') == 'pending').toList();
     final isOrg = t.s('created_by') == uid;
     final status = t.s('status');
     final (sl, sc) = kCupStatus[status] ?? ('', C.dim);
@@ -507,21 +571,28 @@ class _CupScreenState extends State<CupScreen> {
                 const T('کد', size: 11, color: C.dim),
               ]),
             ),
+            IconButton(
+              tooltip: 'ارسال کد دعوت',
+              onPressed: () => SharePlus.instance.share(ShareParams(title: 'دعوت به تورنمنت ${t.s('name')}', text: 'برای شرکت در تورنمنت «${t.s('name')}» کد ${t.s('code')} را در بخش تورنمنت‌های NEXORA وارد کن.')),
+              icon: const Icon(Icons.share_rounded, color: C.orange, size: 18),
+            ),
           ]),
           const SizedBox(height: 8),
           T('${jalaliLabel(starts, year: true)} به وقت تهران', size: 13, align: TextAlign.right),
           if (status == 'registration' && starts.isAfter(now)) T('شروع تا ${faCountdown(starts.difference(now))}', size: 12, color: C.orange, align: TextAlign.right),
           const SizedBox(height: 6),
           Wrap(textDirection: TextDirection.rtl, runSpacing: 4, children: [
-            Badge2(formatFa(t.i('games')), color: C.violet),
-            Badge2('هر بازی ${fa(t.i('goals'))} گل', color: C.sky),
-            Badge2('${fa(mains.length)}/${fa(t.i('max_players'))} بازیکن', color: C.green),
-            if (waits.isNotEmpty) Badge2('${fa(waits.length)} در صف', color: C.orange),
+              Badge2(cupSeriesLabel(t.s('series_mode'), t.i('games'), t.i('target_wins', 2)), color: C.violet),
+              Badge2('هر بازی ${fa(t.i('goals'))} گل', color: C.sky),
+              Badge2('${fa(mains.length)}/${fa(t.i('max_players'))} بازیکن', color: C.green),
+              if (waits.isNotEmpty) Badge2('${fa(waits.length)} در صف', color: C.orange),
+              if (t.s('prize_title').isNotEmpty) Badge2(t.s('prize_title'), color: C.gold),
+              if (t.d('cash_prize') > 0) Badge2('🏆 ${t.d('cash_prize')} ${t.s('cash_currency')}', color: C.gold),
             if (t.i('prize') > 0) Badge2('💎 ${fa(sh[0])} · ${fa(sh[1])} · ${fa(sh[2])}', color: const Color(0xff9fd8ff)),
           ]),
         ]),
       ),
-      Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 0), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: _actions(t, me, mains, waits, isOrg, checkinOpen, starts, now))),
+      Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 0), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: _actions(t, me, mains, waits, pending, isOrg, checkinOpen, starts, now))),
       if (status == 'registration' || status == 'cancelled')
         ..._playerList(mains, waits, checkinOpen)
       else ...[
@@ -531,13 +602,17 @@ class _CupScreenState extends State<CupScreen> {
     ]);
   }
 
-  List<Widget> _actions(Rec t, Rec? me, List<Rec> mains, List<Rec> waits, bool isOrg, bool checkinOpen, DateTime starts, DateTime now) {
+  List<Widget> _actions(Rec t, Rec? me, List<Rec> mains, List<Rec> waits, List<Rec> pending, bool isOrg, bool checkinOpen, DateTime starts, DateTime now) {
     final status = t.s('status');
     final out = <Widget>[];
     if (status == 'registration') {
       if (me == null) {
         out.add(Btn(busy == 'join' ? '…' : mains.length >= t.i('max_players') ? 'ثبت‌نام در صف انتظار' : 'ثبت‌نام',
             colors: G.green, onTap: () => run('join', () async => rpc('cup_join', {'p_code': t.s('code')}), 'ثبت‌نام شدی')));
+      } else if (me.s('status') == 'pending') {
+        out.add(const T('درخواستت ثبت شد؛ تا تأیید برگزارکننده منتظر بمان.', size: 13, color: C.orange, align: TextAlign.center));
+        out.add(const SizedBox(height: 8));
+        out.add(Btn(busy == 'leave' ? '…' : 'لغو درخواست', small: true, colors: G.dark, onTap: () => run('leave', () async => rpc('cup_leave', {'p_cup': t.s('id')}), 'درخواست لغو شد')));
       } else {
         final wait = me.s('status') == 'wait';
         final pos = waits.indexWhere((p) => p.s('user_id') == me.s('user_id')) + 1;
@@ -554,6 +629,25 @@ class _CupScreenState extends State<CupScreen> {
         out.add(Btn(busy == 'leave' ? '…' : 'انصراف', small: true, colors: G.dark, onTap: () => run('leave', () async => rpc('cup_leave', {'p_cup': t.s('id')}), 'از تورنمنت خارج شدی')));
       }
       if (isOrg) {
+        if (pending.isNotEmpty) {
+          out.add(Panel(
+            margin: const EdgeInsets.only(top: 10),
+            accent: C.orange,
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              tBold('درخواست‌های تأیید (${fa(pending.length)})', size: 13, color: C.orange, align: TextAlign.right),
+              for (final p in pending)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Row(textDirection: TextDirection.rtl, children: [
+                    Expanded(child: T(nm(p.s('user_id')), size: 12, align: TextAlign.right, lines: 1)),
+                    SizedBox(width: 72, child: Btn('تأیید', small: true, colors: G.green, onTap: () => run('approve', () async => rpc('cup_approve', {'p_cup': t.s('id'), 'p_user': p.s('user_id'), 'p_approve': true}), 'عضو تأیید شد'))),
+                    const SizedBox(width: 6),
+                    SizedBox(width: 62, child: Btn('رد', small: true, colors: G.red, onTap: () => run('reject', () async => rpc('cup_approve', {'p_cup': t.s('id'), 'p_user': p.s('user_id'), 'p_approve': false}), 'درخواست رد شد'))),
+                  ]),
+                ),
+            ]),
+          ));
+        }
         out.add(const SizedBox(height: 8));
         out.add(Btn(busy == 'cancel' ? '…' : 'لغو تورنمنت', small: true, colors: G.red, onTap: () async {
           if (await confirm(context, 'لغو تورنمنت؟', t.i('prize') > 0 ? 'الماس‌های جایزه به حسابت برمی‌گردد.' : 'همه‌ی ثبت‌نام‌ها لغو می‌شود.', yes: 'لغو کن', no: 'نه')) {
@@ -607,6 +701,34 @@ class _CupScreenState extends State<CupScreen> {
             ),
         ]),
       ));
+      if (t.d('cash_prize') > 0) {
+        out.add(Panel(
+          margin: const EdgeInsets.only(top: 10),
+          accent: C.orange,
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            tBold('جایزهٔ واقعی · تسویهٔ خارج از اپ', size: 13, color: C.orange, align: TextAlign.right),
+            T('${t.d('cash_prize')} ${t.s('cash_currency')} · ${t.s('prize_title', 'جایزهٔ نقدی')}', size: 12, color: C.text, align: TextAlign.right),
+            for (final p in payouts)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Row(textDirection: TextDirection.rtl, children: [
+                  Expanded(child: T('مقام ${fa(p.i('place'))} · ${nm(p.s('user_id'))} · ${p.d('amount')} ${p.s('currency')}', size: 11, align: TextAlign.right, lines: 1)),
+                  Badge2(p.s('status') == 'paid' ? 'تسویه شد' : 'در انتظار', color: p.s('status') == 'paid' ? C.green : C.orange),
+                  if (isOrg && p.s('status') != 'paid') ...[
+                    const SizedBox(width: 6),
+                    SizedBox(width: 86, child: Btn('ثبت پرداخت', small: true, colors: G.green, onTap: () async {
+                      if (await confirm(context, 'تسویهٔ دستی', 'پرداخت این جایزه را خارج از اپ انجام داده‌ای؟', yes: 'بله، ثبت کن', no: 'هنوز نه')) {
+                        run('payout', () async => rpc('cup_mark_payout_paid', {'p_cup': t.s('id'), 'p_place': p.i('place'), 'p_note': null}), 'پرداخت ثبت شد');
+                      }
+                    })),
+                  ],
+                ]),
+              ),
+            const SizedBox(height: 6),
+            const T('NEXORA پولی دریافت یا انتقال نمی‌دهد؛ وضعیت پرداخت را برگزارکننده ثبت می‌کند.', size: 10, color: C.dim, align: TextAlign.right),
+          ]),
+        ));
+      }
     } else if (status == 'cancelled') {
       out.add(T('لغو شد · ${t.s('cancelled_reason')}', size: 13, color: C.red, align: TextAlign.center));
     }
@@ -753,6 +875,32 @@ class _CupLobbyState extends State<CupLobby> {
     } catch (_) {}
   }
 
+  Future<void> _setRoomAssets(int field, int ball) async {
+    try {
+      await rpc('cup_set_room_assets', {'p_match': matchId, 'p_field': field, 'p_ball': ball});
+      if (mounted) toast('زمین و توپ برای هر دو طرف تنظیم شد', 'ok');
+    } catch (e) {
+      if (mounted) toast(cupErr(e), 'err');
+    }
+  }
+
+  void _pickBall(BuildContext context, int field, int current) => showSheet(context, title: 'انتخاب توپ مشترک', en: 'MATCH BALL', height: .62, child: (ctx) => GridView.builder(
+        padding: const EdgeInsets.all(12),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 5, mainAxisSpacing: 8, crossAxisSpacing: 8),
+        itemCount: 36,
+        itemBuilder: (_, i) => Press(
+          onTap: () {
+            Navigator.pop(ctx);
+            _setRoomAssets(field, i);
+          },
+          child: Container(
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), border: Border.all(color: i == current ? C.cyan : C.line), color: const Color(0xaa090e29)),
+            padding: const EdgeInsets.all(5),
+            child: Img(ballImg(i), w: 44, h: 44, fit: BoxFit.contain),
+          ),
+        ),
+      ));
+
   void _onTick() {
     if (!mounted) return;
     final mm = m;
@@ -787,9 +935,16 @@ class _CupLobbyState extends State<CupLobby> {
     final mm = m, uid = Auth.i.uid;
     final cu = cup;
     if (mm == null || cu == null) return Scaffold(backgroundColor: C.bg, body: Stack(children: [const Space(), Center(child: Spinner(size: 40))]));
+    final room = widget.link.room;
+    final isHost = room?.s('host') == uid;
+    final roomSettings = room?.rec('settings');
+    final selectedField = (roomSettings?.i('field', Store.i.p.field) ?? Store.i.p.field).clamp(0, kFields.length - 1);
+    final selectedBall = (roomSettings?.i('ball', Store.i.p.ball) ?? Store.i.p.ball).clamp(0, 35);
     final me1 = mm.s('p1') == uid;
     final opp = me1 ? mm.str('p2') : mm.str('p1');
-    final myW = me1 ? mm.i('wins1') : mm.i('wins2'), opW = me1 ? mm.i('wins2') : mm.i('wins1');
+    final aggregate = cu.s('series_mode') == 'aggregate';
+    final myW = aggregate ? (me1 ? mm.i('goals1') : mm.i('goals2')) : (me1 ? mm.i('wins1') : mm.i('wins2'));
+    final opW = aggregate ? (me1 ? mm.i('goals2') : mm.i('goals1')) : (me1 ? mm.i('wins2') : mm.i('wins1'));
     final st = mm.s('status');
     final oppHere = opp != null && widget.link.online.containsKey(opp);
     final lu = _ts(mm, 'lineup_until');
@@ -833,7 +988,7 @@ class _CupLobbyState extends State<CupLobby> {
               margin: const EdgeInsets.symmetric(horizontal: 16),
               accent: C.orange,
               child: Column(children: [
-                tBold('${roundNameFa(mm.i('round'), cu.i('rounds'), third: mm.s('kind') == 'third')} · ${formatFa(cu.i('games'))}', size: 12, color: C.orange),
+                tBold('${roundNameFa(mm.i('round'), cu.i('rounds'), third: mm.s('kind') == 'third')} · ${cupSeriesLabel(cu.s('series_mode'), cu.i('games'), cu.i('target_wins', 2))}', size: 12, color: C.orange),
                 const SizedBox(height: 10),
                 Row(textDirection: TextDirection.rtl, children: [
                   Expanded(child: Column(children: [tBold(nm(uid), size: 14, lines: 1, color: C.cyan), const T('تو', size: 10, color: C.dim)])),
@@ -884,6 +1039,22 @@ class _CupLobbyState extends State<CupLobby> {
                   SizedBox(width: 120, child: Btn('تغییر تیم', small: true, colors: G.dark, onTap: () => _pickTeam(context))),
                 ]),
               ),
+              if (isHost)
+                Panel(
+                  margin: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+                  accent: C.violet,
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                    tBold('تنظیمات میزبان · برای هر دو طرف', size: 12, color: C.violet, align: TextAlign.right),
+                    const SizedBox(height: 8),
+                    FieldPicker(value: selectedField, onChange: (v) => _setRoomAssets(v, selectedBall)),
+                    Row(textDirection: TextDirection.rtl, children: [
+                      Img(ballImg(selectedBall), w: 42, h: 42, fit: BoxFit.contain),
+                      const SizedBox(width: 8),
+                      const Expanded(child: T('توپ مسابقه', size: 12, color: C.dim, align: TextAlign.right)),
+                      SizedBox(width: 126, child: Btn('انتخاب توپ', small: true, colors: G.violet, onTap: () => _pickBall(context, selectedField, selectedBall))),
+                    ]),
+                  ]),
+                ),
             ],
           ]),
         ]),

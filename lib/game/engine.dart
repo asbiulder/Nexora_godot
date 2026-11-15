@@ -31,6 +31,7 @@ class PhysTune {
   final double discR, ballR; // radii (disc 0.128 x pitch width, ball ~0.07)
   final double discM,
       ballM; // masses: only the ratio matters (impulse split along the normal)
+  final double ballSpinMultiplier;
   // ---- shot ----
   final double
   shotMax; // disc launch speed at full drag (LMAX), linear in drag length
@@ -76,6 +77,7 @@ class PhysTune {
     required this.ballR,
     required this.discM,
     required this.ballM,
+    this.ballSpinMultiplier = 1.0,
     required this.shotMax,
     required this.discVmax,
     required this.powerGodot,
@@ -195,6 +197,7 @@ final kTuneStars = PhysTune(
   ballR: _C.ballDiameter / 2 * _W,
   discM: _C.massPuck,
   ballM: _C.massBall,
+  ballSpinMultiplier: _C.ballSpinMultiplier,
   shotMax: _C.shotMax * _W,
   discVmax: _C.shotMax * _W,
   powerGodot: false,
@@ -221,7 +224,7 @@ final kTuneStars = PhysTune(
   subPx: _C.subTravel * _W,
   subMax: _C.subMax,
   stepCap: _C.stepCap,
-  rollK: 1,
+  rollK: .75, // calmer visual roll; independent of velocity and collision strength
   expFric: true,
   ballK: _C.ballK,
   discK: _C.puckK,
@@ -235,7 +238,7 @@ final kTuneStars = PhysTune(
 /// Nonlinear, monotonic pull response; zero pull has zero launch speed.
 double shotCurve(double p) {
   final q = _clamp(p, 0, 1);
-  return fpow(q, 1.35); // fdlibm pow for deterministic lockstep
+  return fpow(q, 1.1); // responsive short flicks; full pull remains exactly 1.0
 }
 
 /// Power stat multiplier used by the team screen and all profiles. Values
@@ -522,6 +525,7 @@ class Engine {
   /// Tuning of the nx8-family profile in use (null for 'classic').
   late final PhysTune? _tune = tuneFor(cfg.profile);
   PhysTune get tu => _tune!;
+  double get ballRollRate => _physics.rollK;
 
   /// true for the nx8-family rendering/geometry profiles; false for 'classic'.
   late final bool godot = _tune != null;
@@ -961,7 +965,7 @@ class Engine {
     final tx = b.vx - vn * nx, ty = b.vy - vn * ny;
     // Spin affects rendering only; it never changes collision trajectories.
     if (bl && !godot && type == EvType.wall) {
-      b.spin += (nx * b.vy - ny * b.vx) / b.r * .05;
+      b.spin += (nx * b.vy - ny * b.vx) / b.r * .05 * t.ballSpinMultiplier;
     }
     b.vx = tx * et + (incoming * en + extra) * nx;
     b.vy = ty * et + (incoming * en + extra) * ny;
@@ -1145,9 +1149,14 @@ class Engine {
       if (isBall && !godot) {
         final tangent = -ny * (b.vx - a.vx) + nx * (b.vy - a.vy);
         ball.spin = _clamp(
-          ball.spin + (identical(ball, b) ? 1 : -1) * tangent / ball.r * .3,
-          -34,
-          34,
+          ball.spin +
+              (identical(ball, b) ? 1 : -1) *
+                  tangent /
+                  ball.r *
+                  .3 *
+                  _physics.ballSpinMultiplier,
+          -34 * _physics.ballSpinMultiplier,
+          34 * _physics.ballSpinMultiplier,
         );
       }
       if (vn < -150) {

@@ -3,16 +3,17 @@
 //   * single elimination, 2..64 players, bracket size = next power of two, byes go to the best seeds
 //   * a pairing is a series of N games (1..9): clinched when the lead is bigger than the games left; after N games a
 //     tie on wins goes to goal difference, then sudden-death deciders; after N+3 games the higher seed advances
-//   * prize 0..100 gems escrowed from the creator, split between places 1-3 (floor, remainder to 1st)
+//   * legacy 0..100 gem escrow plus optional real-prize metadata with organizer-recorded manual settlement
 //   * times are stored in UTC and shown in the Persian (Jalali) calendar, Tehran time (UTC+03:30, no DST since 2022)
 
-/// Lineup window (seconds) before every game of a series: players pick formation and team. Short on purpose (owner
-/// asked for 3 s); the server value is cup_cfg().lineup_s in supabase/cups.sql. Change both together.
-const int kCupLineupSeconds = 3;
+/// Lineup window before each game; players can set their team and formation while this counts down.
+/// Keep in sync with cup_cfg().lineup_s in supabase/cups.sql.
+const int kCupLineupSeconds = 30;
 
 /// Pause after a game before the next lineup window (server cup_cfg().gap_s).
 const int kCupGapSeconds = 12;
-const int kCupCheckinMinutes = 15; // check-in opens / reminder goes out this long before the start
+const int kCupCheckinMinutes = 10; // check-in opens and the reminder is issued 10 minutes before start
+const int kCupReminderMinutes = 10;
 const int kCupReplaceMinutes = 5; // last minutes in which waitlisted players replace absentees
 const int kCupNoShowMinutes = 5; // a player who does not enter a ready pairing in time loses by walkover
 const int kCupMaxPlayers = 64;
@@ -123,6 +124,47 @@ int seriesWinner(int games, int w1, int w2, int g1, int g2, int played) {
   return 0;
 }
 
+/// Configurable series rules mirrored by _cup_series_winner_v2 in Supabase.
+/// Returns 1/2 for the winner, or 0 while the series still needs another game.
+int configuredSeriesWinner(String mode, int games, int targetWins, int w1, int w2, int g1, int g2, int played) {
+  if (mode == 'single') {
+    if (played < 1) return 0;
+    return g1 >= g2 ? 1 : 2;
+  }
+  if (mode == 'first_to') {
+    if (w1 >= targetWins) return 1;
+    if (w2 >= targetWins) return 2;
+    if (played >= games) {
+      if (w1 != w2) return w1 > w2 ? 1 : 2;
+      if (g1 != g2) return g1 > g2 ? 1 : 2;
+      if (played >= games + 3) return 1;
+    }
+    return 0;
+  }
+  if (mode == 'aggregate') {
+    if (played < games) return 0;
+    if (g1 != g2) return g1 > g2 ? 1 : 2;
+    if (played >= games + 3) return 1;
+    return 0;
+  }
+  return seriesWinner(games, w1, w2, g1, g2, played);
+}
+
+/// Applies a configured rule to game scores, returning (winner side, games used).
+(int, int) playConfiguredSeries(String mode, int games, int targetWins, List<(int, int)> scores) {
+  var w1 = 0, w2 = 0, g1 = 0, g2 = 0, played = 0;
+  for (final (a, b) in scores) {
+    played++;
+    g1 += a;
+    g2 += b;
+    if (a > b) w1++;
+    if (b > a) w2++;
+    final winner = configuredSeriesWinner(mode, games, targetWins, w1, w2, g1, g2, played);
+    if (winner != 0) return (winner, played);
+  }
+  return (0, played);
+}
+
 /// Plays a list of game scores through the series rule; returns (winner side, games used).
 (int, int) playSeries(int games, List<(int, int)> scores) {
   var w1 = 0, w2 = 0, g1 = 0, g2 = 0, n = 0;
@@ -142,6 +184,13 @@ String formatFa(int games) => switch (games) {
       1 => 'تک بازی',
       2 => 'دو بازی (مجموع)',
       _ => faDigits(games.isOdd ? 'بهترین $games' : '$games بازی (مجموع)'),
+    };
+
+String cupSeriesLabel(String mode, int games, int targetWins) => switch (mode) {
+      'single' => 'تک‌بازی',
+      'aggregate' => 'مجموع گل · ${fa(games)} بازی',
+      'first_to' => 'اول به ${fa(targetWins)} برد · حداکثر ${fa(games)} بازی',
+      _ => formatFa(games),
     };
 
 // ------------------------------------------------------------------ prize

@@ -144,7 +144,7 @@ class MatchRenderer {
   final ui.Paint _addP = ui.Paint()..blendMode = ui.BlendMode.plus;
   final ui.Paint _shadowP = ui.Paint()
     ..filterQuality = ui.FilterQuality.low
-    ..color = const ui.Color(0x80ffffff);
+    ..color = const ui.Color(0xbfffffff);
   final ui.Paint _stroke = ui.Paint()
     ..style = ui.PaintingStyle.stroke
     ..strokeCap = ui.StrokeCap.round
@@ -354,9 +354,9 @@ class MatchRenderer {
     for (final b in e.bodies) {
       if (identical(b, e.ball)) continue;
       final x = b.px + (b.x - b.px) * al + b.vox, y = b.py + (b.y - b.py) * al + b.voy;
-      final r = b.r * (1 + b.sq * .07), R = r * 1.3;
+      final r = b.r * (1 + b.sq * .07), R = r * 1.4;
       final sc = 2 * R / spr;
-      _set(_xf, n, sc, 0, x + r * .14 - R, y + r * .26 - R);
+      _set(_xf, n, sc, 0, x + r * .16 - R, y + r * .3 - R);
       _rect(_rc, n, 3);
       n++;
     }
@@ -461,7 +461,7 @@ class MatchRenderer {
     _bly = y;
     final d = math.sqrt(dx * dx + dy * dy);
     if (d < 1e-6 || d > r * 4) return; // at rest, or a teleport (kick-off reset)
-    final kx = -dy / d, ky = dx / d, th = d / r; // axis (kz = 0)
+    final kx = -dy / d, ky = dx / d, th = d / r * e.ballRollRate; // render-only rate
     final c = math.cos(th), sn = math.sin(th), t = 1 - c;
     // Rodrigues rotation Q about (kx, ky, 0); R = Q * R
     final q0 = c + kx * kx * t, q1 = kx * ky * t, q2 = ky * sn;
@@ -638,14 +638,14 @@ class MatchRenderer {
   final ui.Paint _streakP = ui.Paint()
     ..style = ui.PaintingStyle.stroke
     ..strokeCap = ui.StrokeCap.round;
-  static const List<(double, double)> _streakL = [(-.62, .55), (-.31, .85), (0, 1), (.31, .8), (.62, .5)];
+  static const List<(double, double)> _streakL = [(-.44, .66), (0, 1), (.44, .66)];
   void _drawStreaks(ui.Canvas c, double al) {
     final b = e.ball, sp = math.sqrt(b.vx * b.vx + b.vy * b.vy);
-    if (sp < 450) return;
-    final k = ((sp - 450) / 2200).clamp(0.0, 1.0), r = b.r;
+    if (sp < 650) return;
+    final k = ((sp - 650) / 2200).clamp(0.0, 1.0), r = b.r;
     final x = b.px + (b.x - b.px) * al + b.vox, y = b.py + (b.y - b.py) * al + b.voy;
     final ux = b.vx / sp, uy = b.vy / sp, nx = -uy, ny = ux;
-    final len = r * (2.2 + 8 * k);
+    final len = r * (1.8 + 5.2 * k);
     for (final (o, lk) in _streakL) {
       final sx = x + nx * o * r - ux * r * .35, sy = y + ny * o * r - uy * r * .35;
       final ex = sx - ux * len * lk, ey = sy - uy * len * lk;
@@ -913,8 +913,13 @@ class MatchRenderer {
         ..strokeWidth = 1.6
         ..color = mid;
       c.drawPath(_path, _bar);
-      // crossbar on the goal line: tube shading across its width + highlight
-      const cw = 6.0;
+      // crossbar on the goal line: dark underside bevel, tube shading and a crisp top highlight
+      const cw = 8.0;
+      _bar
+        ..shader = null
+        ..strokeWidth = cw + 2
+        ..color = dark.withValues(alpha: .9);
+      c.drawLine(ui.Offset(x1, y0 + 1.4), ui.Offset(x2, y0 + 1.4), _bar);
       _bar
         ..strokeWidth = cw
         ..shader = ui.Gradient.linear(ui.Offset(0, y0 - cw / 2), ui.Offset(0, y0 + cw / 2), [light, mid, dark], const [0, .5, 1]);

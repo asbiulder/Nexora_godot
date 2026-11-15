@@ -1,4 +1,4 @@
-// Cups: in-app alerts for tournament notifications (15-minute reminders, check-in, draw, "your match is ready",
+// Cups: in-app alerts for tournament notifications (10-minute reminders, check-in, draw, "your match is ready",
 // prizes). The server writes rows into public.notifications (supabase/cups.sql); this listens to the signed-in
 // user's inserts over realtime and shows a card with sound + vibration, or a toast for minor news.
 import 'package:material_ui/material_ui.dart';
@@ -11,6 +11,7 @@ import '../net/supabase.dart';
 import '../ui/chrome.dart';
 import '../ui/kit.dart';
 import 'cups.dart';
+import 'cup_reminders.dart';
 
 class CupAlerts {
   CupAlerts._();
@@ -22,7 +23,8 @@ class CupAlerts {
   String? _uid;
   bool _showing = false;
 
-  void init() {
+  Future<void> init() async {
+    await CupReminderService.i.init((cupId) => open?.call('cup:$cupId'));
     Auth.i.addListener(_sync);
     _sync();
   }

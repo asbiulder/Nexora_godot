@@ -30,7 +30,7 @@ class _Port implements NetPort {
 Rec _p(String u, int team, bool ready) => Rec({'user_id': u, 'role': 'player', 'team': team, 'slot': 0, 'ready': ready});
 
 void main() {
-  test('rebuilt physics uses protocol version 10', () => expect(kProtoVersion, 10));
+  test('retuned physics uses protocol version 11', () => expect(kProtoVersion, 11));
 
   group('host pitch/ball', () {
     test('custom room: room pitch, host ball', () {

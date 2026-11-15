@@ -53,17 +53,14 @@ MatchCfg cfgFromRoom(Rec room) {
       first: 0);
 }
 
-/// v9: whose pitch and ball an online match uses (decided by the HOST only, then sent in every host snapshot as
-/// s.fb = [field, ball]; clients and spectators adopt it before they build their renderer):
-///  * ball: always the host's equipped ball;
-///  * pitch: in a host-made room (kind casual / social) the room's pitch setting (the host picks it in the room, it
-///    defaults to the host's equipped pitch); in matchmade rooms (quick / arena / duel / tournament) the server's
-///    room setting is a fixed default, so the host's equipped pitch is used.
+/// Whose pitch and ball an online match uses: the host's room selection for casual/social/tournament rooms,
+/// otherwise the host's equipped assets. The host sends s.fb in every snapshot; peers adopt that exact pair.
 (int, int) hostFieldBall(Rec room, int myField, int myBall) {
   final s = room.rec('settings');
-  final k = room.s('kind', 'casual'), custom = k == 'casual' || k == 'social';
-  final f = custom && s.m['field'] is num ? s.i('field') : myField;
-  return (f.clamp(0, kFields.length - 1), myBall.clamp(0, 35));
+  final k = room.s('kind', 'casual'), roomChoice = k == 'casual' || k == 'social' || k == 'tournament';
+  final f = roomChoice && s.m['field'] is num ? s.i('field') : myField;
+  final b = roomChoice && s.m['ball'] is num ? s.i('ball') : myBall;
+  return (f.clamp(0, kFields.length - 1), b.clamp(0, 35));
 }
 
 /// Client side of [hostFieldBall]: the host's s.fb, clamped; null when absent (older / RN host -> room settings).

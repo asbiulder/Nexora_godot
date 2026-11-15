@@ -33,8 +33,7 @@ Future<void> main() async {
   Discs.i.init();
   Sound.init();
   Oracle.i.init();
-  CupAlerts.i
-    ..open = AppNav.openOnline
-    ..init();
+  CupAlerts.i.open = AppNav.openOnline;
+  await CupAlerts.i.init();
   runApp(const NexoraApp());
 }

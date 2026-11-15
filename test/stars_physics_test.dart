@@ -123,8 +123,8 @@ void main() {
     expect((b.vx - b.vy).abs() / b.vx.abs(), lessThan(.02), reason: 'leaves the corner on the 45 degree diagonal');
   });
 
-  test('v0.7 sizes from PHYSICS_CONFIG: ball .058 W, puck .134 W (collision = drawn radius)', () {
-    expect(kTuneStars.ballR, closeTo(.058 / 2 * PHYSICS_CONFIG.wPx, 1e-9));
+  test('v0.7 sizes from PHYSICS_CONFIG: ball .0638 W, puck .134 W (collision = drawn radius)', () {
+    expect(kTuneStars.ballR, closeTo(.0638 / 2 * PHYSICS_CONFIG.wPx, 1e-9));
     expect(kTuneStars.discR, closeTo(.134 / 2 * PHYSICS_CONFIG.wPx, 1e-9));
     expect(Engine(_cfg()).ball.r, kTuneStars.ballR);
   });

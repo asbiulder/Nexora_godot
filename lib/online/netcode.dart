@@ -126,9 +126,9 @@ const kNetProfiles = {'stars', 'godot', 'classic'};
 /// Flutter builds v1-v3 advertise c:'fl' without 'pv' (treated as 3): their 'stars' tuning, linear power and
 /// smooth stop differ from v4, so a mixed match would desync -> v3 and v4 clients must not share a match.
 /// RN / Godot peers (no c:'fl') keep playing the legacy 'classic' profile as before.
-// v10 changes the deterministic physics; v9 Flutter peers must not simulate it in lockstep.
+// v11 changes the deterministic physics; v10 and older Flutter peers must not simulate it in lockstep.
 // Snapshot-based interoperability with non-Flutter peers remains unchanged.
-const int kProtoVersion = 10;
+const int kProtoVersion = 11;
 // [5 = v0.6.0: billiards physics + 0.8x ball]
 const kMsgUpdateMe = 'نسخه‌ی NEXORA روی گوشی تو قدیمی است. لطفاً برنامه را به‌روز کن تا بتوانی با این بازیکن‌ها بازی کنی.';
 const kMsgUpdateThem = 'یکی از بازیکنان نسخه‌ی قدیمی NEXORA دارد. لطفاً از او بخواه برنامه را به‌روز کند؛ تا آن موقع بازی شروع نمی‌شود.';

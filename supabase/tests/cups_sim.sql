@@ -1,7 +1,7 @@
 -- Full server simulation of a 5-player cup (prize 100, split 50/30/20, best of 3) inside one transaction that is
 -- rolled back at the end: the result is raised as the error message. Run: tools/sql.py supabase/tests/cups_sim.sql
 do $$
-declare u uuid[]; c cups; g0 int; gc int; r jsonb := '{}'; m cup_matches; mt matches; i int; k int; rid uuid; tot int; q text; begin
+declare u uuid[]; c cups; c2 cups; st text; g0 int; gc int; r jsonb := '{}'; m cup_matches; mt matches; i int; k int; rid uuid; tot int; q text; begin
   select array_agg(id order by created_at) into u from (select id, created_at from profiles where username is not null order by created_at limit 7) x;
   update profiles set gems = 500 where id = any(u);
   perform set_config('request.jwt.claims', json_build_object('sub', u[1], 'role', 'authenticated')::text, true);
@@ -13,8 +13,8 @@ declare u uuid[]; c cups; g0 int; gc int; r jsonb := '{}'; m cup_matches; mt mat
     perform cup_join(c.code);
   end loop;
   r := r || jsonb_build_object('reg', (select jsonb_object_agg(status, n) from (select status, count(*) n from cup_players where cup_id = c.id group by 1) z));
-  -- jump into the last 4 minutes: everyone except u[5] checks in (u[6], u[7] are on the waitlist)
-  update cups set starts_at = now() + interval '4 minutes' where id = c.id;
+  -- jump into the last 8 minutes: check-in opens 10 minutes before start; u[6],u[7] are on the waitlist
+  update cups set starts_at = now() + interval '8 minutes' where id = c.id;
   foreach rid in array array[u[1],u[2],u[3],u[4],u[6],u[7]] loop
     perform set_config('request.jwt.claims', json_build_object('sub', rid, 'role', 'authenticated')::text, true);
     perform cup_checkin(c.id);
@@ -67,5 +67,19 @@ declare u uuid[]; c cups; g0 int; gc int; r jsonb := '{}'; m cup_matches; mt mat
   perform _cup_finish(c.id);
   r := r || jsonb_build_object('ledger_rows_after_refinish', (select count(*) from cup_ledger where cup_id = c.id));
   r := r || jsonb_build_object('notif_kinds', (select jsonb_object_agg(kind, n) from (select kind, count(*) n from notifications where data->>'cup' = c.id::text group by 1) z));
+  -- v2 configuration: approval-gated aggregate series and a real prize recorded for manual settlement only.
+  perform set_config('request.jwt.claims', json_build_object('sub', u[1], 'role', 'authenticated')::text, true);
+  c2 := cup_create_v2('Simulation manual prize', 4, 2, 3, now()+interval '20 minutes', 0, '{60,30,10}', true,
+                       true, 'aggregate', 1, 'Cash prize test', 100.50, 'USD');
+  perform set_config('request.jwt.claims', json_build_object('sub', u[2], 'role', 'authenticated')::text, true);
+  perform cup_join(c2.code);
+  select status into st from cup_players where cup_id=c2.id and user_id=u[2];
+  if st <> 'pending' then raise exception 'approval gate failed: %', st; end if;
+  perform set_config('request.jwt.claims', json_build_object('sub', u[1], 'role', 'authenticated')::text, true);
+  perform cup_approve(c2.id,u[2],true);
+  select status into st from cup_players where cup_id=c2.id and user_id=u[2];
+  if st <> 'main' then raise exception 'approval failed: %', st; end if;
+  r := r || jsonb_build_object('v2_mode',c2.series_mode,'approval_status',st,'cash_prize',c2.cash_prize,'currency',c2.cash_currency,
+    'cash_splits',_cup_cash_shares(100.50,'{60,30,10}'));
   raise exception 'SIMRESULT %', r;
 end $$;

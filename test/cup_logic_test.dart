@@ -48,6 +48,11 @@ void main() {
   });
 
   group('series', () {
+    test('configuration timing matches the cup backend', () {
+      expect(kCupLineupSeconds, 30);
+      expect(kCupCheckinMinutes, 10);
+      expect(kCupReminderMinutes, 10);
+    });
     test('single game', () {
       expect(playSeries(1, [(3, 1)]), (1, 1));
       expect(playSeries(1, [(0, 3)]), (2, 1));
@@ -76,6 +81,17 @@ void main() {
       expect(formatFa(1), 'تک بازی');
       expect(formatFa(3), 'بهترین ۳');
       expect(formatFa(2), 'دو بازی (مجموع)');
+      expect(cupSeriesLabel('single', 1, 1), 'تک‌بازی');
+      expect(cupSeriesLabel('aggregate', 2, 1), 'مجموع گل · ۲ بازی');
+      expect(cupSeriesLabel('first_to', 3, 2), 'اول به ۲ برد · حداکثر ۳ بازی');
+    });
+    test('single match, aggregate goals, and first-to-wins are distinct', () {
+      expect(playConfiguredSeries('single', 1, 1, [(3, 1)]), (1, 1));
+      expect(playConfiguredSeries('aggregate', 2, 1, [(3, 0), (2, 4)]), (2, 2));
+      expect(playConfiguredSeries('aggregate', 2, 1, [(3, 0), (0, 3)]), (0, 2));
+      expect(playConfiguredSeries('aggregate', 2, 1, [(3, 0), (0, 3), (1, 0)]), (1, 3));
+      expect(playConfiguredSeries('first_to', 3, 2, [(3, 0), (0, 3), (2, 1)]), (1, 3));
+      expect(playConfiguredSeries('first_to', 3, 2, [(3, 0), (3, 1)]), (1, 2));
     });
   });
 
