@@ -101,7 +101,7 @@ class Press extends StatefulWidget {
   final VoidCallback? onLong;
   final bool sound, haptic, disabled;
   final double scaleTo;
-  const Press({super.key, required this.child, this.onTap, this.onLong, this.sound = true, this.haptic = true, this.disabled = false, this.scaleTo = .94});
+  const Press({super.key, required this.child, this.onTap, this.onLong, this.sound = true, this.haptic = true, this.disabled = false, this.scaleTo = .97});
   @override
   State<Press> createState() => _PressState();
 }
@@ -126,8 +126,8 @@ class _PressState extends State<Press> {
             },
       child: AnimatedScale(
         scale: _down ? widget.scaleTo : 1,
-        duration: Duration(milliseconds: _down ? 90 : 220),
-        curve: _down ? Curves.easeOut : Curves.elasticOut,
+        duration: Duration(milliseconds: _down ? 95 : 190),
+        curve: Curves.easeOutCubic,
         child: Opacity(opacity: widget.disabled ? .45 : 1, child: widget.child),
       ),
     );

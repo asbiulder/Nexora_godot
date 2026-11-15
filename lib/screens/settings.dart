@@ -85,8 +85,9 @@ final _emailRe = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]{2,}$');
 class AccountPanel extends StatefulWidget {
   @visibleForTesting
   final Future<String?> Function()? ensureGuest;
+  final VoidCallback? onAuthenticated;
 
-  const AccountPanel({super.key, this.ensureGuest});
+  const AccountPanel({super.key, this.ensureGuest, this.onAuthenticated});
   @override
   State<AccountPanel> createState() => _AccountPanelState();
 }
@@ -97,7 +98,17 @@ class _AccountPanelState extends State<AccountPanel> {
   bool editName = false, busy = false, sureOut = false;
   String? sent, err;
 
+  @override
+  void dispose() {
+    email.dispose();
+    pass.dispose();
+    pass2.dispose();
+    name.dispose();
+    super.dispose();
+  }
+
   bool done(Res r, [String? ok]) {
+    if (!mounted) return false;
     if (!r.ok) {
       setState(() => err = r.error ?? 'خطا');
       buzz('heavy');
@@ -120,12 +131,18 @@ class _AccountPanelState extends State<AccountPanel> {
       if (mode == 'forgot') {
         if (done(await a.resetPassword(email.text))) setState(() => sent = 'reset');
       } else if (mode == 'in') {
-        if (done(await a.signIn(email.text, pass.text), 'وارد شدی')) pass.clear();
+        if (done(await a.signIn(email.text, pass.text), 'وارد شدی')) {
+          pass.clear();
+          widget.onAuthenticated?.call();
+        }
       } else if (a.uid != null && a.isGuest) {
         if (done(await a.upgrade(email.text, pass.text))) setState(() => sent = 'upgrade');
       } else {
         final r = await a.signUp(email.text, pass.text);
-        if (done(r)) setState(() => sent = r.info == 'confirm' ? 'confirm' : null);
+        if (done(r)) {
+          setState(() => sent = r.info == 'confirm' ? 'confirm' : null);
+          if (r.info != 'confirm') widget.onAuthenticated?.call();
+        }
       }
     } finally {
       if (mounted) setState(() => busy = false);
@@ -238,6 +255,7 @@ class _AccountPanelState extends State<AccountPanel> {
                         toast('اتصال برقرار نشد', 'err');
                       } else {
                         toast('به‌عنوان مهمان وارد شدی', 'ok');
+                        widget.onAuthenticated?.call();
                       }
                     } catch (_) {
                       if (mounted) toast('اتصال برقرار نشد', 'err');

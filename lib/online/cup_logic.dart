@@ -188,8 +188,8 @@ String formatFa(int games) => switch (games) {
 
 String cupSeriesLabel(String mode, int games, int targetWins) => switch (mode) {
       'single' => 'تک‌بازی',
-      'aggregate' => 'مجموع گل · ${fa(games)} بازی',
-      'first_to' => 'اول به ${fa(targetWins)} برد · حداکثر ${fa(games)} بازی',
+      'aggregate' => 'مجموع گل · ${faDigits(games.toString())} بازی',
+      'first_to' => 'اول به ${faDigits(targetWins.toString())} برد · حداکثر ${faDigits(games.toString())} بازی',
       _ => formatFa(games),
     };
 

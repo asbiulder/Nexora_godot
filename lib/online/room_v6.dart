@@ -329,7 +329,16 @@ class _RoomBodyState extends State<RoomBody> {
           Positioned(
             left: w * .15,
             top: h * .38,
-            child: Img(ballImg(0), w: h * .19, h: h * .19),
+            child: TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0, end: 1),
+              duration: const Duration(milliseconds: 720),
+              curve: Curves.easeOutCubic,
+              builder: (_, v, child) => Transform.translate(
+                offset: Offset(0, -math.sin(v * math.pi) * 3),
+                child: Transform.scale(scale: .985 + v * .03, child: child),
+              ),
+              child: Img(ballImg(0), w: h * .19, h: h * .19),
+            ),
           ),
           Positioned(
             left: 0,

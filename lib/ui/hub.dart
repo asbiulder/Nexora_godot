@@ -598,9 +598,9 @@ class HubTile extends StatelessWidget {
   Widget build(BuildContext context) => ValueListenableBuilder<Object?>(
     valueListenable: hubPicked,
     builder: (_, picked, ch) => AnimatedScale(
-      scale: picked == label ? 1.16 : 1,
-      duration: const Duration(milliseconds: 360),
-      curve: picked == label ? Curves.easeOutBack : Curves.easeOutCubic,
+      scale: picked == label ? 1.07 : 1,
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOutCubic,
       child: ch,
     ),
     child: Press(

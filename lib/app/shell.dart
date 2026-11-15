@@ -20,13 +20,13 @@ import '../core/store.dart';
 import '../core/theme.dart';
 import '../game/data.dart';
 import '../game/meta.dart';
-import '../intro/intro.dart';
 import '../intro/video_intro.dart';
 import '../net/auth.dart';
 import '../net/supabase.dart';
 import '../online/online_root.dart';
 import '../oracle/oracle.dart';
 import '../screens/match.dart';
+import '../screens/auth_start.dart';
 import '../screens/play.dart';
 import '../screens/profile.dart';
 import '../screens/result.dart';
@@ -130,12 +130,17 @@ class _ShellState extends State<NexoraApp> with SingleTickerProviderStateMixin {
   late final _DepthObserver _obs = _DepthObserver(depth);
   final tab = ValueNotifier<NavTab>(NavTab.home);
   bool intro = true;
-  bool _videoFailed = false; // v4: the video intro could not initialise -> Flutter cinematic fallback
+  bool _authGate = false;
 
   void _introDone() {
     setState(() => intro = false);
     Oracle.i.greet();
     onIntroDone();
+  }
+
+  void _continueFromAuth() {
+    if (!mounted) return;
+    setState(() => _authGate = false);
   }
 
   /// hook run once the launch intro is over (first-run tutorial starts here)
@@ -152,6 +157,8 @@ class _ShellState extends State<NexoraApp> with SingleTickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
+    intro = Store.i.p.introVideo;
+    _authGate = Auth.i.uid == null;
     AppNav._s = this;
     toastListeners.add(Oracle.i.onToast);
     Oracle.i.actions = OracleActions(
@@ -174,6 +181,7 @@ class _ShellState extends State<NexoraApp> with SingleTickerProviderStateMixin {
     debugPrint('NX_TEST initial route $r');
     if (r.startsWith('/nx-')) {
       intro = false;
+      _authGate = false;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         debugPrint('NX_TEST route $r');
         switch (r) {
@@ -368,7 +376,7 @@ class _ShellState extends State<NexoraApp> with SingleTickerProviderStateMixin {
     child: (sc) => SettingsSheet(
       replayIntro: () {
         Navigator.pop(sc);
-        setState(() => intro = true);
+        setState(() => intro = Store.i.p.introVideo);
       },
     ),
   );
@@ -545,7 +553,7 @@ class _ShellState extends State<NexoraApp> with SingleTickerProviderStateMixin {
               Positioned.fill(
                 child: ValueListenableBuilder<int>(
                   valueListenable: depth,
-                  builder: (_, d, _) => OracleLayer(bubble: d == 0 && !intro, onOpenPanel: () => _push(const OraclePanel())),
+                  builder: (_, d, _) => OracleLayer(bubble: d == 0 && !intro && !_authGate, onOpenPanel: () => _push(const OraclePanel())),
                 ),
               ),
               // cross-fade veil between tabs / match / result / online
@@ -559,10 +567,9 @@ class _ShellState extends State<NexoraApp> with SingleTickerProviderStateMixin {
               ),
               if (intro)
                 Positioned.fill(
-                  child: Store.i.p.introVideo && !_videoFailed
-                      ? VideoIntro(onDone: _introDone, onFail: () => setState(() => _videoFailed = true))
-                      : Intro(onDone: _introDone),
+                  child: VideoIntro(onDone: _introDone, onFail: _introDone),
                 ),
+              if (!intro && _authGate) Positioned.fill(child: AuthStartScreen(onContinue: _continueFromAuth)),
             ],
           ),
         ),

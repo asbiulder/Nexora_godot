@@ -1,7 +1,7 @@
-// v0.6.1: the launch intro plays the owner's clips in order intro1 -> intro2 -> intro3, then finishes (fake player).
+// The launch intro plays only the requested spaceship/logo clip, then finishes (fake player).
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexora/intro/video_intro.dart';
 // ignore: depend_on_referenced_packages
@@ -56,7 +56,7 @@ class _FakePlayer extends VideoPlayerPlatform {
 }
 
 void main() {
-  testWidgets('intro clips play in order 1 -> 2 -> 3 then finish', (t) async {
+  testWidgets('intro plays only the first spaceship/logo clip then finishes', (t) async {
     final fake = _FakePlayer();
     VideoPlayerPlatform.instance = fake;
     var done = false, failed = false;
@@ -65,7 +65,7 @@ void main() {
       await t.pump(const Duration(milliseconds: 100));
     }
     expect(failed, isFalse);
-    expect(fake.played, ['assets/video/intro1.mp4', 'assets/video/intro2.mp4', 'assets/video/intro3.mp4']);
+    expect(fake.played, ['assets/video/intro1.mp4']);
     expect(done, isTrue);
     await t.pumpWidget(const SizedBox());
     await t.pump(const Duration(seconds: 7));

@@ -1,13 +1,9 @@
-// v4 launch intro (owner request 2026-11-14): the owner videos, complete and in order:
-//   assets/video/intro1.mp4 (544x960, 12.25 s: spaceship through the portal to the NeXora logo)
-//   assets/video/intro2.mp4 (512x768, 10.04 s: a character walks the tunnel into the NEXORA base)
-//   assets/video/intro3.mp4 (720x720, 5.7 s, owner's third clip added for v0.6.1; re-encoded H.264 main)
-// Full-screen BoxFit.cover centred on a black background (no stretch on any aspect). Each next clip is initialised while
-// the current one plays and all stay stacked, so the hand-over is just a visibility swap (no black gap). Skip appears
-// after ~1 s and goes straight home. If a video can't initialise, [onFail] runs (the Flutter cinematic fallback).
+// Keep only intro1.mp4: the spaceship flight through the portal to the NEXORA logo.
+// Once it ends, the app hands off to the account/guest welcome screen. Skip appears after ~1 second.
+// If playback fails or stalls, hand off to the welcome screen instead of showing another intro.
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:video_player/video_player.dart';
 
 import '../core/sound.dart';
@@ -15,111 +11,87 @@ import '../core/sound.dart';
 class VideoIntro extends StatefulWidget {
   final VoidCallback onDone, onFail;
   const VideoIntro({super.key, required this.onDone, required this.onFail});
-  static const clips = ['assets/video/intro1.mp4', 'assets/video/intro2.mp4', 'assets/video/intro3.mp4'];
+  static const asset = 'assets/video/intro1.mp4';
+
   @override
   State<VideoIntro> createState() => _VideoIntroState();
 }
 
 class _VideoIntroState extends State<VideoIntro> {
-  final List<VideoPlayerController> _c = [for (final p in VideoIntro.clips) VideoPlayerController.asset(p)];
-  final List<bool> _ready = [for (final _ in VideoIntro.clips) false];
-  int _cur = 0;
-  bool _skip = false, _done = false;
-  Timer? _skipT, _guard;
+  late final VideoPlayerController _controller = VideoPlayerController.asset(VideoIntro.asset);
+  bool _ready = false, _skip = false, _done = false;
+  Timer? _skipTimer, _guardTimer;
 
   @override
   void initState() {
     super.initState();
-    Sound.scene(AudioScene.match); // the menu music waits until the intro is over
-    _skipT = Timer(const Duration(milliseconds: 1000), () => mounted ? setState(() => _skip = true) : null);
-    // if the first clip hasn't started within 6 s, use the fallback cinematic
-    _guard = Timer(const Duration(seconds: 6), () {
-      if (!_ready[0]) _fail();
+    Sound.scene(AudioScene.match);
+    _controller.addListener(_watch);
+    _skipTimer = Timer(const Duration(milliseconds: 1000), () {
+      if (mounted) setState(() => _skip = true);
     });
-    _init(0).then((ok) {
-      if (!ok) return _fail();
-      _c[0].play();
-      _init(1); // pre-initialise the next clip while this one plays
+    _guardTimer = Timer(const Duration(seconds: 6), () {
+      if (!_ready) _fail();
     });
-    for (var i = 0; i < _c.length; i++) {
-      _c[i].addListener(() => _watch(i));
-    }
+    unawaited(_initializeAndPlay());
   }
 
-  Future<bool> _init(int i) async {
+  Future<void> _initializeAndPlay() async {
     try {
-      await _c[i].initialize();
-      await _c[i].setLooping(false);
-      if (mounted) setState(() => _ready[i] = true);
-      return true;
+      await _controller.initialize();
+      await _controller.setLooping(false);
+      if (!mounted || _done) return;
+      setState(() => _ready = true);
+      await _controller.play();
     } catch (_) {
-      return false;
+      _fail();
     }
   }
 
-  void _watch(int i) {
-    if (_done || i != _cur) return;
-    final v = _c[i].value;
-    if (v.hasError) return i == 0 ? _fail() : _finish();
-    final end = v.isInitialized && v.duration > Duration.zero && v.position >= v.duration - const Duration(milliseconds: 40) && !v.isPlaying;
-    if (!end) return;
-    final n = i + 1;
-    if (n >= _c.length) return _finish();
-    void go() {
-      _c[n].play();
-      setState(() => _cur = n);
-      if (n + 1 < _c.length) _init(n + 1); // pre-initialise the clip after it
-    }
-
-    if (_ready[n]) {
-      go();
-    } else {
-      // next clip still initialising: wait for it (rare), else finish
-      _init(n).then((ok) {
-        if (_done) return;
-        if (!ok) return _finish();
-        go();
-      });
-    }
+  void _watch() {
+    if (_done) return;
+    final value = _controller.value;
+    if (value.hasError) return _fail();
+    final atEnd = value.isInitialized &&
+        value.duration > Duration.zero &&
+        value.position >= value.duration - const Duration(milliseconds: 40) &&
+        !value.isPlaying;
+    if (atEnd) _finish();
   }
 
   void _fail() {
-    if (_done) return;
+    if (_done || !mounted) return;
     _done = true;
     Sound.scene(AudioScene.menu);
     widget.onFail();
   }
 
   void _finish() {
-    if (_done) return;
+    if (_done || !mounted) return;
     _done = true;
-    for (final c in _c) {
-      c.pause();
-    }
+    if (_ready) unawaited(_controller.pause());
     Sound.scene(AudioScene.menu);
     widget.onDone();
   }
 
   @override
   void dispose() {
-    _skipT?.cancel();
-    _guard?.cancel();
-    for (final c in _c) {
-      c.dispose();
-    }
+    _skipTimer?.cancel();
+    _guardTimer?.cancel();
+    _controller.removeListener(_watch);
+    _controller.dispose();
     super.dispose();
   }
 
-  Widget _clip(int i) {
-    final c = _c[i];
-    if (!_ready[i]) return const SizedBox.shrink();
-    final s = c.value.size;
+  Widget _video() {
+    if (!_ready) return const SizedBox.shrink();
+    final size = _controller.value.size;
     return SizedBox.expand(
       child: FittedBox(
         fit: BoxFit.cover,
         alignment: Alignment.center,
         clipBehavior: Clip.hardEdge,
-        child: SizedBox(width: s.width, height: s.height, child: VideoPlayer(c)),
+        child: SizedBox(width: size.width, height: size.height, child: VideoPlayer(_controller)),
       ),
     );
   }
@@ -130,8 +102,7 @@ class _VideoIntroState extends State<VideoIntro> {
     return ColoredBox(
       color: Colors.black,
       child: Stack(fit: StackFit.expand, children: [
-        // both clips stay in the tree; only the current one is visible (seamless swap)
-        for (var i = _c.length - 1; i >= 0; i--) Offstage(offstage: _cur != i, child: _clip(i)),
+        _video(),
         Positioned(
           top: pad.top + 12,
           left: 14,
@@ -144,8 +115,16 @@ class _VideoIntroState extends State<VideoIntro> {
                 onTap: _finish,
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(color: const Color(0x8c000000), borderRadius: BorderRadius.circular(20), border: Border.all(color: const Color(0x66ffffff))),
-                  child: const Text('رد کردن  ›', textDirection: TextDirection.rtl, style: TextStyle(color: Colors.white, fontFamily: 'Vazirmatn', fontSize: 14, fontWeight: FontWeight.w700)),
+                  decoration: BoxDecoration(
+                    color: const Color(0x8c000000),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: const Color(0x66ffffff)),
+                  ),
+                  child: const Text(
+                    'رد کردن  ›',
+                    textDirection: TextDirection.rtl,
+                    style: TextStyle(color: Colors.white, fontFamily: 'Vazirmatn', fontSize: 14, fontWeight: FontWeight.w700),
+                  ),
                 ),
               ),
             ),
