@@ -241,6 +241,12 @@ class DiscStats {
 double powerFrac(double p) => _min(10, _max(1, p)) / 10;
 
 double powerMul(double p) => .75 + (_min(10, _max(1, p)) - 1) / 9 * .5;
+/// v0.7 stars: real 1..10 stats from PHYSICS_CONFIG (owner 2026-11-15).
+double _starsPowerMul(double p) => !PHYSICS_CONFIG.useDiscStats
+    ? 1.0
+    : PHYSICS_CONFIG.powerMulAt1 + (1 - PHYSICS_CONFIG.powerMulAt1) * (_min(10, _max(1, p)) - 1) / 9;
+double _starsAimDevDeg(double a) =>
+    !PHYSICS_CONFIG.useDiscStats ? 0.0 : (10 - _min(10, _max(1, a))) / 9 * PHYSICS_CONFIG.accDevAt1Deg;
 double aimDevDeg(double a) => (10 - _min(10, _max(1, a))) / 9 * 4;
 double aimPreview(double a) => .45 + (_min(10, _max(1, a)) - 1) / 9 * .75;
 
@@ -583,7 +589,7 @@ class Engine {
     final v = _shotSpeed(team, p);
     var ux = dx / l, uy = dy / l;
     if (human && cfg.stats != null) {
-      final dev = aimDevDeg(statsOf(team).accuracy) * math.pi / 180;
+      final dev = (stars ? _starsAimDevDeg(statsOf(team).accuracy) : aimDevDeg(statsOf(team).accuracy)) * math.pi / 180;
       if (dev > 0) {
         final a = fatan2(uy, ux) + (rand() + rand() - 1) * dev;
         ux = fcos(a);
@@ -601,7 +607,7 @@ class Engine {
     if (godot) {
       if (tu.name == 'stars' && cfg.stats != null) {
         // v0.6.1: discVmax * smooth pull curve * power-stat multiplier (0.62..1), never above discVmax
-        return _min(tu.discVmax, tu.discVmax * shotCurve(p) * statMul(statsOf(team).power));
+        return _min(tu.discVmax, tu.discVmax * shotCurve(p) * (stars ? _starsPowerMul(statsOf(team).power) : statMul(statsOf(team).power)));
       }
       var v = tu.shotMax * (tu.name == 'stars' ? shotCurve(p) : p);
       if (cfg.stats != null) {
@@ -645,7 +651,7 @@ class Engine {
   (double, double) deviate(int team, double dx, double dy, double l) {
     var ux = dx / l, uy = dy / l;
     if (cfg.stats != null) {
-      final dev = aimDevDeg(statsOf(team).accuracy) * math.pi / 180;
+      final dev = (stars ? _starsAimDevDeg(statsOf(team).accuracy) : aimDevDeg(statsOf(team).accuracy)) * math.pi / 180;
       if (dev > 0) {
         final a = fatan2(uy, ux) + (rand() + rand() - 1) * dev;
         ux = fcos(a);
@@ -1463,7 +1469,7 @@ class Engine {
       slow -= dt;
       ts = godot ? .32 + .68 * fpow(1 - _max(0, slow) / 1.1, 2) : .3 + .7 * fpow(1 - _max(0, slow) / 1.1, 2);
     }
-    acc += dt * ts;
+    acc += dt * ts * (stars ? PHYSICS_CONFIG.playbackSpeed : 1.0);
     var n = 0;
     if (godot) {
       // Godot loop: at most tu.stepCap physics steps per frame, the backlog is dropped beyond that

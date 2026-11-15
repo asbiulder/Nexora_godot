@@ -52,10 +52,24 @@ class PhysicsConfig {
   /// fixed physics step (s); each step is split into substeps so that no body travels more than subTravel and the
   /// ball never more than subBallFrac x its radius per substep.
   final double fixedStep, subTravel, subBallFrac;
+
+  /// playback speed of the whole simulation (1 = original pace). Slows the match like playing a fast-forwarded film
+  /// at normal speed: identical paths/collisions (fixed steps), only wall-clock pace changes. Owner 2026-11-15.
+  final double playbackSpeed;
+
+  /// disc stats 1..10 really applied to every shot (owner 2026-11-15):
+  /// launch speed x (powerMulAt1 + (1 - powerMulAt1) * (power - 1) / 9)  -> power 1 = 0.55x, power 10 = 1.0x
+  /// aim deviation = (10 - accuracy) / 9 * accDevAt1Deg degrees          -> accuracy 10 = exact, accuracy 1 = 8 deg
+  final bool useDiscStats;
+  final double powerMulAt1, accDevAt1Deg;
   final int subMax, stepCap;
 
   const PhysicsConfig({
     required this.wPx,
+    this.playbackSpeed = 1.0,
+    this.useDiscStats = true,
+    this.powerMulAt1 = .55,
+    this.accDevAt1Deg = 8,
     required this.puckDiameter,
     required this.ballDiameter,
     required this.ballK,
@@ -111,6 +125,10 @@ const PHYSICS_CONFIG = PhysicsConfig(
   ballMaxSpeed: 6.5, // [measured, low] reference peak ball speed
   maxSpeed: 7, // safety clamp; was 4200 px/s = 5.03 W/s
   postR: 5 / 825, // [kept]
+  playbackSpeed: .6, // owner: too fast, play at normal speed
+  useDiscStats: true, // owner: real 1..10 power/accuracy on every disc
+  powerMulAt1: .55, // was .62 (statMul)
+  accDevAt1Deg: 8, // was 4 (aimDevDeg)
   fixedStep: 1 / 120, // was 1/240 (brief: 1/120 + substeps)
   subTravel: 4 / 825, // [kept] 4 px
   subBallFrac: .5, // spec: ball moves < half its radius per substep
