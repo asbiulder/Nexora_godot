@@ -126,7 +126,7 @@ const kNetProfiles = {'stars', 'godot', 'classic'};
 /// Flutter builds v1-v3 advertise c:'fl' without 'pv' (treated as 3): their 'stars' tuning, linear power and
 /// smooth stop differ from v4, so a mixed match would desync -> v3 and v4 clients must not share a match.
 /// RN / Godot peers (no c:'fl') keep playing the legacy 'classic' profile as before.
-const int kProtoVersion = 7; // v0.6.2: new pitches + Premium Ultra discs (peers must share the team/field lists). v0.6.1: retuned physics (power, friction, cushions), taller pitch, shallow goals, mid-match formation ('fm')
+const int kProtoVersion = 8; // v0.7: PHYSICS_CONFIG physics (exp friction, 1/120 step, sizes, kick), wider play area, deeper goals. v0.6.2: new pitches + Premium Ultra discs (peers must share the team/field lists). v0.6.1: retuned physics (power, friction, cushions), taller pitch, shallow goals, mid-match formation ('fm')
 // [5 = v0.6.0: billiards physics + 0.8x ball]
 const kMsgUpdateMe = 'نسخه‌ی NEXORA روی گوشی تو قدیمی است. لطفاً برنامه را به‌روز کن تا بتوانی با این بازیکن‌ها بازی کنی.';
 const kMsgUpdateThem = 'یکی از بازیکنان نسخه‌ی قدیمی NEXORA دارد. لطفاً از او بخواه برنامه را به‌روز کند؛ تا آن موقع بازی شروع نمی‌شود.';

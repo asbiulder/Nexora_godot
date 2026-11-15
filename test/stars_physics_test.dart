@@ -48,7 +48,8 @@ void main() {
     final e = Engine(_cfg());
     expect(e.cfg.profile, 'stars');
     expect(e.tu, same(kTuneStars));
-    expect(1 / e.ball.im, lessThan(1 / e.bodies.first.im)); // ball lighter than a disc
+    // v0.7 (owner spec): the ball is 3x a puck in contacts (was 1/4)
+    expect(1 / e.ball.im, closeTo(3 / e.bodies.first.im, 1e-9));
   });
 
   test('ball glides further than a disc (same speed, and same impulse)', () {
@@ -61,7 +62,9 @@ void main() {
       final bd = _glide(e2, e2.ball);
       // ignore: avoid_print
       print('glide: disc ${dv.round()} px/s -> ${dd.toStringAsFixed(1)} px, ball ${bv.round()} px/s -> ${bd.toStringAsFixed(1)} px');
-      expect(bd, greaterThan(dd * 1.25)); // v0.6.1b softer ball: still clearly further than a disc
+      // v0.7: exponential friction, ball k 2.1 < puck k 2.9 -> at equal speed the ball glides ~2.9/2.1 = 1.38x further.
+      // (the 'same impulse' case now gives the heavier ball LESS speed, so only the equal-speed case is checked)
+      if (dv == bv) expect(bd, greaterThan(dd * 1.25));
     }
   });
 
@@ -81,7 +84,7 @@ void main() {
     final rn = b.vx / -pre.$1, rt = b.vy / pre.$2;
     // ignore: avoid_print
     print('cushion: normal ${rn.toStringAsFixed(3)}, tangential ${rt.toStringAsFixed(3)} (incl. one frame of rolling friction)');
-    expect(rn, inInclusiveRange(.78, .90));
+    expect(rn, inInclusiveRange(.74, .86)); // v0.7: e_ball_wall .8 (guess)
     expect(rt, inInclusiveRange(.92, 1.0));
     final aIn = math.atan2(pre.$2, -pre.$1), aOut = math.atan2(b.vy, b.vx);
     expect((aIn - aOut).abs(), lessThan(.05), reason: 'angle out ~ angle in (within 3 degrees)');
@@ -120,8 +123,9 @@ void main() {
     expect((b.vx - b.vy).abs() / b.vx.abs(), lessThan(.02), reason: 'leaves the corner on the 45 degree diagonal');
   });
 
-  test('single fixed ball size: 0.8x the v5 radius (27)', () {
-    expect(kTuneStars.ballR, closeTo(27 * .8, 1e-9));
+  test('v0.7 sizes from PHYSICS_CONFIG: ball .058 W, puck .134 W (collision = drawn radius)', () {
+    expect(kTuneStars.ballR, closeTo(.058 / 2 * PHYSICS_CONFIG.wPx, 1e-9));
+    expect(kTuneStars.discR, closeTo(.134 / 2 * PHYSICS_CONFIG.wPx, 1e-9));
     expect(Engine(_cfg()).ball.r, kTuneStars.ballR);
   });
 

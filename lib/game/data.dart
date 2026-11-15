@@ -74,10 +74,14 @@ const int kDefaultField = 0;
 /// 'pitch' art's 775 x 1331), kick-off spot at its centre, goal mouth 2 x 124 (32% of the width).
 // v0.6.1b (owner): play area a little narrower -> 735 x 1416 inner (aspect 1.93, was 767 x 1416); the pitch art is
 // no longer stretched onto it but scaled uniformly (see MatchRenderer._artXf).
-const Field kPlayField = Field('play', 'Play', 835, 1626, 46, 789, 101, 1525, 813, 124, 'white');
+// v0.7 (owner: "fit the walls to the pitch art"): the 40 pitch arts' drawn field edges (kFields L/R/T/B, checked
+// against the images) have width/length 0.556..0.649, median 0.583. Play area = that common shape at the same
+// length: 825 x 1416 inner (was 735 x 1416, aspect .519). Goal mouth (2 x 124) and kick-off spot unchanged.
+const Field kPlayField = Field('play', 'Play', 925, 1626, 46, 879, 101, 1525, 813, 124, 'white');
 
-/// v0.6.1 goal depth behind the goal line (shallow standard goal; the ball, r 21.6, still fits fully inside).
-const double kGoalDepth = 58;
+/// goal depth behind the goal line. v0.7: 58 -> 72 (owner: "slightly deeper"); the ball (r 23.9) fits fully inside
+/// with room to spare, so a goal (whole ball over the line) is always visible inside the net.
+const double kGoalDepth = 72;
 const int kFieldsVersion = 2;
 
 /// Formation slots: normalized [nx, ny] per disc (same order as data.ts `slots`).

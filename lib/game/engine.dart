@@ -21,6 +21,9 @@ import 'dart:typed_data';
 
 import 'data.dart';
 import 'fdlibm.dart';
+import 'physics_config.dart';
+
+export 'physics_config.dart';
 
 const double K = 1.27;
 const double PR = 49;
@@ -68,6 +71,13 @@ class PhysTune {
   final double subPx; // max travel per substep (px) -> adaptive substeps
   final int subMax, stepCap; // substep cap per 240 Hz step; physics steps per frame
   final double rollK; // visual ball roll rate (render only)
+  // ---- v0.7 PHYSICS_CONFIG model (stars): exponential friction v *= exp(-k h), flight friction, striker kick ----
+  final bool expFric; // false: legacy constant-decel + drag model (godot)
+  final double ballK, discK, discFlightK; // 1/s
+  final double discFlightMin; // px/s: flight ends below this speed
+  final double kickGain; // a puck striking the ball: ball normal speed = kickGain x closing speed
+  final double ballVmax; // cap on ball speed (px/s)
+  final double subBallFrac; // ball travel per substep < subBallFrac x ball radius
   const PhysTune({
     required this.name,
     required this.discR,
@@ -100,6 +110,14 @@ class PhysTune {
     required this.subMax,
     required this.stepCap,
     required this.rollK,
+    this.expFric = false,
+    this.ballK = 0,
+    this.discK = 0,
+    this.discFlightK = 0,
+    this.discFlightMin = 0,
+    this.kickGain = 0,
+    this.ballVmax = 1e9,
+    this.subBallFrac = 1e9,
   });
 }
 
@@ -117,38 +135,25 @@ const kTuneGodot = PhysTune(
   subPx: 4, subMax: 16, stepCap: 14, rollK: .6,
 );
 
-/// 'stars' (DEFAULT): Soccer Stars feel - heavy low-bounce plastic pucks that stop fairly quickly, a lighter ball that
-/// rolls like a pool ball (constant rolling friction + small drag, lively 0.9 cushions) and glides a little further
-/// than in Soccer Stars. Reasoning per value: /workspace/work/godot_vs_flutter_physics.md.
-const kTuneStars = PhysTune(
+/// 'stars' (DEFAULT): v0.7 - every value comes from PHYSICS_CONFIG (lib/game/physics_config.dart, units of W) and
+/// is converted to world px here. History of the v0.6.x values: /workspace/work/godot_vs_flutter_physics.md.
+const _C = PHYSICS_CONFIG;
+final _W = PHYSICS_CONFIG.wPx;
+final kTuneStars = PhysTune(
   name: 'stars',
-  discR: 49, ballR: 21.6, // v6: one fixed ball, 0.8x the v5 radius (27) - owner 2026-11-14
-  // v4 retune (phone feedback 2026-11-14: "billiards ball, heavy Soccer Stars pucks"). v3 values in brackets.
-  discM: 4, ballM: 1, // [3] disc 4x the ball: a disc striking the ball sends it off at (1+e)*4/5 = 1.47x its speed (e .84)
-  // v0.6.1 POWER (phone feedback "discs are very weak, shots must be powerful and wild, proportional to the pull"):
-  // full-pull speed = discVmax * shotCurve(pull) * statMul(power); discVmax 2400 -> 3500 (x1.46), and the power stat
-  // now spans 0.62..1.0 instead of 0.1..1.0, so a typical power-7 club disc leaves at ~3050 px/s (v0.6: 1680).
-  shotMax: 3500, discVmax: 3500, powerGodot: false,
-  // v0.6.1 SMOOTH DECAY (owner: "slows gradually along the whole path, small constant rolling friction + mild
-  // drag, nothing stops abruptly; the ball must come to rest"). v0.6 billiards values made the ball roll for ~8 s
-  // (55 + .42 v). Now a full-power disc glides ~1.3k px (most of the pitch) in ~1.6 s and a hard-hit ball rests
-  // in ~2.5 s. Numbers: tool/snap/sweep_v061_test.dart. [v0.6: disc 210 + 1.05 v, ball 55 + .42 v]
-  discFric: 300, discDrag: 2.0,
-  // v0.6.1b SOFTER BALL (owner: "too fast, flies out of view, bounces back and forth too much"; very small change,
-  // ~12%): ball friction 240 -> 270, drag 1.3 -> 1.45. Shot power / disc stats / max shot untouched.
-  ballFric: 270, ballDrag: 1.45,
-  vStop: 2, vSettle: 0, settleK: 1, vSafe: 4200,
-  // v0.6.1b softer contacts (~11%): disc-disc .94 -> .84, disc-ball .95 -> .84 (ball leaves a full hit at
-  // (1+e)*4/5 = 1.47x the disc speed instead of 1.56x)
-  eDiscDisc: .84, eDiscBall: .84, discDiscK: 1,
-  eSoft: .6, vSoft: 90, // only very light touches are damped (anti-jitter)
-  // v0.6.1 CUSHIONS: very little energy lost, almost no friction along the wall (a ball running along the rail keeps
-  // its speed). [v0.6: ball .93/.93, disc .86/.86]
-  // v0.6.1b: ball cushion restitution .94 -> .85 and rail grip .985 -> .96 (fewer end-to-end ping-pong bounces)
-  eWallBall: .85, tWallBall: .96,
-  eWallDisc: .90, tWallDisc: .97,
-  postR: 5, cornerNudge: 90,
-  subPx: 4, subMax: 16, stepCap: 14, rollK: 1, // rollK 1: ball spin rate = speed / radius (true rolling)
+  discR: _C.puckDiameter / 2 * _W, ballR: _C.ballDiameter / 2 * _W,
+  discM: _C.massPuck, ballM: _C.massBall,
+  shotMax: _C.shotMax * _W, discVmax: _C.shotMax * _W, powerGodot: false,
+  discFric: 0, discDrag: _C.puckK, ballFric: 0, ballDrag: _C.ballK, // (legacy fields, informational)
+  vStop: _C.stopSpeed * _W, vSettle: 0, settleK: 1, vSafe: _C.maxSpeed * _W,
+  eDiscDisc: _C.ePuckPuck, eDiscBall: _C.eBallPuck, discDiscK: 1,
+  eSoft: 1, vSoft: 0, // no soft-contact blending: the plain impulse rule (only while approaching, vrel < 0)
+  eWallBall: _C.eBallWall, tWallBall: _C.tBallWall,
+  eWallDisc: _C.ePuckWall, tWallDisc: _C.tPuckWall,
+  postR: _C.postR * _W, cornerNudge: 0, // v0.7: no corner nudge (it kept pinned bodies moving forever)
+  subPx: _C.subTravel * _W, subMax: _C.subMax, stepCap: _C.stepCap, rollK: 1,
+  expFric: true, ballK: _C.ballK, discK: _C.puckK, discFlightK: _C.puckFlightK, discFlightMin: _C.puckFlightMin * _W,
+  kickGain: _C.ballKickSpeed / _C.puckShotRef, ballVmax: _C.ballMaxSpeed * _W, subBallFrac: _C.subBallFrac,
 );
 
 /// v0.6.1 shot curve: pull fraction (0..1 of LMAX) -> fraction of the full-pull speed. Smooth and monotonic: a short
@@ -285,6 +290,9 @@ class Body {
   final Float64List R = Float64List.fromList([1, 0, 0, 0, 1, 0, 0, 0, 1]);
   double sq = 0, tvx = 0, tvy = 0, ramp = 0, boost = 0, vox = 0, voy = 0;
   Goal? gout;
+
+  /// v0.7: a flicked puck that has not touched anything yet (low flight friction, see PhysicsConfig.puckFlightK)
+  bool fly = false;
   // per-disc motion trail: ring of at most 13 points (TS keeps <= 12 after shift)
   final Float64List trX = Float64List(16), trY = Float64List(16);
   int trStart = 0, trLen = 0;
@@ -418,6 +426,9 @@ class Engine {
 
   /// true for the default 'stars' profile (v0.6.1 uniform pitch + shallow goals; 'godot' keeps its parity geometry).
   late final bool stars = identical(_tune, kTuneStars);
+
+  /// fixed physics step: v0.7 stars 1/120 s (PHYSICS_CONFIG.fixedStep, substeps inside), others 1/240 (parity)
+  late final double step = (_tune?.expFric ?? false) ? PHYSICS_CONFIG.fixedStep : STEP;
 
   Engine(this.cfg, {Rand? rand}) : rand = rand ?? math.Random().nextDouble {
     art = (cfg.field >= 0 && cfg.field < kFields.length) ? kFields[cfg.field] : kFields[0];
@@ -656,6 +667,10 @@ class Engine {
       b.tvx = 0;
       b.tvy = 0;
       b.spin = 0;
+      for (final o in bodies) {
+        o.fly = false;
+      }
+      b.fly = tu.expFric;
       if (b.team != turn) turn = b.team;
       phase = Phase.move;
       idle = 0;
@@ -678,6 +693,38 @@ class Engine {
     cam = _max(cam, .18);
     lastWho = b.team;
     _push(EvType.shot).team = b.team;
+  }
+
+  /// v0.7 trajectory prediction (no UI draws it; available to the aim preview / AI / tests). Runs the SAME physics as
+  /// play (_sim at the same fixed step) on an isolated copy of the current bodies: the live state is never touched.
+  /// Fires bodies[[shooter]] along (ux, uy) at speed v and returns [shooter x, y, ball x, y] after every step until
+  /// everything rests or [maxT] seconds pass.
+  List<double> predictShot(int shooter, double ux, double uy, double v, {double maxT = 4}) {
+    final sim = Engine(cfg, rand: () => .5)..slave = true;
+    sim.bodies.clear();
+    for (final b in bodies) {
+      final c = Body(b.x, b.y, b.team, b.r, 1 / b.im, b.id)
+        ..vx = b.vx
+        ..vy = b.vy
+        ..gout = b.gout == null ? null : sim.goals[identical(b.gout, goals[0]) ? 0 : 1];
+      sim.bodies.add(c);
+      if (identical(b, ball)) sim.ball = c;
+    }
+    sim.turn = turn;
+    sim.phase = phase;
+    final s = sim.bodies[shooter];
+    sim._launch(s, ux, uy, v);
+    final out = <double>[];
+    for (var t = 0.0; t < maxT; t += sim.step) {
+      sim._sim(sim.step);
+      out
+        ..add(s.x)
+        ..add(s.y)
+        ..add(sim.ball.x)
+        ..add(sim.ball.y);
+      if (!sim.bodies.any((b) => b.vx != 0 || b.vy != 0)) break;
+    }
+    return out;
   }
 
   // ---------- simulation ----------
@@ -990,8 +1037,9 @@ class Engine {
 
   void _gcap(Body b) {
     final s2 = b.vx * b.vx + b.vy * b.vy;
-    if (s2 > tu.vSafe * tu.vSafe) {
-      final k = tu.vSafe / math.sqrt(s2);
+    final cap = identical(b, ball) ? _min(tu.vSafe, tu.ballVmax) : tu.vSafe;
+    if (s2 > cap * cap) {
+      final k = cap / math.sqrt(s2);
       b.vx *= k;
       b.vy *= k;
     }
@@ -1036,10 +1084,26 @@ class Engine {
         final ee = -vn >= tu.vSoft ? eFull : e0 + (eFull - e0) * (-vn / tu.vSoft);
         var j = -(1 + ee) * vn / sm;
         if (!isB) j *= tu.discDiscK;
+        // v0.7 striker kick: the puck's own velocity toward the ball (pv) dominates the closing speed
+        final pk = isB && tu.expFric ? (identical(a, ball) ? b : a) : null;
+        final sx = identical(b, ball) ? nx : -nx, sy = identical(b, ball) ? ny : -ny; // unit puck -> ball
+        final pv = pk != null ? pk.vx * sx + pk.vy * sy : 0.0;
+        final bv = pk != null ? ball.vx * sx + ball.vy * sy : 0.0;
         a.vx -= j * nx * a.im;
         a.vy -= j * ny * a.im;
         b.vx += j * nx * b.im;
         b.vy += j * ny * b.im;
+        if (pk != null && pv > 0 && pv > -bv) {
+          final bn = ball.vx * sx + ball.vy * sy, kn = tu.kickGain * (pv - bv);
+          if (kn > bn) {
+            ball.vx += (kn - bn) * sx;
+            ball.vy += (kn - bn) * sy;
+          }
+        }
+        if (tu.expFric) {
+          a.fly = false;
+          b.fly = false;
+        }
         _gcap(a);
         _gcap(b);
       }
@@ -1098,6 +1162,7 @@ class Engine {
       final tx = b.vx - vn * nx, ty = b.vy - vn * ny;
       b.vx = tx * et - en * vn * nx;
       b.vy = ty * et - en * vn * ny;
+      b.fly = false;
       if (identical(b, ball)) _push(EvType.post).power = -vn / 1800;
     }
   }
@@ -1112,6 +1177,7 @@ class Engine {
       b.vx = -b.vx * en;
       b.vy *= et;
       b.x = wall + side * over * en;
+      b.fly = false;
     } else {
       b.x = wall;
     }
@@ -1127,6 +1193,7 @@ class Engine {
       b.vy = -b.vy * en;
       b.vx *= et;
       b.y = wall + side * over * en;
+      b.fly = false;
     } else {
       b.y = wall;
     }
@@ -1134,6 +1201,7 @@ class Engine {
 
   /// sharp 90 degree corners: a nearly still body jammed against both walls is pushed out diagonally.
   void _cornerNudge(Body b) {
+    if (tu.cornerNudge == 0) return;
     final r = b.r;
     const gap = 1.5;
     final atL = b.x - r <= Fl + gap, atR = b.x + r >= Fr - gap;
@@ -1213,7 +1281,16 @@ class Engine {
       e2 += mb * (b.vx * b.vx + b.vy * b.vy);
       mmin = _min(mmin, mb);
     }
-    final n = (math.sqrt(e2 / mmin) * dt / tu.subPx).ceil().clamp(1, tu.subMax);
+    var n = (math.sqrt(e2 / mmin) * dt / tu.subPx).ceil();
+    if (tu.expFric) {
+      // v0.7: no body moves more than subPx, the ball never more than subBallFrac x its radius, per substep
+      var vmax = 0.0;
+      for (final b in bodies) {
+        vmax = _max(vmax, math.sqrt(b.vx * b.vx + b.vy * b.vy));
+      }
+      n = (vmax * dt / _min(tu.subPx, tu.subBallFrac * this.ball.r)).ceil();
+    }
+    n = n.clamp(1, tu.subMax);
     final h = dt / n;
     final ball = this.ball;
     for (var i = 0; i < n; i++) {
@@ -1221,7 +1298,9 @@ class Engine {
       if (phase == Phase.move && !slave) {
         for (var gi = 0; gi < 2; gi++) {
           final g = goals[gi];
-          if (ball.x > g.x1 && ball.x < g.x2 && (g.d < 0 ? ball.y < g.y - ball.r * .8 : ball.y > g.y + ball.r * .8)) {
+          // v0.7 (stars): a goal is the WHOLE ball over the goal line (centre a full radius past it)
+          final gr = ball.r * (tu.expFric ? 1.0 : .8);
+          if (ball.x > g.x1 && ball.x < g.x2 && (g.d < 0 ? ball.y < g.y - gr : ball.y > g.y + gr)) {
             _scored(g.team);
             break;
           }
@@ -1243,7 +1322,22 @@ class Engine {
       b.x += b.vx * h;
       b.y += b.vy * h;
       final sp = math.sqrt(b.vx * b.vx + b.vy * b.vy);
-      if (sp > 0) {
+      if (sp > 0 && tu.expFric) {
+        // v0.7: exponential friction v *= exp(-k h) (frame-rate independent), dead stop below vStop
+        final bl = identical(b, ball);
+        if (b.fly && sp < tu.discFlightMin) b.fly = false;
+        final k = bl ? tu.ballK : (b.fly ? tu.discFlightK : tu.discK);
+        final ns = sp * fexp(-k * h);
+        if (ns < tu.vStop) {
+          b.vx = 0;
+          b.vy = 0;
+          b.fly = false;
+        } else {
+          final k2 = _min(ns, bl ? _min(tu.vSafe, tu.ballVmax) : tu.vSafe) / sp;
+          b.vx *= k2;
+          b.vy *= k2;
+        }
+      } else if (sp > 0) {
         // rolling friction along the current direction (straight lines): constant decel + small linear drag
         final bl = identical(b, ball);
         final fr = bl ? tu.ballFric : tu.discFric, kd = bl ? tu.ballDrag : tu.discDrag;
@@ -1373,7 +1467,7 @@ class Engine {
     var n = 0;
     if (godot) {
       // Godot loop: at most tu.stepCap physics steps per frame, the backlog is dropped beyond that
-      while (acc >= STEP) {
+      while (acc >= step) {
         if (n >= tu.stepCap) {
           n++;
           break;
@@ -1383,8 +1477,8 @@ class Engine {
           b.px = b.x;
           b.py = b.y;
         }
-        _sim(STEP);
-        acc -= STEP;
+        _sim(step);
+        acc -= step;
       }
       if (n > tu.stepCap) acc = 0;
       if (slave) {
@@ -1556,7 +1650,7 @@ class Engine {
   }
 
   /// interpolation factor for rendering between physics steps
-  double alpha() => _clamp(acc / STEP, 0, 1);
+  double alpha() => _clamp(acc / step, 0, 1);
 
   // ---------- AI ----------
   void _aiTick(double dt) {

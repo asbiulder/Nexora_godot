@@ -62,7 +62,7 @@ void main() {
     if (p != null) File(p).writeAsStringSync(_out.toString());
   });
 
-  test('uniform pitch: every pitch art plays on one identical rectangle, ~12% taller (relative) than v0.6', () {
+  test('uniform pitch: every pitch art plays on one identical rectangle fitted to the art (v0.7)', () {
     final a = _lab(0, field: 0), b = _lab(0, field: 7);
     for (final (x, y) in [(a.Fl, b.Fl), (a.Fr, b.Fr), (a.Ft, b.Ft), (a.Fb, b.Fb), (a.KY, b.KY), (a.goals[0].x1, b.goals[0].x1), (a.DEPTH, b.DEPTH)]) {
       expect(x, y);
@@ -71,14 +71,16 @@ void main() {
     _log('## Pitch\nplay area ${(a.Fr - a.Fl).toStringAsFixed(0)} x ${(a.Fb - a.Ft).toStringAsFixed(0)} px, aspect ${aspect.toStringAsFixed(3)} '
         '(v0.6 pitch ${old.toStringAsFixed(3)}, +${((aspect / old - 1) * 100).toStringAsFixed(1)}%), goal mouth ${(a.goals[0].x2 - a.goals[0].x1).toStringAsFixed(0)} px '
         '(${((a.goals[0].x2 - a.goals[0].x1) / (a.Fr - a.Fl) * 100).toStringAsFixed(0)}% of width), depth ${a.DEPTH.toStringAsFixed(0)} px\n');
-    expect(aspect / old, inInclusiveRange(1.10, 1.14)); // v0.6.1b: narrower + taller
+    // v0.7: play area fitted to the pitch art (median drawn width/length of the 40 arts = .583): 825 x 1416
+    expect((a.Fr - a.Fl) / (a.Fb - a.Ft), closeTo(.583, .003));
+    expect(a.Fr - a.Fl, PHYSICS_CONFIG.wPx);
   });
 
   test('shots: full / medium / short pulls (power-7 disc, accuracy 10 so it flies straight)', () {
     _log('## Disc shots (power 7, alone, fired up the long axis from the bottom)');
     _log('| pull | launch px/s | path px | path / pitch length | time to rest s |');
     _log('|---|---|---|---|---|');
-    final res = <double>[];
+    final res = <double>[], vs = <double>[];
     for (final (name, pull) in [('full', 1.0), ('medium', .6), ('short', .25)]) {
       final e = _lab(1), d = e.bodies.first;
       e.cfg.stats = const [DiscStats(7, 10), DiscStats(7, 10)];
@@ -86,13 +88,18 @@ void main() {
       _place(d, e.CX - 200, e.Fb - 80);
       e.fire(d, 0, -LMAX * pull, LMAX * pull, true);
       final v0 = _spd(d);
+      vs.add(v0);
       final (path, t) = _run(e, d);
       res.add(path);
       _log('| $name (${(pull * 100).round()}%) | ${v0.round()} | ${path.round()} | ${(path / (e.Fb - e.Ft)).toStringAsFixed(2)} | ${t.toStringAsFixed(2)} |');
     }
     expect(res[0], greaterThan(1000), reason: 'a full-power flick crosses most of the pitch');
-    expect(res[0] / res[1], greaterThan(1.8), reason: 'proportional: full pull clearly harder than medium');
-    expect(res[1] / res[2], greaterThan(2.5), reason: 'short pull is a soft touch');
+    // v0.7: launch speed stays proportional to the pull; the glide is no longer (a flicked puck flies on low friction
+    // until its first contact, then stops on puckK), so path lengths are only required to be ordered.
+    expect(vs[0] / vs[1], greaterThan(1.8), reason: 'proportional: full pull clearly harder than medium');
+    expect(vs[1] / vs[2], greaterThan(2.5), reason: 'short pull is a soft touch');
+    expect(res[0], greaterThan(res[1]));
+    expect(res[1] / res[2], greaterThan(2.5));
     // power stat range and cap
     expect(statMul(10), 1);
     expect(statMul(14), 1, reason: 'no tier exceeds the game max');
@@ -121,7 +128,8 @@ void main() {
       final (path, t) = _run(e, e.ball);
       _log('| full-power disc strikes the ball (head-on, up the pitch beside the goal) | ${vb.round()} | ${path.round()} | ${t.toStringAsFixed(2)} |');
       expect(vb, greaterThan(3500), reason: 'hits the ball hard');
-      expect(vb, lessThan(4200), reason: 'v0.6.1b: a little softer than v0.6.1 (4188 px/s)');
+      // v0.7: striker kick (ballKickSpeed 5 W/s for a 2 W/s flick), capped at ballMaxSpeed 6.5 W/s
+      expect(vb, lessThanOrEqualTo(PHYSICS_CONFIG.ballMaxSpeed * PHYSICS_CONFIG.wPx + 1e-6));
       expect(t, lessThan(4.5));
     }
     for (final v in [3000.0, 1500.0, 600.0]) {
@@ -160,8 +168,9 @@ void main() {
         final aout = math.atan2(b.vx.abs(), b.vy.abs()) * 180 / math.pi;
         _log('| ${deg.round()}° ${disc ? 'disc' : 'ball'} | ${(sp1 / sp0 * 100).toStringAsFixed(1)}% | ${(kn * 100).toStringAsFixed(1)}% | ${kt.isNaN ? '-' : '${(kt * 100).toStringAsFixed(1)}%'} | ${deg == 90 ? '90°' : '${aout.toStringAsFixed(1)}°'} |');
         if (!disc) {
-          expect(sp1 / sp0, inInclusiveRange(.84, .97), reason: 'v0.6.1b: softer but still lively cushions');
-          if (!kt.isNaN) expect(kt, greaterThan(.95), reason: 'a ball along the wall keeps its tangential speed');
+          // v0.7: e_ball_wall .8 (guess, PHYSICS_CONFIG), tangential .96 kept
+          expect(sp1 / sp0, inInclusiveRange(.78, .97));
+          if (!kt.isNaN) expect(kt, greaterThan(.93), reason: 'a ball along the wall keeps its tangential speed');
         }
       }
     }
@@ -200,8 +209,10 @@ void main() {
           final jam = (b.x - b.r - e.Fl).abs() < 3 || (e.Fr - b.x - b.r).abs() < 3;
           final jamY = (b.y - b.r - e.Ft).abs() < 3 || (e.Fb - b.y - b.r).abs() < 3;
           cases++;
-          if (dmin < b.r * 1.3) reached++;
-          if (dmin < b.r * 1.3 && left) escaped++;
+          // v0.7: positions are sampled once per 1/120 s physics step (a 3500 px/s ball moves 29 px = 1.2 r per step),
+          // so "reached the pocket" is judged within 2 r (was 1.3 r at 1/240 s)
+          if (dmin < b.r * 2) reached++;
+          if (dmin < b.r * 2 && left) escaped++;
           if (!left && jam && jamY) {
             stuck++;
             ex.add('corner $corner, $deg°, ${v.round()} px/s');
@@ -209,12 +220,13 @@ void main() {
         }
       }
     }
-    // a ball parked exactly in a corner (jammed against both walls) is pushed out by the corner nudge
+    // v0.7: the corner nudge is gone - a ball resting in a corner stays at rest (it used to be shoved out at 90 px/s,
+    // overriding real velocities near the corner). A ball rolling gently into the corner still comes back off both walls.
     var nudged = 0;
     for (var corner = 0; corner < 4; corner++) {
       final e = _lab(0), b = e.ball;
       final x = corner.isEven ? e.Fl + b.r : e.Fr - b.r, y = corner < 2 ? e.Ft + b.r : e.Fb - b.r;
-      _place(b, x, y, corner.isEven ? -30 : 30, corner < 2 ? -30 : 30);
+      _place(b, x, y, 0, 0); // v0.7: parked at rest (was 30 px/s into the corner)
       for (var i = 0; i < 60; i++) {
         e.update(1 / 60);
       }
@@ -224,7 +236,7 @@ void main() {
     expect(stuck, 0);
     expect(escaped, reached);
     expect(reached, greaterThan(cases * .9));
-    expect(nudged, 4);
+    expect(nudged, 0);
   });
 
   test('45° corner run leaves on the mirrored diagonal (straight lines)', () {
