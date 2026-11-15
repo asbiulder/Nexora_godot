@@ -106,23 +106,34 @@ const PHYSICS_CONFIG = PhysicsConfig(
   wPx: 825,
   puckDiameter: .134, // [measured] was .117 (98 px)
   ballDiameter: .058, // [measured] was .052 (43.2 px)
-  ballK: 2.1, // [measured, medium] tau .48 s; was 270 px/s^2 + 1.45/s (owner fit ~3.5/s)
-  puckK: 2.9, // [measured, low] tau .34 s; was 300 px/s^2 + 2.0/s (owner fit ~3.9/s)
-  puckFlightK: .5, // [guess] "almost constant speed until the first hit"; new
+  ballK: 2.6, // owner 11-15 heavier; was 2.1
+  // [measured, medium] tau .48 s; was 270 px/s^2 + 1.45/s (owner fit ~3.5/s)
+  puckK: 3.6, // owner 11-15 heavier; was 2.9
+  // [measured, low] tau .34 s; was 300 px/s^2 + 2.0/s (owner fit ~3.9/s)
+  puckFlightK: 1.2, // owner 11-15 heavier; was .5
+  // [guess] "almost constant speed until the first hit"; new
   puckFlightMin: 1, // [guess] new
   stopSpeed: .02, // [measured] was 2 px/s = .0024 W/s
   massPuck: 1, // [guess] ball 3x puck; was ball 1 : puck 4
   massBall: 3,
-  eBallPuck: .5, // [guess] was .84
-  ePuckPuck: .8, // [guess] was .84
-  eBallWall: .8, // [guess] was .85
-  ePuckWall: .6, // [guess] was .90
-  tBallWall: .96, // [kept]
-  tPuckWall: .97, // [kept]
+  eBallPuck: .4, // owner 11-15; was .5
+  // [guess] was .84
+  ePuckPuck: .55, // owner 11-15 less scatter; was .8
+  // [guess] was .84
+  eBallWall: .5, // owner 11-15 wall absorbs more; was .8
+  // [guess] was .85
+  ePuckWall: .35, // owner 11-15; was .6
+  // [guess] was .90
+  tBallWall: .85, // owner 11-15 more wall friction; was .96
+  // [kept]
+  tPuckWall: .85, // owner 11-15; was .97
+  // [kept]
   shotMax: 3500 / 825, // [kept] 3500 px/s = 4.24 W/s
-  ballKickSpeed: 5, // [guess, low] owner: reference ~6.5, start at 5
+  ballKickSpeed: 3.8, // owner 11-15 heavier ball; was 5
+  // [guess, low] owner: reference ~6.5, start at 5
   puckShotRef: 2, // [measured] reference flick ~2 W/s
-  ballMaxSpeed: 6.5, // [measured, low] reference peak ball speed
+  ballMaxSpeed: 5, // owner 11-15; was 6.5
+  // [measured, low] reference peak ball speed
   maxSpeed: 7, // safety clamp; was 4200 px/s = 5.03 W/s
   postR: 5 / 825, // [kept]
   playbackSpeed: .6, // owner: too fast, play at normal speed
