@@ -20,7 +20,8 @@ void main() {
   test('host snapshot check', () {
     expect(snapProtoCheck({'pf': 'stars', 'pv': kProtoVersion}), isNull);
     expect(snapProtoCheck({'pf': 'stars'}), kMsgUpdateThem); // v3 Flutter host
-    expect(snapProtoCheck({'pf': 'stars', 'pv': 9}), kMsgUpdateMe);
+    expect(snapProtoCheck({'pf': 'stars', 'pv': kProtoVersion + 1}), kMsgUpdateMe);
+    expect(snapProtoCheck({'pf': 'stars', 'pv': 8}), kMsgUpdateThem); // v0.7 host (no s.fb pitch/ball sync)
     expect(snapProtoCheck({'pf': 'stars', 'pv': 4}), kMsgUpdateThem); // v0.5 host (old physics)
     expect(snapProtoCheck({'q': 1}), isNull); // RN host
   });

@@ -349,8 +349,6 @@ class MatchRenderer {
   }
 
   void _drawBodies(ui.Canvas c, double t, double al) {
-    final aimTeam = e.phase == Phase.aim ? e.turn : -1;
-    final aiTurn = e.isAiTurn();
     var n = 0;
     // shadows (1 atlas call), discs (1 call), dark tint, gloss (1 call)
     for (final b in e.bodies) {
@@ -363,25 +361,6 @@ class MatchRenderer {
       n++;
     }
     c.drawRawAtlas(atlas, _vf(_xf, n * 4), _vf(_rc, n * 4), null, null, null, _shadowP);
-    // active glow ring (only the player on turn)
-    final pulse = .5 + .5 * math.sin(t * 4);
-    for (final b in e.bodies) {
-      if (identical(b, e.ball)) continue;
-      final active = b.team == aimTeam && !(e.drag != null && !identical(e.drag!.b, b)) && !aiTurn;
-      if (!active) continue;
-      final x = b.px + (b.x - b.px) * al + b.vox, y = b.py + (b.y - b.py) * al + b.voy;
-      final r = b.r * (1 + b.sq * .07);
-      _stroke
-        ..strokeWidth = hq ? 6 : 4
-        ..color = _teamGlow[b.team].withValues(alpha: .18 + .2 * pulse)
-        ..blendMode = ui.BlendMode.plus;
-      c.drawCircle(ui.Offset(x, y), r + 3, _stroke);
-      _stroke
-        ..strokeWidth = 2.5
-        ..color = _teamGlow[b.team].withValues(alpha: .35 + .3 * pulse);
-      c.drawCircle(ui.Offset(x, y), r + 2.5, _stroke);
-      _stroke.blendMode = ui.BlendMode.srcOver;
-    }
     n = 0;
     for (final b in e.bodies) {
       if (identical(b, e.ball)) continue;
@@ -409,6 +388,40 @@ class MatchRenderer {
       n++;
     }
     c.drawRawAtlas(atlas, _vf(_xf, n * 4), _vf(_rc, n * 4), null, null, null, _atlasP);
+    _turnRings(c, t, al);
+  }
+
+  /// Turn marker: a slim ring in the team colour just outside every disc of the side on turn (AI and remote
+  /// players included), drawn ABOVE the discs so it is never hidden, with three arcs slowly orbiting the disc
+  /// over a faint breathing halo. While a disc is being dragged only that disc keeps its ring.
+  void _turnRings(ui.Canvas c, double t, double al) {
+    if (e.phase != Phase.aim) return;
+    final team = e.turn, col = _teamGlow[team.clamp(0, 1)];
+    final pulse = .5 + .5 * math.sin(t * 3), rot = t * 1.4;
+    const third = 2 * math.pi / 3;
+    for (final b in e.bodies) {
+      if (identical(b, e.ball) || b.team != team) continue;
+      if (e.drag != null && !identical(e.drag!.b, b)) continue;
+      final x = b.px + (b.x - b.px) * al + b.vox, y = b.py + (b.y - b.py) * al + b.voy;
+      final r = b.r * (1 + b.sq * .07), rr = r * 1.16, ctr = ui.Offset(x, y);
+      _stroke
+        ..blendMode = ui.BlendMode.plus
+        ..strokeWidth = r * (hq ? .16 : .13)
+        ..color = col.withValues(alpha: .10 + .10 * pulse);
+      c.drawCircle(ctr, rr, _stroke);
+      _stroke
+        ..strokeWidth = r * .045
+        ..color = col.withValues(alpha: .22 + .1 * pulse);
+      c.drawCircle(ctr, rr, _stroke);
+      _stroke
+        ..blendMode = ui.BlendMode.srcOver
+        ..strokeWidth = r * .085
+        ..color = col.withValues(alpha: .78 + .2 * pulse);
+      final rect = ui.Rect.fromCircle(center: ctr, radius: rr);
+      for (var k = 0; k < 3; k++) {
+        c.drawArc(rect, rot + k * third, third * .55, false, _stroke);
+      }
+    }
   }
 
   void _set(Float32List xf, int i, double scos, double ssin, double tx, double ty) {

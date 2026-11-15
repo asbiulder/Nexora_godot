@@ -52,6 +52,26 @@ MatchCfg cfgFromRoom(Rec room) {
       first: 0);
 }
 
+/// v9: whose pitch and ball an online match uses (decided by the HOST only, then sent in every host snapshot as
+/// s.fb = [field, ball]; clients and spectators adopt it before they build their renderer):
+///  * ball: always the host's equipped ball;
+///  * pitch: in a host-made room (kind casual / social) the room's pitch setting (the host picks it in the room, it
+///    defaults to the host's equipped pitch); in matchmade rooms (quick / arena / duel / tournament) the server's
+///    room setting is a fixed default, so the host's equipped pitch is used.
+(int, int) hostFieldBall(Rec room, int myField, int myBall) {
+  final s = room.rec('settings');
+  final k = room.s('kind', 'casual'), custom = k == 'casual' || k == 'social';
+  final f = custom && s.m['field'] is num ? s.i('field') : myField;
+  return (f.clamp(0, kFields.length - 1), myBall.clamp(0, 35));
+}
+
+/// Client side of [hostFieldBall]: the host's s.fb, clamped; null when absent (older / RN host -> room settings).
+(int, int)? snapFieldBall(Map s) {
+  final v = s['fb'];
+  if (v is! List || v.length != 2 || v[0] is! num || v[1] is! num) return null;
+  return ((v[0] as num).toInt().clamp(0, kFields.length - 1), (v[1] as num).toInt().clamp(0, 35));
+}
+
 String ruleLabel(Rec s) => s.d('time') > 0 ? '${fa((s.d('time') / 60).round())} دقیقه' : 'تا ${fa(s.i('goals', 3))} گل';
 String discOf(Rec p) => p.str('disc_id') ?? p.rec('profiles').str('equipped_disc') ?? p.rec('profiles').str('avatar') ?? 'club0';
 List<Rec> teamOf(List<Rec> ps, int t) => ps.where((p) => p.s('role') == 'player' && p.i('team', -1) == t).toList()..sort((a, b) => a.i('slot').compareTo(b.i('slot')));
@@ -104,6 +124,12 @@ class _OnlineMatchScreenState extends State<OnlineMatchScreen> {
       return f != null && f >= 0 && f < kForms.length ? f : 0;
     }
     c.forms = [formOf(0), formOf(1)];
+    if (isHost) {
+      final (f, b) = hostFieldBall(room0, Store.i.p.field, Store.i.p.ball);
+      c
+        ..field = f
+        ..ball = b;
+    }
     return c;
   }();
   /// Physics profile of this match: host picks it at open (pickProfile), clients take it from the first
@@ -199,6 +225,12 @@ class _OnlineMatchScreenState extends State<OnlineMatchScreen> {
         }
         final ss = m['k'] == 's' && m['s'] is Map ? m['s'] as Map : null;
         if (ss != null && ss['tm'] is List && (ss['tm'] as List).length == 2) _hostTm = [for (final x in ss['tm'] as List) x.toString()];
+        final fb = ss == null ? null : snapFieldBall(ss);
+        if (fb != null) {
+          cfg
+            ..field = fb.$1
+            ..ball = fb.$2;
+        }
         final p = msgProfile(m);
         if (p == null) {
           if (_early.length < 40) _early.add((m, from));

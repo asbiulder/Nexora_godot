@@ -1077,7 +1077,8 @@ class _RoomScreenState extends State<RoomScreen> {
         actionLabel: playing ? 'ورود به بازی' : 'تیم و ترکیب',
         tags: [
           ruleLabel(st),
-          kFields[st.i('field').clamp(0, kFields.length - 1)].name,
+          // v9: matchmade rooms play the host's equipped pitch (hostFieldBall), not the server's default setting
+          if (const {'casual', 'social'}.contains(room.s('kind', 'casual'))) kFields[st.i('field').clamp(0, kFields.length - 1)].name,
           room.b('ranked') ? 'رتبه‌ای' : 'دوستانه',
           if (room.b('is_private')) 'خصوصی',
           if (link.rtt != null) 'پینگ ${fa(link.rtt!)}',

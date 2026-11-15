@@ -10,6 +10,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../app/shell.dart' show AppNav;
 import '../core/assets.dart';
 import '../core/sound.dart';
+import '../core/store.dart';
 import '../core/theme.dart';
 import '../game/data.dart';
 import '../net/auth.dart';
@@ -659,7 +660,7 @@ class CreateRoomSheetState extends State<CreateRoomSheet> {
   final name = TextEditingController();
   String mode = '1v1', rule = 'g3';
   bool priv = false, ranked = true, voice = true;
-  int turn = 15, field = 0;
+  int turn = 15, field = Store.i.p.field.clamp(0, kFields.length - 1); // v9: the host's equipped pitch by default
   Widget opt(String l, String s, bool v, ValueChanged<bool> on) => Padding(
         padding: const EdgeInsets.only(top: 12),
         child: Row(textDirection: TextDirection.rtl, children: [
@@ -684,7 +685,7 @@ class CreateRoomSheetState extends State<CreateRoomSheet> {
           final n = name.text.trim();
           widget.onCreate({
             'p_mode': mode, 'p_name': n.isEmpty ? null : n, 'p_private': priv, 'p_ranked': ranked, 'p_voice': voice,
-            'p_settings': {...ruleToSettings(rule), 'field': field, 'turn': turn, 'ball': 0},
+            'p_settings': {...ruleToSettings(rule), 'field': field, 'turn': turn, 'ball': Store.i.p.ball},
           });
         }),
       ]);

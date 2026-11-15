@@ -13,6 +13,7 @@ import 'competitive.dart';
 import 'link.dart';
 import 'lobby.dart';
 import 'online_match.dart';
+import 'rematch.dart';
 import 'room_v6.dart';
 
 class _R {
@@ -155,9 +156,16 @@ class _OnlineRootState extends State<OnlineRoot> {
         return;
       }
     }
-    if (top.k == 'lobby' && room.s('status') == 'playing' && room.str('current_match') != null && room.s('current_match') != skip) {
+    // v9 rematch: a seated player still on the result screen follows the room into its next match (RematchBar)
+    final cur = room.str('current_match');
+    final rematch = top.k == 'result' && cur != top.o?.matchId && l.players.any((p) => p.s('user_id') == l.me && p.s('role') == 'player');
+    if ((top.k == 'lobby' || rematch) && room.s('status') == 'playing' && cur != null && cur != skip) {
       before = Auth.i.profile;
-      push(_R('match', id: room.s('current_match')));
+      if (rematch) {
+        _set([...stack.sublist(0, stack.length - 1), _R('match', id: cur)]);
+      } else {
+        push(_R('match', id: cur));
+      }
     }
   }
 
@@ -173,6 +181,10 @@ class _OnlineRootState extends State<OnlineRoot> {
   }
 
   void nav(String n) => push(_R(n));
+
+  /// v9: the online result screen with the rematch bar under it (nothing for spectators / tournament rooms).
+  Widget _withRematch(RoomLink? l, Widget result) =>
+      l == null ? result : ColoredBox(color: C.bg, child: Column(children: [Expanded(child: result), RematchBar(link: l)]));
 
   @override
   Widget build(BuildContext context) {
@@ -209,7 +221,7 @@ class _OnlineRootState extends State<OnlineRoot> {
             skip = t.id;
             _set([...stack.sublist(0, stack.length - 1), const _R('lobby')]);
           }),
-      'result' => OnlineResultScreen(o: t.o!, before: t.before, onLobby: () => _set([...stack.sublist(0, stack.length - 1), const _R('lobby')]), onLeave: leaveRoom),
+      'result' => _withRematch(l, OnlineResultScreen(o: t.o!, before: t.before, onLobby: () => _set([...stack.sublist(0, stack.length - 1), const _R('lobby')]), onLeave: leaveRoom)),
       'tours' => ToursScreen(onBack: back, onOpen: (id) => push(_R('tour', id: id))),
       'tour' => TourScreen(key: ValueKey('t${t.id}'), id: t.id!, onBack: back, onRoom: enterRoom),
       'ranks' => RanksScreen(onBack: back, tab: t.tab ?? 'top'),
