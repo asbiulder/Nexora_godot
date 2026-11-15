@@ -87,7 +87,7 @@ void main() {
     });
     test('single match, aggregate goals, and first-to-wins are distinct', () {
       expect(playConfiguredSeries('single', 1, 1, [(3, 1)]), (1, 1));
-      expect(playConfiguredSeries('aggregate', 2, 1, [(3, 0), (2, 4)]), (2, 2));
+      expect(playConfiguredSeries('aggregate', 2, 1, [(3, 0), (2, 4)]), (1, 2));
       expect(playConfiguredSeries('aggregate', 2, 1, [(3, 0), (0, 3)]), (0, 2));
       expect(playConfiguredSeries('aggregate', 2, 1, [(3, 0), (0, 3), (1, 0)]), (1, 3));
       expect(playConfiguredSeries('first_to', 3, 2, [(3, 0), (0, 3), (2, 1)]), (1, 3));

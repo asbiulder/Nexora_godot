@@ -156,7 +156,7 @@ const PHYSICS_CONFIG = PhysicsConfig(
   puckShotRef: 2, // [measured] reference flick ~2 W/s
   ballMaxSpeed: 5, // owner 11-15; was 6.5
   // [measured, low] reference peak ball speed
-  maxSpeed: 7, // safety clamp; was 4200 px/s = 5.03 W/s
+  maxSpeed: 7.2, // safety clamp above 1.25 × full puck shot speed; still within the substep budget
   postR: 5 / 825, // [kept]
   playbackSpeed: .6, // calm presentation pace; does not reduce the actual shot-power curve
   useDiscStats: true, // owner: real 1..10 power/accuracy on every disc

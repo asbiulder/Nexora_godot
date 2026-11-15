@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexora/screens/auth_start.dart';
 
@@ -13,7 +13,10 @@ void main() {
     expect(find.text('ادامه به‌عنوان مهمان'), findsOneWidget);
     expect(find.text('فعلاً بدون حساب ادامه بده'), findsOneWidget);
 
-    await tester.tap(find.text('فعلاً بدون حساب ادامه بده'));
+    final offline = find.text('فعلاً بدون حساب ادامه بده');
+    await tester.ensureVisible(offline);
+    await tester.pumpAndSettle();
+    await tester.tap(offline);
     expect(continued, isTrue);
   });
 }

@@ -32,15 +32,22 @@ void main() {
     await t.pump(const Duration(milliseconds: 300));
     expect(t.takeException(), isNull);
     expect(find.textContaining('تهران'), findsWidgets);
-    expect(find.text('ساخت'), findsOneWidget);
     expect(find.text('تک‌بازی'), findsOneWidget);
     expect(find.text('مجموع گل'), findsOneWidget);
     expect(find.text('اول به برد'), findsOneWidget);
-    expect(find.textContaining('تأیید کنم'), findsOneWidget);
-    expect(find.textContaining('جایزهٔ واقعی'), findsOneWidget);
     await t.tap(find.text('مجموع گل'));
     await t.pump(const Duration(milliseconds: 300));
     expect(find.text('۲ بازی'), findsOneWidget);
+    final scrollable = find.byType(Scrollable).first;
+    await t.scrollUntilVisible(find.textContaining('جایزهٔ واقعی'), 320, scrollable: scrollable);
+    await t.pumpAndSettle();
+    expect(find.textContaining('جایزهٔ واقعی'), findsOneWidget);
+    await t.scrollUntilVisible(find.textContaining('تأیید کنم'), 320, scrollable: scrollable);
+    await t.pumpAndSettle();
+    expect(find.textContaining('تأیید کنم'), findsOneWidget);
+    await t.scrollUntilVisible(find.text('ساخت'), 320, scrollable: scrollable);
+    await t.pumpAndSettle();
+    expect(find.text('ساخت'), findsOneWidget);
     final dir = Platform.environment['NX_SHOTS'];
     if (dir != null) {
       await t.runAsync(() async {

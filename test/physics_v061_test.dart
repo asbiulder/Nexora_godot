@@ -143,10 +143,11 @@ void main() {
       );
     }
     // The former >1000 px glide depended on the removed low-friction flight
-    // regime. A stronger pull must still launch faster and travel farther.
+    // regime. A stronger pull must still launch faster and travel farther;
+    // shotCurve(p)=p^1.1 makes a 100% pull 1.754x a 60% pull.
     expect(
       vs[0] / vs[1],
-      greaterThan(1.8),
+      greaterThan(1.7),
       reason: 'full pull clearly harder than medium',
     );
     expect(

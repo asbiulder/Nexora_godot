@@ -229,7 +229,7 @@ declare uid uuid := auth.uid(); m cup_matches; r rooms; begin
   select * into r from rooms where id=m.room_id for update;
   if r.host is distinct from uid or r.status <> 'waiting' then raise exception 'room host only'; end if;
   if m.lineup_until is not null and now() >= m.lineup_until then raise exception 'lineup closed'; end if;
-  update rooms set settings=coalesce(settings,'{}'::jsonb)||jsonb_build_object('field',p_field,'ball',p_ball) where id=r.id;
+  update rooms set settings=coalesce(settings,'{}'::jsonb)||jsonb_build_object('field',p_field,'ball',p_ball,'shared_assets',true) where id=r.id;
 end $$;
 
 create or replace function public._cup_close_pending_on_draw() returns trigger language plpgsql security definer set search_path = public as $$

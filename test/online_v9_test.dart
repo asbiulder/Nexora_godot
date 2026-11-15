@@ -43,6 +43,10 @@ void main() {
         expect(hostFieldBall(r, 5, 9), (5, 9), reason: k);
       }
     });
+    test('tournament uses shared assets only after the host selects them', () {
+      final r = Rec({'kind': 'tournament', 'settings': {'field': 3, 'ball': 12, 'shared_assets': true}});
+      expect(hostFieldBall(r, 5, 9), (3, 12));
+    });
     test('custom room without a pitch setting -> host equipped pitch; values clamped', () {
       expect(hostFieldBall(Rec({'kind': 'social', 'settings': {}}), 4, 2), (4, 2));
       expect(hostFieldBall(Rec({'settings': {'field': 999}}), 0, 99), (kFields.length - 1, 35));

@@ -53,13 +53,16 @@ MatchCfg cfgFromRoom(Rec room) {
       first: 0);
 }
 
-/// Whose pitch and ball an online match uses: the host's room selection for casual/social/tournament rooms,
-/// otherwise the host's equipped assets. The host sends s.fb in every snapshot; peers adopt that exact pair.
+/// The host's room field for casual/social rooms, and explicitly shared cup
+/// assets; otherwise the host's equipped assets. The host sends s.fb in every
+/// snapshot, so both online clients adopt the same resolved pair.
 (int, int) hostFieldBall(Rec room, int myField, int myBall) {
   final s = room.rec('settings');
-  final k = room.s('kind', 'casual'), roomChoice = k == 'casual' || k == 'social' || k == 'tournament';
-  final f = roomChoice && s.m['field'] is num ? s.i('field') : myField;
-  final b = roomChoice && s.m['ball'] is num ? s.i('ball') : myBall;
+  final k = room.s('kind', 'casual');
+  final roomField = (k == 'casual' || k == 'social') && s.m['field'] is num;
+  final sharedCupAssets = k == 'tournament' && s.b('shared_assets');
+  final f = (roomField || sharedCupAssets) && s.m['field'] is num ? s.i('field') : myField;
+  final b = sharedCupAssets && s.m['ball'] is num ? s.i('ball') : myBall;
   return (f.clamp(0, kFields.length - 1), b.clamp(0, 35));
 }
 
