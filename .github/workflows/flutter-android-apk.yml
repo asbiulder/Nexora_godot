@@ -100,3 +100,28 @@ jobs:
             Flutter build is installed, uninstall it once first (it was signed with a different key).
             Commit: ${{ github.sha }}
           files: dist/*.apk
+
+  # Every push to 'flutter': the arm64 APK is also published to the rolling pre-release 'flutter-test'
+  # (public direct download, no GitHub sign-in needed).
+  test-release:
+    needs: build
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: nexora-apks
+          path: dist
+      - name: Rename arm64 APK with commit
+        run: |
+          mkdir -p pub
+          cp dist/*-arm64.apk "pub/NEXORA-test-${GITHUB_SHA::7}-arm64.apk"
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: flutter-test
+          name: NEXORA Flutter test build (latest push)
+          prerelease: true
+          make_latest: false
+          body: |
+            Rolling test build from branch 'flutter'. Newest file = newest commit (${{ github.sha }}).
+          files: pub/*.apk
