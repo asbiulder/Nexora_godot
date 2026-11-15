@@ -900,6 +900,7 @@ class _RoomScreenState extends State<RoomScreen> {
               disabled: !picked && link.picks.length >= 6,
               onTap: () => Navigator.pop(cc, 'pick'),
             ),
+            if (!m.me) ...[const SizedBox(height: 8), Btn('مشاهده پروفایل', colors: G.dark, onTap: () => Navigator.pop(cc, 'profile'))],
             if (!m.me) ...[const SizedBox(height: 8), Btn('اخراج از اتاق', colors: G.red, onTap: () => Navigator.pop(cc, 'kick'))],
             const SizedBox(height: 8),
             Btn('بستن', small: true, colors: G.dark, onTap: () => Navigator.pop(cc)),
@@ -907,7 +908,9 @@ class _RoomScreenState extends State<RoomScreen> {
         ),
       ),
     );
-    if (r == 'pick') {
+    if (r == 'profile') {
+      AppNav.openProfile(m.uid);
+    } else if (r == 'pick') {
       final p = [...link.picks];
       picked ? p.remove(m.uid) : p.add(m.uid);
       link.setPicks(p);

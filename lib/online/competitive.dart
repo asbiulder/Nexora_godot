@@ -14,6 +14,7 @@ import '../ui/chrome.dart';
 import '../ui/kit.dart';
 import 'online_match.dart';
 import 'ui.dart';
+import '../social/player_link.dart' show openPlayer;
 
 Widget _page(BuildContext context, String title, String en, VoidCallback onBack, List<Widget> children, {Future<void> Function()? onRefresh, Color accent = C.cyan}) {
   final list = ListView(padding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom + 24), children: [Header(title: title, en: en, onBack: onBack), ...children]);
@@ -182,6 +183,7 @@ class _ArenaScreenState extends State<ArenaScreen> {
           ListRow(
             leading: SizedBox(width: 28, child: tTitle(fa(i + 1), size: 14, color: i < 3 ? C.gold : C.dim)),
             title: top![i].s('username'),
+            onTap: () => openPlayer(context, top![i].str('id')),
             sub: 'سطح ${fa(top![i].i('level'))} · امتیاز ${fa(top![i].i('rating'))}',
             right: tTitle(fa(top![i].i('arena_points')), size: 15, color: const Color(0xffd6b8ff)),
           ),
@@ -264,6 +266,7 @@ class _RanksScreenState extends State<RanksScreen> {
               leading: SizedBox(width: 36, child: tTitle(fa(r.i('rank')), size: 14, color: r.i('rank') <= 3 ? C.gold : C.dim)),
               icon: ui(kLeagueImg[r.s('league')] ?? 'medal_bronze'),
               title: r.s('username'),
+              onTap: () => openPlayer(context, r.str('id')),
               sub: 'سطح ${fa(r.i('level'))} · ${fa(r.i('wins'))} برد',
               right: tTitle(fa(r.i('rating')), size: 15, color: C.gold),
             ),

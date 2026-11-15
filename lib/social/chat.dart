@@ -15,6 +15,7 @@ import '../net/supabase.dart';
 import '../online/ui.dart';
 import '../ui/chrome.dart';
 import '../ui/kit.dart';
+import 'player_link.dart' show DmUnread, kDmMaxLen;
 import 'social.dart' show openPublicProfile;
 
 const _kPage = 40;
@@ -81,7 +82,7 @@ class _ChatScreenState extends State<ChatScreen> {
   void _markRead() {
     final u = uid;
     if (u == null) return;
-    sb.from('conversation_members').update({'last_read_at': DateTime.now().toUtc().toIso8601String()}).eq('conversation_id', id).eq('user_id', u).then((_) {}, onError: (_) {});
+    sb.from('conversation_members').update({'last_read_at': DateTime.now().toUtc().toIso8601String()}).eq('conversation_id', id).eq('user_id', u).then((_) => DmUnread.i.refreshSoon(), onError: (_) {});
   }
 
   Future<void> _loadMeta() async {
@@ -425,7 +426,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   onChanged: _onType,
                   minLines: 1,
                   maxLines: 5,
-                  maxLength: 2000,
+                  maxLength: conv?.s('kind') == 'dm' ? kDmMaxLen : 2000,
                   textDirection: TextDirection.rtl,
                   textAlign: TextAlign.right,
                   cursorColor: C.cyan,

@@ -23,6 +23,7 @@ import 'netcode.dart';
 import 'room_ui.dart';
 import 'ui.dart';
 import '../screens/formation_sheet.dart';
+import '../social/player_link.dart' show PlayerTap;
 
 class OnlineOutcome {
   final String matchId;
@@ -542,12 +543,12 @@ class _OnlineMatchScreenState extends State<OnlineMatchScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 8),
                       accent: h.turn == 0 ? C.cyanOld : C.red,
                       child: Row(children: [
-                        Expanded(child: MatchSide(team: teams[0], name: names[0], on: h.turn == 0, color: C.cyanOld)),
+                        Expanded(child: PlayerTap(uid: teamOf(link.players, 0).firstOrNull?.str('user_id'), sheet: true, child: MatchSide(team: teams[0], name: names[0], on: h.turn == 0, color: C.cyanOld))),
                         Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                           tTitle('${h.s0} : ${h.s1}', size: 24),
                           T(h.clock, size: 9, family: F.head, weight: 700, spacing: 2, color: h.sudden ? C.gold : C.dim),
                         ]),
-                        Expanded(child: MatchSide(team: teams[1], name: names[1], on: h.turn == 1, color: C.red, right: true)),
+                        Expanded(child: PlayerTap(uid: teamOf(link.players, 1).firstOrNull?.str('user_id'), sheet: true, child: MatchSide(team: teams[1], name: names[1], on: h.turn == 1, color: C.red, right: true))),
                       ]),
                     ),
                   ),

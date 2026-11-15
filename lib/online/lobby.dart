@@ -25,6 +25,7 @@ import 'link.dart';
 import 'online_match.dart' show ruleLabel;
 import 'room_ui.dart';
 import 'ui.dart';
+import '../social/player_link.dart' show PlayerTap;
 
 // v5: one room type (1v1); 2v2/3v3 were removed from creation, settings, quick match and the room filter.
 const kModesOnline = ['1v1'];
@@ -627,7 +628,7 @@ class RoomRow extends StatelessWidget {
       accent: Colors.transparent,
       child: Column(children: [
         Row(textDirection: TextDirection.rtl, children: [
-          Avatar(avatar: r.str('host_avatar'), url: r.str('host_avatar_url'), size: 44, ring: playing ? C.red : C.cyan),
+          PlayerTap(uid: r.str('host'), child: Avatar(avatar: r.str('host_avatar'), url: r.str('host_avatar_url'), size: 44, ring: playing ? C.red : C.cyan)),
           const SizedBox(width: 8),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [

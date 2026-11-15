@@ -1,5 +1,6 @@
-// Port of src/social/PublicProfile.tsx: public profile of any player — avatar/photo, level, league, stats,
-// followers, follow/unfollow, message, block, club.
+// Public profile of any player (opened by tapping a name/avatar anywhere, see player_link.dart): avatar, level,
+// league, stats, achievements, follower/following counts, Follow, Message, Block. Data comes from the player_card
+// RPC; follow/block go through follow_user / unfollow_user / block_user / unblock_user (server-side, RLS + guards).
 import 'package:material_ui/material_ui.dart';
 
 import '../core/assets.dart';
@@ -11,6 +12,7 @@ import '../net/supabase.dart';
 import '../online/ui.dart';
 import '../ui/chrome.dart';
 import '../ui/kit.dart';
+import 'player_link.dart';
 import 'social.dart' show openClub, openDm;
 
 class PublicProfileScreen extends StatefulWidget {
@@ -23,7 +25,8 @@ class PublicProfileScreen extends StatefulWidget {
 class _PublicProfileScreenState extends State<PublicProfileScreen> {
   Rec? p, club, lg;
   int? followers, followingN;
-  bool following = false, blocked = false, busy = false;
+  bool following = false, followsMe = false, blocked = false, blockedMe = false, busy = false;
+  List<Achievement> ach = const [];
   String? err;
 
   String get id => widget.userId;
@@ -43,60 +46,49 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
   }
 
   Future<void> _load() async {
-    final uid = Auth.i.uid;
-    Map<String, dynamic>? data;
+    Rec pr;
     try {
-      data = await sb.from('profiles').select().eq('id', id).maybeSingle();
+      pr = await SocialApi.card(id);
     } catch (e) {
-      if (mounted) setState(() => err = errFa(e));
+      if (mounted) setState(() => err = '$e'.contains('player not found') ? 'بازیکن پیدا نشد' : errFa(e));
       return;
     }
     if (!mounted) return;
-    if (data == null) {
-      setState(() => err = 'بازیکن پیدا نشد · Player not found');
-      return;
-    }
-    final pr = Rec.of(data);
     setState(() {
       p = pr;
       err = null;
+      followers = pr.i('followers');
+      followingN = pr.i('following_n');
+      following = pr.b('is_following');
+      followsMe = pr.b('follows_me');
+      blocked = pr.b('blocked_by_me');
+      blockedMe = pr.b('blocked_me');
+      ach = achievementsOf(pr['achievements']);
     });
     final clubId = pr.str('club_id');
     final res = await Future.wait([
-      _maybe(sb.from('profile_stats').select().eq('id', id).maybeSingle()),
-      uid != null ? _maybe(sb.from('follows').select('followee').eq('follower', uid).eq('followee', id).maybeSingle()) : Future.value(null),
-      uid != null ? _maybe(sb.from('user_blocks').select('blocked').eq('blocker', uid).eq('blocked', id).maybeSingle()) : Future.value(null),
       clubId != null && clubId.isNotEmpty ? _maybe(sb.from('clubs').select('id, name, tag, emblem').eq('id', clubId).maybeSingle()) : Future.value(null),
       leagues(),
     ]);
     if (!mounted) return;
-    final s = res[0] is Map ? Rec.of(res[0]) : null;
-    final ls = res[4] as List<Rec>;
+    final ls = res[1] as List<Rec>;
     setState(() {
-      followers = s?.i('followers') ?? 0;
-      followingN = s?.i('following') ?? 0;
-      following = res[1] != null;
-      blocked = res[2] != null;
-      club = res[3] is Map ? Rec.of(res[3]) : null;
+      club = res[0] is Map ? Rec.of(res[0]) : null;
       lg = ls.where((l) => l.s('id') == pr.s('league')).firstOrNull;
     });
   }
 
   Future<void> _toggleFollow() async {
     final uid = Auth.i.uid;
-    if (uid == null || busy) return;
+    if (uid == null || busy || blocked || blockedMe) return;
     setState(() => busy = true);
     final was = following;
     try {
-      if (was) {
-        await sb.from('follows').delete().eq('follower', uid).eq('followee', id);
-      } else {
-        await sb.from('follows').insert({'follower': uid, 'followee': id});
-      }
+      final r = was ? await SocialApi.unfollow(id) : await SocialApi.follow(id);
       if (!mounted) return;
       setState(() {
-        following = !was;
-        if (followers != null) followers = followers! + (was ? -1 : 1);
+        following = r.b('following');
+        followers = r.i('followers', followers ?? 0);
       });
       buzz('medium');
       if (!was) sfx(Snd.ready);
@@ -108,19 +100,18 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
   }
 
   Future<void> _toggleBlock() async {
-    final uid = Auth.i.uid;
-    if (uid == null) return;
+    if (Auth.i.uid == null || busy) return;
     final was = blocked;
+    if (!was && !await confirm(context, 'مسدود کردن ${p?.s('username') ?? ''}؟', 'دیگر نمی‌تواند به تو پیام بدهد یا دنبالت کند و دنبال‌کردن دوطرفه حذف می‌شود.', yes: 'مسدود کن', no: 'نه')) return;
+    setState(() => busy = true);
     try {
-      if (was) {
-        await sb.from('user_blocks').delete().eq('blocker', uid).eq('blocked', id);
-      } else {
-        await sb.from('user_blocks').insert({'blocker': uid, 'blocked': id});
-      }
-      if (mounted) setState(() => blocked = !was);
-      toast(was ? 'از مسدودی خارج شد · Unblocked' : 'کاربر مسدود شد · Blocked', 'ok');
+      was ? await SocialApi.unblock(id) : await SocialApi.block(id);
+      toast(was ? 'از مسدودی خارج شد' : 'کاربر مسدود شد', 'ok');
+      await _load();
     } catch (e) {
       toast(errFa(e), 'err');
+    } finally {
+      if (mounted) setState(() => busy = false);
     }
   }
 
@@ -245,10 +236,17 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                 if (!me && uid != null) ...[
                   const SizedBox(height: SP.m),
                   Row(textDirection: TextDirection.rtl, children: [
-                    Expanded(child: Btn(following ? 'دنبال می‌کنی ✓' : 'دنبال کردن · Follow', small: true, colors: following ? G.dark : G.primary, disabled: busy, onTap: _toggleFollow)),
+                    Expanded(
+                        child: Btn(following ? 'دنبال می‌کنی ✓' : (followsMe ? 'دنبال کردن متقابل' : 'دنبال کردن'),
+                            small: true, colors: following ? G.dark : G.primary, disabled: busy || blocked || blockedMe, onTap: _toggleFollow)),
                     const SizedBox(width: SP.s),
-                    Expanded(child: Btn('پیام · Message', small: true, colors: G.green, onTap: () => openDm(context, id))),
+                    Expanded(child: Btn('ارسال پیام', small: true, colors: G.green, disabled: blocked || blockedMe, onTap: () => openDm(context, id))),
                   ]),
+                  if (blocked || blockedMe)
+                    Padding(
+                      padding: const EdgeInsets.only(top: SP.xs),
+                      child: T(blocked ? 'این بازیکن را مسدود کرده‌ای' : 'امکان پیام و دنبال کردن نیست', size: 10, color: C.dim, align: TextAlign.center),
+                    ),
                 ],
               ]),
             ),
@@ -272,6 +270,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                 if (lg != null) ...[const SizedBox(width: SP.s), Img(ui(kLeagueImg[lg!.s('id')] ?? 'medal_bronze'), w: 48, h: 48)],
               ]),
             ),
+            if (ach.isNotEmpty) ...[const SizedBox(height: SP.m), AchievementsPanel(items: ach)],
             if (club != null) ...[
               const SizedBox(height: SP.m),
               Btn('باشگاه ${club!.s('name')}', small: true, colors: G.gold, onTap: () => openClub(context, club!.s('id'))),
@@ -283,12 +282,150 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                   margin: const EdgeInsets.only(top: SP.m),
                   constraints: const BoxConstraints(minHeight: 44),
                   alignment: Alignment.center,
-                  child: T(blocked ? 'رفع مسدودی · Unblock' : 'مسدود کردن این کاربر · Block', size: 12, color: C.red, align: TextAlign.center),
+                  child: T(blocked ? 'رفع مسدودی' : 'مسدود کردن این بازیکن', size: 12, color: C.red, align: TextAlign.center),
                 ),
               ),
           ]),
         ),
       ],
+    );
+  }
+}
+
+/// Achievements grid: earned ones in full colour, the rest dimmed with a progress bar.
+class AchievementsPanel extends StatelessWidget {
+  final List<Achievement> items;
+  const AchievementsPanel({super.key, required this.items});
+  @override
+  Widget build(BuildContext context) {
+    final done = items.where((a) => a.done).length;
+    return Panel(
+      accent: Colors.transparent,
+      padding: const EdgeInsets.all(SP.m),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(textDirection: TextDirection.rtl, children: [
+          const Expanded(child: T('دستاوردها', size: 13, family: F.bold, weight: 800, align: TextAlign.right)),
+          T('${fa(done)} از ${fa(items.length)}', size: 11, color: C.gold),
+        ]),
+        const SizedBox(height: SP.s),
+        LayoutBuilder(builder: (_, c) {
+          final w = (c.maxWidth - SP.s * 2) / 3;
+          return Wrap(
+            textDirection: TextDirection.rtl,
+            spacing: SP.s,
+            runSpacing: SP.s,
+            children: [for (final a in items) SizedBox(width: w, child: _AchTile(a))],
+          );
+        }),
+      ]),
+    );
+  }
+}
+
+class _AchTile extends StatelessWidget {
+  final Achievement a;
+  const _AchTile(this.a);
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: a.done ? C.gold.withValues(alpha: .6) : C.line),
+          color: const Color(0x66080d2c),
+        ),
+        child: Column(children: [
+          Opacity(opacity: a.done ? 1 : .32, child: Img(achIcon(a.id), w: 30, h: 30)),
+          const SizedBox(height: 2),
+          T(a.title, size: 11, weight: 800, color: a.done ? C.text : C.dim, align: TextAlign.center, lines: 1),
+          T(a.desc, size: 9, color: C.dim, align: TextAlign.center, lines: 1),
+          if (!a.done) ...[
+            const SizedBox(height: 3),
+            Bar(v: a.frac, color: C.cyan, color2: C.violet, h: 4),
+          ],
+        ]),
+      );
+}
+
+/// Compact player card (modal) used where leaving the screen is unwelcome, e.g. a running match.
+Future<void> showPlayerCard(BuildContext context, String uid) => showCard<void>(context, accent: C.cyan, child: (cc) => _PlayerCard(uid: uid, close: () => Navigator.of(cc).pop()));
+
+class _PlayerCard extends StatefulWidget {
+  final String uid;
+  final VoidCallback close;
+  const _PlayerCard({required this.uid, required this.close});
+  @override
+  State<_PlayerCard> createState() => _PlayerCardState();
+}
+
+class _PlayerCardState extends State<_PlayerCard> {
+  Rec? p;
+  String? err;
+  bool busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final r = await SocialApi.card(widget.uid);
+      if (mounted) setState(() => p = r);
+    } catch (e) {
+      if (mounted) setState(() => err = errFa(e));
+    }
+  }
+
+  Future<void> _follow() async {
+    final c = p;
+    if (c == null || busy) return;
+    setState(() => busy = true);
+    try {
+      final r = c.b('is_following') ? await SocialApi.unfollow(widget.uid) : await SocialApi.follow(widget.uid);
+      if (mounted) setState(() => p = c.merge({'is_following': r.b('following'), 'followers': r.i('followers')}));
+      buzz('medium');
+    } catch (e) {
+      toast(errFa(e), 'err');
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = p;
+    if (c == null) {
+      return SizedBox(height: 180, child: Center(child: err != null ? T(err!, size: 12, color: C.red, align: TextAlign.center) : const Spinner(size: 32)));
+    }
+    final ach = achievementsOf(c['achievements']).where((a) => a.done).toList();
+    final off = c.b('blocked_by_me') || c.b('blocked_me');
+    Widget count(int v, String l) => Expanded(child: Column(children: [T(fa(v), size: 16, family: F.title, weight: 900), T(l, size: 10, color: C.dim)]));
+    return Padding(
+      padding: const EdgeInsets.all(18),
+      child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Center(child: Avatar(avatar: c.str('equipped_disc') ?? c.str('avatar'), url: c.str('avatar_url'), size: 72, ring: C.cyan)),
+        const SizedBox(height: 6),
+        tTitle(c.s('username'), size: 18, align: TextAlign.center, lines: 1),
+        T('سطح ${fa(c.i('level', 1))} · ${fa(c.i('wins'))} برد · ${fa(ach.length)} دستاورد', size: 11, color: C.dim, align: TextAlign.center),
+        const SizedBox(height: 10),
+        Row(textDirection: TextDirection.rtl, children: [count(c.i('followers'), 'دنبال‌کننده'), count(c.i('following_n'), 'دنبال‌شده')]),
+        const SizedBox(height: 12),
+        Row(textDirection: TextDirection.rtl, children: [
+          Expanded(child: Btn(c.b('is_following') ? 'دنبال می‌کنی ✓' : 'دنبال کردن', small: true, colors: c.b('is_following') ? G.dark : G.primary, disabled: busy || off, onTap: _follow)),
+          const SizedBox(width: 8),
+          Expanded(
+              child: Btn('ارسال پیام', small: true, colors: G.green, disabled: off, onTap: () {
+            widget.close();
+            startDm(widget.uid);
+          })),
+        ]),
+        const SizedBox(height: 8),
+        Btn('پروفایل کامل', small: true, colors: G.dark, onTap: () {
+          widget.close();
+          openPlayer(context, widget.uid);
+        }),
+      ]),
     );
   }
 }

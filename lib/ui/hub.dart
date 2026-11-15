@@ -27,6 +27,7 @@ import '../screens/setup.dart';
 import 'chrome.dart';
 import 'kit.dart';
 import 'v4.dart';
+import '../social/player_link.dart' show UnreadBadge;
 
 enum HubEdge { top, left, right, bottom }
 
@@ -906,7 +907,7 @@ class _RightPanel extends StatelessWidget {
     _grid(
       [
         HubTile(label: 'دوستان', sub: 'FRIENDS', img: V4.ic('friends'), color: N.cyan, onTap: () => go(() => a.social('friends'))),
-        HubTile(label: 'پیام‌ها', sub: 'CHAT', icon: Icons.chat_bubble_rounded, color: N.pink, onTap: () => go(() => a.social('msg'))),
+        UnreadBadge(child: HubTile(label: 'پیام‌ها', sub: 'CHAT', icon: Icons.chat_bubble_rounded, color: N.pink, onTap: () => go(() => a.social('msg')))),
         HubTile(label: 'باشگاه‌ها', sub: 'CLUBS', img: V4.h('shield'), color: C.violet, onTap: () => go(() => a.social('club'))),
       ],
       cols: 2,
