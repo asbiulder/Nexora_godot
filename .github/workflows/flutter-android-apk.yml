@@ -3,7 +3,9 @@ name: Flutter Android APK
 
 on:
   push:
-    branches: [flutter]
+    # The rebuild branch runs the same complete checks and APK builds, but
+    # does not publish the rolling public test release (see test-release).
+    branches: [flutter, nexora-physics-rebuild-20261115]
   workflow_dispatch:
     inputs:
       tag:
@@ -105,7 +107,7 @@ jobs:
   # (public direct download, no GitHub sign-in needed).
   test-release:
     needs: build
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/flutter'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4

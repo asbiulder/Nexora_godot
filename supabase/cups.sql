@@ -256,10 +256,11 @@ declare c cups; begin
 end $$;
 
 create or replace function public.cup_cancel(p_cup uuid) returns void language plpgsql security definer set search_path = public as $$
-declare c cups; begin
-  select * into c from cups where id = p_cup;
+declare uid uuid := auth.uid(); c cups; begin
+  if uid is null then raise exception 'not signed in'; end if;
+  select * into c from cups where id = p_cup for update;
   if c.id is null then raise exception 'tournament not found'; end if;
-  if c.created_by <> auth.uid() then raise exception 'organizer only'; end if;
+  if c.created_by is distinct from uid then raise exception 'organizer only'; end if;
   if c.status <> 'registration' then raise exception 'already started'; end if;
   perform _cup_refund(p_cup, 'برگزارکننده تورنمنت را لغو کرد');
 end $$;
@@ -555,6 +556,8 @@ end $$;
 revoke execute on function public._cup_fill(uuid), public._cup_refund(uuid, text), public._cup_check_ready(uuid), public._cup_place(uuid, int, uuid),
   public._cup_third_check(uuid), public._cup_finish(uuid), public._cup_advance(uuid, uuid, uuid, boolean), public._cup_draw(uuid),
   public._cup_present(uuid, uuid), public._cup_try_start(uuid), public.cup_tick() from public, anon, authenticated;
+-- Functions otherwise default to EXECUTE for PUBLIC, including the anon role.
+revoke execute on function public.cup_cancel(uuid) from public, anon, authenticated;
 grant execute on function public.cup_create(text, int, int, int, timestamptz, int, int[], boolean), public.cup_join(text), public.cup_leave(uuid),
   public.cup_checkin(uuid), public.cup_cancel(uuid), public.cup_enter(uuid), public.cup_kick(uuid), public.cup_now(), public.cup_cfg() to authenticated;
 

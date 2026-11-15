@@ -1,6 +1,7 @@
 // Port of src/screens/Settings.tsx + Account.tsx: online account (guest/email, sign up/in, upgrade, reset,
 // sign out, username), audio/haptics/Oracle toggles, volume, graphics quality (High / Smooth), bot level,
 // language, FPS/latency debug overlay, replay intro, reset progress. Plus the password-recovery card.
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:material_ui/material_ui.dart';
 
 import '../core/assets.dart';
@@ -82,7 +83,10 @@ class _SettingsSheetState extends State<SettingsSheet> {
 final _emailRe = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]{2,}$');
 
 class AccountPanel extends StatefulWidget {
-  const AccountPanel({super.key});
+  @visibleForTesting
+  final Future<String?> Function()? ensureGuest;
+
+  const AccountPanel({super.key, this.ensureGuest});
   @override
   State<AccountPanel> createState() => _AccountPanelState();
 }
@@ -225,13 +229,18 @@ class _AccountPanelState extends State<AccountPanel> {
                 Btn(busy ? 'لطفاً صبر کن…' : mode == 'up' ? (a.isGuest ? 'ثبت ایمیل و حفظ پیشرفت' : 'ساخت حساب') : mode == 'in' ? 'ورود' : 'ارسال لینک', small: true, onTap: submit, disabled: busy),
                 if (a.uid == null) ...[
                   const SizedBox(height: 8),
-                  Btn('ادامه به‌عنوان مهمان', small: true, colors: G.dark, onTap: () async {
+                  Btn('ادامه به‌عنوان مهمان', small: true, colors: G.dark, disabled: busy, onTap: () async {
                     setState(() => busy = true);
                     try {
-                      await a.ensure();
-                      toast('به‌عنوان مهمان وارد شدی', 'ok');
+                      final id = await (widget.ensureGuest ?? a.ensure)();
+                      if (!mounted) return;
+                      if (id == null) {
+                        toast('اتصال برقرار نشد', 'err');
+                      } else {
+                        toast('به‌عنوان مهمان وارد شدی', 'ok');
+                      }
                     } catch (_) {
-                      toast('اتصال برقرار نشد', 'err');
+                      if (mounted) toast('اتصال برقرار نشد', 'err');
                     } finally {
                       if (mounted) setState(() => busy = false);
                     }

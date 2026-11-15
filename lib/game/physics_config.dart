@@ -18,11 +18,10 @@ class PhysicsConfig {
   // ---- exponential friction v *= exp(-k dt) ----
   final double ballK, puckK;
 
-  /// friction of a flicked puck until its first contact (puck, ball, post or cushion). The reference puck runs at an
-  /// almost constant speed until it hits something, then stops with puckK.
+  /// Legacy compatibility value. All discs use puckK from launch to rest.
   final double puckFlightK;
 
-  /// flight also ends when the flicked puck slows below this (W/s): soft flicks never crawl on flight friction.
+  /// Legacy compatibility value; there is no separate flight phase.
   final double puckFlightMin;
 
   /// below this speed a body stops dead (W/s).
@@ -39,8 +38,8 @@ class PhysicsConfig {
   /// full-pull launch speed (W/s) before the power stat; launch speed = shotMax * shotCurve(pull) * statMul(power).
   final double shotMax;
 
-  /// a puck striking a ball sends it off at kickGain x the closing speed: a reference flick (puckShotRef) gives
-  /// ballKickSpeed. Momentum is not conserved here on purpose (a flick is a striker, not a free body).
+  /// Legacy compatibility values. Body contacts now use mass and restitution
+  /// exclusively; no additional striker impulse is injected.
   final double ballKickSpeed, puckShotRef;
 
   /// hard cap on ball speed (reference peak) and numerical safety cap on any body.
@@ -64,12 +63,32 @@ class PhysicsConfig {
   final double powerMulAt1, accDevAt1Deg;
   final int subMax, stepCap;
 
+  /// Extra restitution applied only to the incoming normal component of a
+  /// moving contact. It scales with actual launch speed and impact speed.
+  /// These parameters are dimensionless except [boostImpactSpeed] (W/s).
+  /// Zero disables the corresponding boost. The total restitution is capped
+  /// by [maxContactRestitution], and body speed remains subject to its cap.
+  /// Each body gets a finite per-shot budget of extra normal speed equal to
+  /// [boostBudgetFraction] times the launch speed capped at full shot speed.
+  /// The defaults allow a full-power puck to rebound faster than it arrived:
+  /// its .35 wall restitution can reach 1.25, and a square corner needs
+  /// enough budget for both normal impulses and their tangential damping.
+  /// Weak shots and slow impacts receive proportionally less extra impulse.
+  final double railBoost, postBoost, cornerBoost;
+  final double boostImpactSpeed, maxContactRestitution, boostBudgetFraction;
+
   const PhysicsConfig({
     required this.wPx,
     this.playbackSpeed = 1.0,
     this.useDiscStats = true,
     this.powerMulAt1 = .55,
     this.accDevAt1Deg = 8,
+    this.railBoost = .90,
+    this.postBoost = .95,
+    this.cornerBoost = 1.00,
+    this.boostImpactSpeed = 2,
+    this.maxContactRestitution = 1.25,
+    this.boostBudgetFraction = 1.20,
     required this.puckDiameter,
     required this.ballDiameter,
     required this.ballK,

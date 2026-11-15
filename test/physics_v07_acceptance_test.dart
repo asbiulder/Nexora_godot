@@ -10,13 +10,25 @@ final double W = PHYSICS_CONFIG.wPx;
 const double fdt = 1 / 60;
 
 MatchCfg _cfg() => MatchCfg(
-    field: 0, ball: 0, forms: [0, 0], ai: false, aiLvl: 1, limit: 99, matchTime: 0, turnTime: 0,
-    vip: [false, false], first: 0);
+  field: 0,
+  ball: 0,
+  forms: [0, 0],
+  ai: false,
+  aiLvl: 1,
+  limit: 99,
+  matchTime: 0,
+  turnTime: 0,
+  vip: [false, false],
+  first: 0,
+);
 
 /// stars engine with [keep] pucks plus the ball; everything at rest, ball parked at the centre.
 Engine _lab(int keep) {
   final e = Engine(_cfg(), rand: math.Random(3).nextDouble);
-  final discs = e.bodies.where((b) => !identical(b, e.ball)).take(keep).toList();
+  final discs = e.bodies
+      .where((b) => !identical(b, e.ball))
+      .take(keep)
+      .toList();
   e.bodies
     ..clear()
     ..addAll(discs)
@@ -37,7 +49,8 @@ void _place(Body b, double x, double y, double vx, double vy) {
 }
 
 double _spd(Body b) => math.sqrt(b.vx * b.vx + b.vy * b.vy);
-double _dist(Body a, Body b) => math.sqrt((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y));
+double _dist(Body a, Body b) =>
+    math.sqrt((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y));
 
 /// time for [b] (launched at v0 W/s) to fall to v0/e, interpolated between frames
 double _tau(Engine e, Body b, double v0) {
@@ -56,28 +69,41 @@ double _tau(Engine e, Body b, double v0) {
 void main() {
   test('config: sizes in W, collision radius == drawn radius (render draws b.r)', () {
     final e = _lab(1);
-    print('W=${W}px  puck r=${e.bodies[0].r.toStringAsFixed(2)}px (${(2 * e.bodies[0].r / W).toStringAsFixed(4)} W)'
-        '  ball r=${e.ball.r.toStringAsFixed(2)}px (${(2 * e.ball.r / W).toStringAsFixed(4)} W)');
+    print(
+      'W=${W}px  puck r=${e.bodies[0].r.toStringAsFixed(2)}px (${(2 * e.bodies[0].r / W).toStringAsFixed(4)} W)'
+      '  ball r=${e.ball.r.toStringAsFixed(2)}px (${(2 * e.ball.r / W).toStringAsFixed(4)} W)',
+    );
     expect(2 * e.bodies[0].r / W, closeTo(.134, 1e-9));
     expect(2 * e.ball.r / W, closeTo(.058, 1e-9));
-    expect(1 / e.ball.im, closeTo(3 / e.bodies[0].im, 1e-9)); // m_ball = 3 m_puck
+    expect(
+      1 / e.ball.im,
+      closeTo(3 / e.bodies[0].im, 1e-9),
+    ); // m_ball = 3 m_puck
   });
 
-  test('1. ball decay: released at 1 W/s, tau = 0.5 +- 0.1 s', skip: 'owner retune 2026-11-15 heavier feel; re-baseline', () {
-    final e = _lab(0);
-    _place(e.ball, e.CX, e.Fb - 150, 0, -1 * W);
-    final t = _tau(e, e.ball, 1);
-    print('1. ball tau = ${t.toStringAsFixed(3)} s');
-    expect(t, inInclusiveRange(.4, .6));
-  });
+  test(
+    '1. ball decay: released at 1 W/s, tau = 0.5 +- 0.1 s',
+    skip: 'owner retune 2026-11-15 heavier feel; re-baseline',
+    () {
+      final e = _lab(0);
+      _place(e.ball, e.CX, e.Fb - 150, 0, -1 * W);
+      final t = _tau(e, e.ball, 1);
+      print('1. ball tau = ${t.toStringAsFixed(3)} s');
+      expect(t, inInclusiveRange(.4, .6));
+    },
+  );
 
-  test('2. puck decay: released at 1 W/s, tau = 0.35 +- 0.07 s', skip: 'owner retune 2026-11-15 heavier feel; re-baseline', () {
-    final e = _lab(1), p = e.bodies[0];
-    _place(p, e.CX, e.Fb - 150, 0, -1 * W);
-    final t = _tau(e, p, 1);
-    print('2. puck tau = ${t.toStringAsFixed(3)} s');
-    expect(t, inInclusiveRange(.28, .42));
-  });
+  test(
+    '2. puck decay: released at 1 W/s, tau = 0.35 +- 0.07 s',
+    skip: 'owner retune 2026-11-15 heavier feel; re-baseline',
+    () {
+      final e = _lab(1), p = e.bodies[0];
+      _place(p, e.CX, e.Fb - 150, 0, -1 * W);
+      final t = _tau(e, p, 1);
+      print('2. puck tau = ${t.toStringAsFixed(3)} s');
+      expect(t, inInclusiveRange(.28, .42));
+    },
+  );
 
   test('stop threshold: a slow body stops dead below 0.02 W/s', () {
     final e = _lab(0), b = e.ball;
@@ -101,8 +127,10 @@ void main() {
         for (final frame in [1 / 60, 1 / 30]) {
           final e = _lab(1), p = e.bodies[0], b = e.ball;
           final m = p.r + b.r;
-          final dx = math.cos(a), dy = math.sin(a); // ball travels along (dx,dy)
-          final sx = e.CX - dx * .45 * W - dy * off * m, sy = e.CY - dy * .45 * W + dx * off * m;
+          final dx = math.cos(a),
+              dy = math.sin(a); // ball travels along (dx,dy)
+          final sx = e.CX - dx * .45 * W - dy * off * m,
+              sy = e.CY - dy * .45 * W + dx * off * m;
           _place(p, e.CX, e.CY, 0, 0);
           _place(b, sx, sy, dx * 6.5 * W, dy * 6.5 * W);
           var hit = false;
@@ -115,13 +143,16 @@ void main() {
           }
           // the ball never ends up beyond the puck along its line without having touched it
           final along = (b.x - p.x) * dx + (b.y - p.y) * dy;
-          if (!hit) expect(along, lessThan(0), reason: 'passed through a=$k off=$off');
+          if (!hit)
+            expect(along, lessThan(0), reason: 'passed through a=$k off=$off');
           cases++;
           if (hit) hits++;
         }
       }
     }
-    print('3. tunnelling: $hits/$cases contacts detected, min centre distance / (r_b + r_p) = ${worst.toStringAsFixed(4)}');
+    print(
+      '3. tunnelling: $hits/$cases contacts detected, min centre distance / (r_b + r_p) = ${worst.toStringAsFixed(4)}',
+    );
     expect(hits, cases);
   });
 
@@ -135,8 +166,10 @@ void main() {
       e.update(fdt);
     }
     final dev = math.atan2(b.vx, -b.vy).abs() * 180 / math.pi;
-    print('4. gap: ball y ${(b.y - e.CY).toStringAsFixed(1)} px (past the pair), deviation ${dev.toStringAsFixed(3)} deg, '
-        'pucks moved ${_spd(p1)} / ${_spd(p2)}');
+    print(
+      '4. gap: ball y ${(b.y - e.CY).toStringAsFixed(1)} px (past the pair), deviation ${dev.toStringAsFixed(3)} deg, '
+      'pucks moved ${_spd(p1)} / ${_spd(p2)}',
+    );
     expect(b.y, lessThan(e.CY - p1.r));
     expect(dev, lessThan(1));
     expect(_spd(p1) + _spd(p2), 0);
@@ -153,11 +186,17 @@ void main() {
     }
     // undo the friction of the contact frame so we compare velocities at the instant of impact
     final ratio = (-b.vy) / pre * math.exp(PHYSICS_CONFIG.ballK * fdt);
-    print('5. head-on: ball ${(pre / W).toStringAsFixed(3)} -> ${(-b.vy / W).toStringAsFixed(3)} W/s '
-        '(ratio ${ratio.toStringAsFixed(3)}), puck ${(-p.vy / W).toStringAsFixed(3)} W/s');
+    print(
+      '5. head-on: ball ${(pre / W).toStringAsFixed(3)} -> ${(-b.vy / W).toStringAsFixed(3)} W/s '
+      '(ratio ${ratio.toStringAsFixed(3)}), puck ${(-p.vy / W).toStringAsFixed(3)} W/s',
+    );
     expect(-b.vy, greaterThan(0), reason: 'ball keeps its direction');
     expect(ratio, inInclusiveRange(.45, .75));
-    expect(-p.vy, greaterThan(-b.vy), reason: 'puck leaves faster than the ball');
+    expect(
+      -p.vy,
+      greaterThan(-b.vy),
+      reason: 'puck leaves faster than the ball',
+    );
     expect(b.vx.abs() + p.vx.abs(), lessThan(1e-6));
   });
 
@@ -172,25 +211,78 @@ void main() {
     final defl = math.atan2(b.vx, -b.vy).abs() * 180 / math.pi;
     // normal at impact: from ball to puck. Rebuild it from the contact geometry (ball centre at x = CX - off).
     final nx = off / m, ny = -math.sqrt(1 - nx * nx);
-    final pAng = math.acos(((p.vx * nx + p.vy * ny) / _spd(p)).clamp(-1.0, 1.0)) * 180 / math.pi;
-    print('6. oblique: ball deflection ${defl.toStringAsFixed(2)} deg, puck off-normal ${pAng.toStringAsFixed(3)} deg, '
-        'puck ${(_spd(p) / W).toStringAsFixed(2)} W/s, ball ${(_spd(b) / W).toStringAsFixed(2)} W/s');
+    final pAng =
+        math.acos(((p.vx * nx + p.vy * ny) / _spd(p)).clamp(-1.0, 1.0)) *
+        180 /
+        math.pi;
+    print(
+      '6. oblique: ball deflection ${defl.toStringAsFixed(2)} deg, puck off-normal ${pAng.toStringAsFixed(3)} deg, '
+      'puck ${(_spd(p) / W).toStringAsFixed(2)} W/s, ball ${(_spd(b) / W).toStringAsFixed(2)} W/s',
+    );
     expect(defl, lessThan(20));
     expect(pAng, lessThan(1));
   });
 
-  test('kick: a flicked puck at 2 W/s sends a still ball off at ~5 W/s (config ballKickSpeed)', () {
+  test('kick: a puck transfers momentum to a still ball without an artificial speed boost', () {
     final e = _lab(1), p = e.bodies[0], b = e.ball;
     _place(b, e.CX, e.CY, 0, 0);
     _place(p, e.CX, e.CY + p.r + b.r + 2, 0, 0);
     e.fireRaw(p, 0, -1, 2 * W, .5);
-    var peak = 0.0;
+    final puckMass = 1 / p.im, ballMass = 1 / b.im;
+    final initialMomentum = puckMass * (-p.vy) + ballMass * (-b.vy);
+    final initialEnergy =
+        .5 * puckMass * _spd(p) * _spd(p) + .5 * ballMass * _spd(b) * _spd(b);
+    var peak = 0.0, contacted = false, transferredMomentum = 0.0;
     for (var i = 0; i < 30; i++) {
       e.update(fdt);
       peak = math.max(peak, _spd(b));
+      if (_spd(b) > 0) {
+        contacted = true;
+        transferredMomentum = puckMass * (-p.vy) + ballMass * (-b.vy);
+        break;
+      }
     }
-    print('kick: ball peak ${(peak / W).toStringAsFixed(3)} W/s, puck after ${(p.vy / W).toStringAsFixed(3)} W/s');
-    expect(peak / W, closeTo(PHYSICS_CONFIG.ballKickSpeed, .25));
+    print(
+      'kick: ball peak ${(peak / W).toStringAsFixed(3)} W/s, puck after ${(p.vy / W).toStringAsFixed(3)} W/s',
+    );
+    expect(
+      contacted,
+      isTrue,
+      reason: 'the moving puck must contact the still ball',
+    );
+    expect(
+      b.vy,
+      lessThan(0),
+      reason: 'the ball must move in the puck impact direction',
+    );
+    expect(
+      p.vy,
+      greaterThan(0),
+      reason: 'the puck must recoil after head-on contact',
+    );
+    expect(
+      peak,
+      lessThanOrEqualTo(PHYSICS_CONFIG.ballMaxSpeed * W + 1e-6),
+      reason: 'ball safety cap',
+    );
+    expect(transferredMomentum, greaterThan(0));
+    expect(
+      transferredMomentum,
+      lessThanOrEqualTo(initialMomentum + 1e-6),
+      reason: 'friction cannot increase forward momentum',
+    );
+    final remainingEnergy =
+        .5 * puckMass * _spd(p) * _spd(p) + .5 * ballMass * _spd(b) * _spd(b);
+    expect(
+      remainingEnergy,
+      lessThanOrEqualTo(initialEnergy + 1e-6),
+      reason: 'inelastic collision and friction cannot add kinetic energy',
+    );
+    expect(
+      peak,
+      lessThan(2 * W),
+      reason: 'no legacy artificial striker impulse',
+    );
   });
 
   test('7. never stuck: 300 random full-team scenes settle; nothing overlaps or creeps > 2 s', () {
@@ -199,7 +291,8 @@ void main() {
     for (var s = 0; s < 300; s++) {
       final e = Engine(_cfg(), rand: math.Random(s).nextDouble);
       for (final b in e.bodies) {
-        final a = rnd.nextDouble() * 2 * math.pi, v = rnd.nextDouble() * (identical(b, e.ball) ? 6.5 : 4.2) * W;
+        final a = rnd.nextDouble() * 2 * math.pi,
+            v = rnd.nextDouble() * (identical(b, e.ball) ? 6.5 : 4.2) * W;
         b.vx = math.cos(a) * v;
         b.vy = math.sin(a) * v;
       }
@@ -207,10 +300,17 @@ void main() {
         // pinned in a corner: a puck in the corner, the ball and a puck driven into it
         final p = e.bodies[0], q = e.bodies[1];
         _place(p, e.Fl + p.r, e.Ft + p.r, 0, 0);
-        _place(e.ball, e.Fl + 2 * p.r + e.ball.r + 5, e.Ft + p.r, -5 * W, -1 * W);
+        _place(
+          e.ball,
+          e.Fl + 2 * p.r + e.ball.r + 5,
+          e.Ft + p.r,
+          -5 * W,
+          -1 * W,
+        );
         _place(q, e.Fl + p.r, e.Ft + 3 * p.r + 10, -.5 * W, -3 * W);
       }
-      final ov = List.filled(e.bodies.length, 0.0), cr = List.filled(e.bodies.length, 0.0);
+      final ov = List.filled(e.bodies.length, 0.0),
+          cr = List.filled(e.bodies.length, 0.0);
       var t = 0.0;
       while (t < 20) {
         e.update(fdt);
@@ -233,8 +333,10 @@ void main() {
       }
       worstRest = math.max(worstRest, t);
     }
-    print('7. stuck: longest overlap ${worstOverlap.toStringAsFixed(3)} s, longest creep (<.05 W/s) '
-        '${worstCreep.toStringAsFixed(3)} s, slowest scene at rest after ${worstRest.toStringAsFixed(2)} s');
+    print(
+      '7. stuck: longest overlap ${worstOverlap.toStringAsFixed(3)} s, longest creep (<.05 W/s) '
+      '${worstCreep.toStringAsFixed(3)} s, slowest scene at rest after ${worstRest.toStringAsFixed(2)} s',
+    );
     expect(worstOverlap, lessThan(2));
     expect(worstCreep, lessThan(2));
     expect(worstRest, lessThan(20));
@@ -245,27 +347,40 @@ void main() {
     var worstOut = 0.0;
     for (final ball in [true, false]) {
       for (var c = 0; c < 4; c++) {
-        final sx = c % 2 == 0 ? -1.0 : 1.0, sy = c < 2 ? -1.0 : 1.0; // corner direction
+        final sx = c % 2 == 0 ? -1.0 : 1.0,
+            sy = c < 2 ? -1.0 : 1.0; // corner direction
         for (final v in [.5, 1.0, 2.0, 4.0, 6.5]) {
           for (final deg in [45.0, 30.0, 60.0, 10.0, 80.0, 44.0, 46.0]) {
             for (final d0 in [.12, .3]) {
               final e = _lab(1), b = ball ? e.ball : e.bodies[0];
               final r = b.r;
-              final cxp = sx < 0 ? e.Fl + r : e.Fr - r, cyp = sy < 0 ? e.Ft + r : e.Fb - r; // centre at the corner
+              final cxp = sx < 0 ? e.Fl + r : e.Fr - r,
+                  cyp = sy < 0 ? e.Ft + r : e.Fb - r; // centre at the corner
               final a = deg * math.pi / 180;
               final ux = sx * math.cos(a), uy = sy * math.sin(a);
               // start d0 W back from the corner along the incoming ray (aimed exactly at the corner)
-              _place(b, cxp - ux * d0 * W, cyp - uy * d0 * W, ux * v * W, uy * v * W);
+              _place(
+                b,
+                cxp - ux * d0 * W,
+                cyp - uy * d0 * W,
+                ux * v * W,
+                uy * v * W,
+              );
               var t = 0.0, fx = false, fy = false;
               while (t < 6 && _spd(b) > 0) {
                 e.update(fdt);
                 t += fdt;
                 // the goal mouths (between the posts) are open: only the side walls and the goal lines count there
                 final mouth = b.x > e.goals[0].x1 && b.x < e.goals[0].x2;
-                final o = math.max(math.max(e.Fl + r - b.x, b.x - (e.Fr - r)),
-                    mouth ? -1.0 : math.max(e.Ft + r - b.y, b.y - (e.Fb - r)));
+                final o = math.max(
+                  math.max(e.Fl + r - b.x, b.x - (e.Fr - r)),
+                  mouth ? -1.0 : math.max(e.Ft + r - b.y, b.y - (e.Fb - r)),
+                );
                 if (o > .5) {
-                  if (out < 3) print('  out: ball=$ball corner=$c v=$v deg=$deg d0=$d0 t=${t.toStringAsFixed(2)} x=${b.x.toStringAsFixed(1)} y=${b.y.toStringAsFixed(1)} o=${o.toStringAsFixed(1)}');
+                  if (out < 3)
+                    print(
+                      '  out: ball=$ball corner=$c v=$v deg=$deg d0=$d0 t=${t.toStringAsFixed(2)} x=${b.x.toStringAsFixed(1)} y=${b.y.toStringAsFixed(1)} o=${o.toStringAsFixed(1)}',
+                    );
                   out++;
                   worstOut = math.max(worstOut, o);
                 }
@@ -281,8 +396,10 @@ void main() {
         }
       }
     }
-    print('8. corners: $cases runs, frames outside ${out} (worst ${worstOut.toStringAsFixed(2)} px), '
-        'not at rest after 6 s: $stuck, missing a double bounce: $badBounce');
+    print(
+      '8. corners: $cases runs, frames outside ${out} (worst ${worstOut.toStringAsFixed(2)} px), '
+      'not at rest after 6 s: $stuck, missing a double bounce: $badBounce',
+    );
     expect(out, 0);
     expect(stuck, 0);
     expect(badBounce, 0);
@@ -313,7 +430,11 @@ void main() {
       for (var f = 0; f < 600; f++) {
         e.update(f % 3 == 0 ? 1 / 50 : fdt);
         for (final b in e.bodies) {
-          out..add(b.x)..add(b.y)..add(b.vx)..add(b.vy);
+          out
+            ..add(b.x)
+            ..add(b.y)
+            ..add(b.vx)
+            ..add(b.vy);
         }
       }
       return out;

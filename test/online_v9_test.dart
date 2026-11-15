@@ -30,7 +30,7 @@ class _Port implements NetPort {
 Rec _p(String u, int team, bool ready) => Rec({'user_id': u, 'role': 'player', 'team': team, 'slot': 0, 'ready': ready});
 
 void main() {
-  test('proto version is 9', () => expect(kProtoVersion, 9));
+  test('rebuilt physics uses protocol version 10', () => expect(kProtoVersion, 10));
 
   group('host pitch/ball', () {
     test('custom room: room pitch, host ball', () {
@@ -54,7 +54,7 @@ void main() {
       expect(snapFieldBall({'fb': [1]}), isNull);
       expect(snapFieldBall({'fb': ['x', 2]}), isNull);
     });
-    test('host snapshot carries fb = [field, ball] and pv 9', () {
+    test('host snapshot carries fb = [field, ball] and the current physics version', () {
       final eng = Engine(MatchCfg(field: 8, ball: 14, forms: [0, 0], ai: false, aiLvl: 1, limit: 99, matchTime: 0, turnTime: 0, vip: [false, false], first: 0, stats: [const DiscStats(6, 6), const DiscStats(6, 6)]));
       final port = _Port();
       final host = NetMatch(eng: eng, isHost: true, port: port, onEvent: (_, _) {});
@@ -63,7 +63,7 @@ void main() {
       }
       final s = port.sent.firstWhere((m) => m['k'] == 's')['s'] as Map;
       expect(s['fb'], [8, 14]);
-      expect(s['pv'], 9);
+      expect(s['pv'], kProtoVersion);
       expect(snapFieldBall(s), (8, 14));
     });
   });

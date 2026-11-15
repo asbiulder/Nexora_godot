@@ -11,6 +11,10 @@ void main() {
   test('v0.5 peer (pv 4, old physics) -> they must update', () {
     expect(protoCheck(me: 'a', online: {'a': (true, kProtoVersion), 'b': (true, 4)}), kMsgUpdateThem);
   });
+  test('v9 Flutter peer with old physics must update', () {
+    expect(protoCheck(me: 'a', online: {'a': (true, kProtoVersion), 'b': (true, 9)}), kMsgUpdateThem);
+    expect(snapProtoCheck({'pf': 'stars', 'pv': 9}), kMsgUpdateThem);
+  });
   test('newer peer -> I must update', () {
     expect(protoCheck(me: 'a', online: {'a': (true, kProtoVersion), 'b': (true, kProtoVersion + 1)}), kMsgUpdateMe);
   });

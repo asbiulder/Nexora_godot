@@ -1,21 +1,6 @@
-// NEXORA physics engine.
-//
-// Two gameplay profiles (MatchCfg.profile):
-//  * 'stars' (DEFAULT): Soccer Stars feel on the nx8 code path (heavy low-bounce discs, pool-ball ball), see kTuneStars.
-//  * 'godot': the Godot build's "nx8" model (asbiulder/Nexora_godot src/game/engine.gd @48fcadf):
-//    pool/foosball physics - shot speed linear in drag (SHOT_MAX), constant cloth friction, heavy discs (36) vs a
-//    light ball (2), disc-disc hits only nudge (DISC_DISC_K), time-of-impact contacts, adaptive substeps,
-//    cushions E .85 with angle in = out, sharp corners + corner nudge, softer light contacts (less jitter).
-//  * 'classic': the line-for-line Dart port of the RN src/game/engine.ts (bit-parity with test/parity_test.dart).
-//
-// Classic profile notes (port of src/game/engine.ts):
-// Fixed 240 Hz sub-stepping, impulse-based circle collisions with positional correction,
-// rolling 3D ball rotation, render interpolation (prev -> current).
-//
-// Differences from the TS file are purely structural (no behavioural change):
-//  * Math.random is injectable (`rand`) so tests and lockstep online play can seed it.
-//  * Events, particles and trails live in pre-allocated pools: no allocation per frame.
-//  * Math.hypot is reproduced bit-for-bit with V8's algorithm (`hyp`).
+// NEXORA deterministic fixed-step physics engine. All profiles use the same
+// solver; profile tuning and pitch/goal geometry remain separate. Public
+// legacy constants and tuning fields remain for callers and saved content.
 import 'dart:math' as math;
 import 'dart:typed_data';
 
@@ -37,47 +22,54 @@ const double BK = 1.9, BF = 175, BFV = 140, BVMAX = 1750, BSTOP = 26;
 const double PK = 1.55, PFL = 300, PFV = 230, PSTOP = 20;
 const double WALL_VOUT = 820, POST_VOUT = 900;
 
-// =====================================================================================================
-// PHYSICS TUNING TABLE for the nx8-family profiles ('stars' = default, 'godot').
-// Every gameplay tunable lives here. Units: world px (pitch ~775 wide x ~1330 long), px/s, px/s^2, 1/s.
-// Body speed decay per substep h:  v' = v - (fric * (v < vSettle ? settleK : 1) + drag * v) * h, stop below vStop.
-// Glide distance from speed v (no walls):  d = v/drag - fric/drag^2 * ln(1 + drag*v/fric)   (d = v^2/2fric if drag = 0).
-// =====================================================================================================
+// Profile tuning values use world px, px/s, px/s^2 and 1/s. All profiles
+// share the solver below. Historical fields remain available to callers but
+// no longer select a separate solver or add non-physical striker impulses.
 class PhysTune {
   final String name;
   // ---- bodies ----
   final double discR, ballR; // radii (disc 0.128 x pitch width, ball ~0.07)
-  final double discM, ballM; // masses: only the ratio matters (impulse split along the normal)
+  final double discM,
+      ballM; // masses: only the ratio matters (impulse split along the normal)
   // ---- shot ----
-  final double shotMax; // disc launch speed at full drag (LMAX), linear in drag length
+  final double
+  shotMax; // disc launch speed at full drag (LMAX), linear in drag length
   final double discVmax; // cap after power stat / VIP multiplier
   final bool powerGodot; // power-stat curve: true 0.72..1.44 (Godot), false 0.75..1.25 (TS)
   // ---- rolling / sliding friction ----
-  final double discFric, discDrag; // disc: constant decel (px/s^2) + linear drag (1/s)
+  final double discFric,
+      discDrag; // disc: constant decel (px/s^2) + linear drag (1/s)
   final double ballFric, ballDrag; // ball: same model, lighter
   final double vStop; // a body whose speed falls below this stops
-  final double vSettle, settleK; // below vSettle friction x settleK (no creeping / jiggle)
+  final double vSettle,
+      settleK; // below vSettle friction x settleK (no creeping / jiggle)
   final double vSafe; // numerical safety clamp on any speed
   // ---- contacts (impulse along the line of centres; tangential velocity untouched) ----
   final double eDiscDisc, eDiscBall; // restitution
   final double discDiscK; // fraction of the disc-disc impulse applied (Godot foosball nudge; 1 = true physics)
   final double eSoft, vSoft; // light contacts (normal speed < vSoft) blend from eSoft up to full e: less jitter
   // ---- cushions (walls, goal frame, posts) ----
-  final double eWallBall, tWallBall; // ball: normal restitution, tangential speed kept
-  final double eWallDisc, tWallDisc; // disc: normal restitution, tangential speed kept
+  final double eWallBall,
+      tWallBall; // ball: normal restitution, tangential speed kept
+  final double eWallDisc,
+      tWallDisc; // disc: normal restitution, tangential speed kept
   final double postR;
-  final double cornerNudge; // px/s push out of a sharp corner for a still body jammed in it
+  final double
+  cornerNudge; // px/s push out of a sharp corner for a still body jammed in it
   // ---- integration / visuals ----
   final double subPx; // max travel per substep (px) -> adaptive substeps
-  final int subMax, stepCap; // substep cap per 240 Hz step; physics steps per frame
+  final int subMax,
+      stepCap; // substep cap per 240 Hz step; physics steps per frame
   final double rollK; // visual ball roll rate (render only)
-  // ---- v0.7 PHYSICS_CONFIG model (stars): exponential friction v *= exp(-k h), flight friction, striker kick ----
-  final bool expFric; // false: legacy constant-decel + drag model (godot)
+  // ---- friction parameters and legacy compatibility fields ----
+  final bool expFric; // select coefficients, not a separate solver
   final double ballK, discK, discFlightK; // 1/s
   final double discFlightMin; // px/s: flight ends below this speed
-  final double kickGain; // a puck striking the ball: ball normal speed = kickGain x closing speed
+  final double
+  kickGain; // legacy compatibility only; contacts conserve momentum
   final double ballVmax; // cap on ball speed (px/s)
-  final double subBallFrac; // ball travel per substep < subBallFrac x ball radius
+  final double
+  subBallFrac; // ball travel per substep < subBallFrac x ball radius
   const PhysTune({
     required this.name,
     required this.discR,
@@ -121,18 +113,76 @@ class PhysTune {
   });
 }
 
-/// 'godot': Nexora_godot engine.gd nx8 @48fcadf, values copied as-is.
+/// 'godot' profile retains its pitch geometry and approximate material tuning.
 const kTuneGodot = PhysTune(
   name: 'godot',
-  discR: 49, ballR: 27,
-  discM: 36, ballM: 2, // 18:1 foosball discs
-  shotMax: 1900, discVmax: 2000, powerGodot: true,
-  discFric: 360, discDrag: 0, ballFric: 360, ballDrag: 0, // same cloth friction for everything
-  vStop: 6, vSettle: 80, settleK: 2, vSafe: 4200,
-  eDiscDisc: .95, eDiscBall: .70, discDiscK: .45, eSoft: .55, vSoft: 240,
-  eWallBall: .85, tWallBall: .85, eWallDisc: .85, tWallDisc: .85, // whole vector x .85 (angle in = out)
-  postR: 5, cornerNudge: 70,
-  subPx: 4, subMax: 16, stepCap: 14, rollK: .6,
+  discR: 49,
+  ballR: 27,
+  discM: 36,
+  ballM: 2, // 18:1 foosball discs
+  shotMax: 1900,
+  discVmax: 2000,
+  powerGodot: true,
+  discFric: 360,
+  discDrag: 0,
+  ballFric: 360,
+  ballDrag: 0, // same cloth friction for everything
+  vStop: 6,
+  vSettle: 80,
+  settleK: 2,
+  vSafe: 4200,
+  eDiscDisc: .95,
+  eDiscBall: .70,
+  discDiscK: .45,
+  eSoft: .55,
+  vSoft: 240,
+  eWallBall: .85,
+  tWallBall: .85,
+  eWallDisc: .85,
+  tWallDisc: .85, // whole vector x .85 (angle in = out)
+  postR: 5,
+  cornerNudge: 70,
+  subPx: 4,
+  subMax: 16,
+  stepCap: 14,
+  rollK: .6,
+);
+
+// Classic's historic geometry, masses and approximate feel, in the same units
+// as the other profiles. Legacy parity is intentionally not a physics path.
+const _classicTune = PhysTune(
+  name: 'classic',
+  discR: PR,
+  ballR: BR,
+  discM: 5,
+  ballM: 1.5,
+  shotMax: (260 + 1085) * K * 1.32,
+  discVmax: (260 + 1085) * K * 1.32,
+  powerGodot: false,
+  discFric: PFL * K,
+  discDrag: PK,
+  ballFric: BF * K,
+  ballDrag: BK,
+  vStop: PSTOP * K,
+  vSettle: 0,
+  settleK: 1,
+  vSafe: 4200,
+  eDiscDisc: EPP,
+  eDiscBall: .62,
+  discDiscK: 1,
+  eSoft: 0,
+  vSoft: 0,
+  eWallBall: .60,
+  tWallBall: 1,
+  eWallDisc: .72,
+  tWallDisc: 1,
+  postR: POST_R,
+  cornerNudge: 0,
+  subPx: 4,
+  subMax: 24,
+  stepCap: 16,
+  rollK: .95,
+  ballVmax: BVMAX * K,
 );
 
 /// 'stars' (DEFAULT): v0.7 - every value comes from PHYSICS_CONFIG (lib/game/physics_config.dart, units of W) and
@@ -141,37 +191,62 @@ const _C = PHYSICS_CONFIG;
 final _W = PHYSICS_CONFIG.wPx;
 final kTuneStars = PhysTune(
   name: 'stars',
-  discR: _C.puckDiameter / 2 * _W, ballR: _C.ballDiameter / 2 * _W,
-  discM: _C.massPuck, ballM: _C.massBall,
-  shotMax: _C.shotMax * _W, discVmax: _C.shotMax * _W, powerGodot: false,
-  discFric: 0, discDrag: _C.puckK, ballFric: 0, ballDrag: _C.ballK, // (legacy fields, informational)
-  vStop: _C.stopSpeed * _W, vSettle: 0, settleK: 1, vSafe: _C.maxSpeed * _W,
-  eDiscDisc: _C.ePuckPuck, eDiscBall: _C.eBallPuck, discDiscK: 1,
-  eSoft: 1, vSoft: 0, // no soft-contact blending: the plain impulse rule (only while approaching, vrel < 0)
-  eWallBall: _C.eBallWall, tWallBall: _C.tBallWall,
-  eWallDisc: _C.ePuckWall, tWallDisc: _C.tPuckWall,
-  postR: _C.postR * _W, cornerNudge: 0, // v0.7: no corner nudge (it kept pinned bodies moving forever)
-  subPx: _C.subTravel * _W, subMax: _C.subMax, stepCap: _C.stepCap, rollK: 1,
-  expFric: true, ballK: _C.ballK, discK: _C.puckK, discFlightK: _C.puckFlightK, discFlightMin: _C.puckFlightMin * _W,
-  kickGain: _C.ballKickSpeed / _C.puckShotRef, ballVmax: _C.ballMaxSpeed * _W, subBallFrac: _C.subBallFrac,
+  discR: _C.puckDiameter / 2 * _W,
+  ballR: _C.ballDiameter / 2 * _W,
+  discM: _C.massPuck,
+  ballM: _C.massBall,
+  shotMax: _C.shotMax * _W,
+  discVmax: _C.shotMax * _W,
+  powerGodot: false,
+  discFric: 0,
+  discDrag: _C.puckK,
+  ballFric: 0,
+  ballDrag: _C.ballK, // (legacy fields, informational)
+  vStop: _C.stopSpeed * _W,
+  vSettle: 0,
+  settleK: 1,
+  vSafe: _C.maxSpeed * _W,
+  eDiscDisc: _C.ePuckPuck,
+  eDiscBall: _C.eBallPuck,
+  discDiscK: 1,
+  eSoft: 1,
+  vSoft: 0, // no soft-contact blending: the plain impulse rule (only while approaching, vrel < 0)
+  eWallBall: _C.eBallWall,
+  tWallBall: _C.tBallWall,
+  eWallDisc: _C.ePuckWall,
+  tWallDisc: _C.tPuckWall,
+  postR: _C.postR * _W,
+  cornerNudge:
+      0, // v0.7: no corner nudge (it kept pinned bodies moving forever)
+  subPx: _C.subTravel * _W,
+  subMax: _C.subMax,
+  stepCap: _C.stepCap,
+  rollK: 1,
+  expFric: true,
+  ballK: _C.ballK,
+  discK: _C.puckK,
+  discFlightK: _C.puckFlightK,
+  discFlightMin: _C.puckFlightMin * _W,
+  kickGain: _C.ballKickSpeed / _C.puckShotRef,
+  ballVmax: _C.ballMaxSpeed * _W,
+  subBallFrac: _C.subBallFrac,
 );
 
-/// v0.6.1 shot curve: pull fraction (0..1 of LMAX) -> fraction of the full-pull speed. Smooth and monotonic: a short
-/// pull is a soft touch (10% just past the dead zone), half a pull ~43%, a full pull 100%.
+/// Nonlinear, monotonic pull response; zero pull has zero launch speed.
 double shotCurve(double p) {
   final q = _clamp(p, 0, 1);
-  return .06 + .94 * fpow(q, 1.35); // fdlibm pow: bit-identical on every peer (lockstep)
+  return fpow(q, 1.35); // fdlibm pow for deterministic lockstep
 }
 
-/// v0.6.1 power stat multiplier (stars): power 1 -> 0.62, power 10 -> 1.0 (linear). Capped at 1: no disc, Premium
-/// Ultra included, ever exceeds discVmax.
-double statMul(double power) => .62 + .38 * (_min(10, _max(1, power)) - 1) / 9;
+/// Power stat multiplier used by the team screen and all profiles. Values
+/// are clamped to 1..10 and share [PhysicsConfig.powerMulAt1].
+double statMul(double power) => _starsPowerMul(power);
 
 PhysTune? tuneFor(String profile) => switch (profile) {
-      'classic' => null,
-      'godot' => kTuneGodot,
-      _ => kTuneStars,
-    };
+  'classic' => null,
+  'godot' => kTuneGodot,
+  _ => kTuneStars,
+};
 
 /// Shot power multiplier from the power stat (1..10): Godot 0.72..1.44, classic 0.75..1.25.
 double powerMulGodot(double p) => .72 + (_min(10, _max(1, p)) - 1) / 9 * .72;
@@ -241,12 +316,15 @@ class DiscStats {
 double powerFrac(double p) => _min(10, _max(1, p)) / 10;
 
 double powerMul(double p) => .75 + (_min(10, _max(1, p)) - 1) / 9 * .5;
+
 /// v0.7 stars: real 1..10 stats from PHYSICS_CONFIG (owner 2026-11-15).
 double _starsPowerMul(double p) => !PHYSICS_CONFIG.useDiscStats
     ? 1.0
-    : PHYSICS_CONFIG.powerMulAt1 + (1 - PHYSICS_CONFIG.powerMulAt1) * (_min(10, _max(1, p)) - 1) / 9;
-double _starsAimDevDeg(double a) =>
-    !PHYSICS_CONFIG.useDiscStats ? 0.0 : (10 - _min(10, _max(1, a))) / 9 * PHYSICS_CONFIG.accDevAt1Deg;
+    : PHYSICS_CONFIG.powerMulAt1 +
+          (1 - PHYSICS_CONFIG.powerMulAt1) * (_min(10, _max(1, p)) - 1) / 9;
+double _starsAimDevDeg(double a) => !PHYSICS_CONFIG.useDiscStats
+    ? 0.0
+    : (10 - _min(10, _max(1, a))) / 9 * PHYSICS_CONFIG.accDevAt1Deg;
 double aimDevDeg(double a) => (10 - _min(10, _max(1, a))) / 9 * 4;
 double aimPreview(double a) => .45 + (_min(10, _max(1, a)) - 1) / 9 * .75;
 
@@ -261,7 +339,7 @@ class MatchCfg {
   int first;
   List<DiscStats>? stats;
 
-  /// Gameplay profile: 'stars' (default, Soccer Stars feel), 'godot' (Nexora_godot nx8 values) or 'classic' (RN TS engine).
+  /// Gameplay profile: 'stars' (default), 'godot' or 'classic' geometry/tuning.
   String profile;
 
   MatchCfg({
@@ -298,14 +376,18 @@ class Body {
   Goal? gout;
 
   /// v0.7: a flicked puck that has not touched anything yet (low flight friction, see PhysicsConfig.puckFlightK)
-  bool fly = false;
+  bool fly = false; // retained for snapshot/API compatibility; no flight regime
+  // Reset on every shot. Budget limits total extra normal bounce speed, so
+  // even restitution slightly above one cannot keep a body moving forever.
+  double _bounceBudget = 0;
+  double _startX = 0, _startY = 0;
   // per-disc motion trail: ring of at most 13 points (TS keeps <= 12 after shift)
   final Float64List trX = Float64List(16), trY = Float64List(16);
   int trStart = 0, trLen = 0;
   Body(this.x, this.y, this.team, this.r, double m, this.id)
-      : px = x,
-        py = y,
-        im = 1 / m;
+    : px = x,
+      py = y,
+      im = 1 / m;
 
   void trPush(double x, double y) {
     final i = (trStart + trLen) & 15;
@@ -333,7 +415,8 @@ class EngineEvent {
   bool nogoal = false;
   int s0 = 0, s1 = 0;
   @override
-  String toString() => '${t.name}(team:$team ball:$ball p:${power.toStringAsFixed(3)} ng:$nogoal $s0:$s1)';
+  String toString() =>
+      '${t.name}(team:$team ball:$ball p:${power.toStringAsFixed(3)} ng:$nogoal $s0:$s1)';
 }
 
 class Drag {
@@ -380,14 +463,22 @@ class Engine {
 
   // ---- particles (struct of arrays) ----
   static const int maxParts = 640;
-  final Float64List pX = Float64List(maxParts), pY = Float64List(maxParts), pVx = Float64List(maxParts), pVy = Float64List(maxParts);
-  final Float64List pL = Float64List(maxParts), pM = Float64List(maxParts), pR = Float64List(maxParts), pG = Float64List(maxParts);
+  final Float64List pX = Float64List(maxParts),
+      pY = Float64List(maxParts),
+      pVx = Float64List(maxParts),
+      pVy = Float64List(maxParts);
+  final Float64List pL = Float64List(maxParts),
+      pM = Float64List(maxParts),
+      pR = Float64List(maxParts),
+      pG = Float64List(maxParts);
   final Int32List pC = Int32List(maxParts), pK = Int32List(maxParts);
   int nParts = 0;
 
   // ---- ball trail (oldest first) ----
   static const int maxTrail = 56;
-  final Float64List tX = Float64List(maxTrail), tY = Float64List(maxTrail), tA = Float64List(maxTrail);
+  final Float64List tX = Float64List(maxTrail),
+      tY = Float64List(maxTrail),
+      tA = Float64List(maxTrail);
   int nTrail = 0;
 
   final List<int> score = [0, 0];
@@ -397,7 +488,9 @@ class Engine {
   double idle = 0, pause = 0;
   int kick = 0;
   double acc = 0, slow = 0, flash = 0, cam = 0;
-  final Float64List shake = Float64List(2), ripple = Float64List(2), rippleX = Float64List(2);
+  final Float64List shake = Float64List(2),
+      ripple = Float64List(2),
+      rippleX = Float64List(2);
   double mleft = 0, tleft = 0;
   bool sudden = false;
   double aiT = 0;
@@ -416,6 +509,9 @@ class Engine {
   final List<bool> aiTeams = [false, false];
   double lastPower = 0, lastUx = 0, lastUy = 0, lastV = 0;
   Body? lastShot;
+  // A launch starts a motion sequence; subsequent shots in that sequence must
+  // not replenish contact energy. The next settled turn (or reset) starts anew.
+  bool _bounceSequenceActive = false;
 
   /// Online lockstep client: run only the physics; phase/turn/score/reset come from the host.
   bool slave = false;
@@ -427,17 +523,23 @@ class Engine {
   late final PhysTune? _tune = tuneFor(cfg.profile);
   PhysTune get tu => _tune!;
 
-  /// true for the nx8-family profiles ('stars', 'godot'); false for 'classic' (TS parity).
+  /// true for the nx8-family rendering/geometry profiles; false for 'classic'.
   late final bool godot = _tune != null;
 
   /// true for the default 'stars' profile (v0.6.1 uniform pitch + shallow goals; 'godot' keeps its parity geometry).
   late final bool stars = identical(_tune, kTuneStars);
 
-  /// fixed physics step: v0.7 stars 1/120 s (PHYSICS_CONFIG.fixedStep, substeps inside), others 1/240 (parity)
-  late final double step = (_tune?.expFric ?? false) ? PHYSICS_CONFIG.fixedStep : STEP;
+  /// All profiles use the same fixed step and collision solver.
+  late final double step = PHYSICS_CONFIG.fixedStep;
+
+  // Classic retains its public null tune/profile flag and geometry, but its
+  // dynamics are expressed with the same PhysTune consumed by the solver.
+  late final PhysTune _physics = _tune ?? _classicTune;
 
   Engine(this.cfg, {Rand? rand}) : rand = rand ?? math.Random().nextDouble {
-    art = (cfg.field >= 0 && cfg.field < kFields.length) ? kFields[cfg.field] : kFields[0];
+    art = (cfg.field >= 0 && cfg.field < kFields.length)
+        ? kFields[cfg.field]
+        : kFields[0];
     // v0.6.1: every pitch plays on ONE identical rectangle (kPlayField); the art is stretched onto it by the renderer.
     f = stars ? kPlayField : art;
     Fl = f.L + 4.0;
@@ -458,7 +560,10 @@ class Engine {
       DEPTH = kGoalDepth;
       GGh = kGoalDepth + 10;
     }
-    goals = [Goal(0, Ft, CX - f.g, CX + f.g, -1), Goal(1, Fb, CX - f.g, CX + f.g, 1)];
+    goals = [
+      Goal(0, Ft, CX - f.g, CX + f.g, -1),
+      Goal(1, Fb, CX - f.g, CX + f.g, 1),
+    ];
     mleft = cfg.matchTime;
     tleft = cfg.turnTime;
     reset(cfg.first);
@@ -475,7 +580,8 @@ class Engine {
     return e;
   }
 
-  Body _mk(double x, double y, int team, double r, double m, int id) => Body(x, y, team, r, m, id);
+  Body _mk(double x, double y, int team, double r, double m, int id) =>
+      Body(x, y, team, r, m, id);
 
   void reset(int kickTeam) {
     final Fw = Fr - Fl, Fh = Fb - Ft;
@@ -491,12 +597,19 @@ class Engine {
         final ins = (godot ? tu.discR : PR) + (godot ? 6 : 10);
         final x = Fl + ins + nx * (Fw - 2 * ins);
         final y = cm != 0 ? Ft + ny * Fh : Fb - ny * Fh;
-        bodies.add(godot ? _mk(x, y, cm, tu.discR, tu.discM, cm * 20 + i) : _mk(x, y, cm, PR, 5, cm * 20 + i));
+        bodies.add(
+          godot
+              ? _mk(x, y, cm, tu.discR, tu.discM, cm * 20 + i)
+              : _mk(x, y, cm, PR, 5, cm * 20 + i),
+        );
       }
     }
-    ball = godot ? _mk(CX, KY, 2, tu.ballR, tu.ballM, 99) : _mk(CX, KY, 2, BR, 1.5, 99);
+    ball = godot
+        ? _mk(CX, KY, 2, tu.ballR, tu.ballM, 99)
+        : _mk(CX, KY, 2, BR, 1.5, 99);
     bodies.add(ball);
     turn = kickTeam;
+    _bounceSequenceActive = false;
     phase = Phase.aim;
     drag = null;
     pause = 0;
@@ -512,7 +625,9 @@ class Engine {
   /// nobody has shot since the current kick-off the discs are re-placed at once (still the same kick-off).
   void setFormation(int team, int form) {
     if (team < 0 || team > 1 || form < 0 || form >= kForms.length) return;
-    if (cfg.forms.length < 2) cfg.forms = [cfg.forms.isEmpty ? 0 : cfg.forms[0], 0];
+    if (cfg.forms.length < 2) {
+      cfg.forms = [cfg.forms.isEmpty ? 0 : cfg.forms[0], 0];
+    }
     cfg.forms = [for (var i = 0; i < 2; i++) i == team ? form : cfg.forms[i]];
     if (!slave && atKickoff) reset(turn);
   }
@@ -589,7 +704,12 @@ class Engine {
     final v = _shotSpeed(team, p);
     var ux = dx / l, uy = dy / l;
     if (human && cfg.stats != null) {
-      final dev = (stars ? _starsAimDevDeg(statsOf(team).accuracy) : aimDevDeg(statsOf(team).accuracy)) * math.pi / 180;
+      final dev =
+          (stars
+              ? _starsAimDevDeg(statsOf(team).accuracy)
+              : aimDevDeg(statsOf(team).accuracy)) *
+          math.pi /
+          180;
       if (dev > 0) {
         final a = fatan2(uy, ux) + (rand() + rand() - 1) * dev;
         ux = fcos(a);
@@ -602,28 +722,13 @@ class Engine {
     _launch(b, ux, uy, v);
   }
 
-  /// Launch speed for drag power p (0..1): classic TS curve, or Godot's linear SHOT_MAX * p clamped to DISC_VMAX.
+  /// Pull changes velocity, independently of mass and surface friction.
+  /// Every stat level 1..10 has a distinct monotonic full-pull launch speed.
   double _shotSpeed(int team, double p) {
-    if (godot) {
-      if (tu.name == 'stars' && cfg.stats != null) {
-        // v0.6.1: discVmax * smooth pull curve * power-stat multiplier (0.62..1), never above discVmax
-        return _min(tu.discVmax, tu.discVmax * shotCurve(p) * (stars ? _starsPowerMul(statsOf(team).power) : statMul(statsOf(team).power)));
-      }
-      var v = tu.shotMax * (tu.name == 'stars' ? shotCurve(p) : p);
-      if (cfg.stats != null) {
-        v *= tu.powerGodot ? powerMulGodot(statsOf(team).power) : powerMul(statsOf(team).power);
-      } else if (cfg.vip[team]) {
-        v *= 1.16;
-      }
-      return _min(v, tu.discVmax);
-    }
-    var v = (260 + 1085 * fpow(p, .8)) * K * 1.32;
-    if (cfg.stats != null) {
-      v *= powerMul(statsOf(team).power);
-    } else if (cfg.vip[team]) {
-      v *= 1.16;
-    }
-    return v;
+    final stat = cfg.stats != null
+        ? _starsPowerMul(statsOf(team).power)
+        : (cfg.vip[team] ? 1.16 : 1.0);
+    return _min(_physics.vSafe, _physics.shotMax * shotCurve(p) * stat);
   }
 
   /// Online lockstep client: replay a shot exactly as the host launched it (direction, speed, power).
@@ -651,7 +756,12 @@ class Engine {
   (double, double) deviate(int team, double dx, double dy, double l) {
     var ux = dx / l, uy = dy / l;
     if (cfg.stats != null) {
-      final dev = (stars ? _starsAimDevDeg(statsOf(team).accuracy) : aimDevDeg(statsOf(team).accuracy)) * math.pi / 180;
+      final dev =
+          (stars
+              ? _starsAimDevDeg(statsOf(team).accuracy)
+              : aimDevDeg(statsOf(team).accuracy)) *
+          math.pi /
+          180;
       if (dev > 0) {
         final a = fatan2(uy, ux) + (rand() + rand() - 1) * dev;
         ux = fcos(a);
@@ -662,63 +772,94 @@ class Engine {
   }
 
   void _launch(Body b, double ux, double uy, double v) {
-    final vx = ux * v, vy = uy * v;
     lastShot = b;
-    if (godot) {
-      // nx8: the disc leaves at full speed along the aim (no ramp/boost, no spin, no camera kick)
-      b.vx = vx;
-      b.vy = vy;
-      b.ramp = 0;
-      b.boost = 0;
-      b.tvx = 0;
-      b.tvy = 0;
-      b.spin = 0;
-      for (final o in bodies) {
-        o.fly = false;
+    // This is derived from the exact speed already carried by the network
+    // shot message, not local team stats or a hidden random value.
+    final intensity = _clamp(v.abs() / _physics.shotMax, 0, 1);
+    if (!_bounceSequenceActive) {
+      final budget =
+          _physics.shotMax * PHYSICS_CONFIG.boostBudgetFraction * intensity;
+      for (final other in bodies) {
+        other._bounceBudget = budget;
       }
-      b.fly = tu.expFric;
-      if (b.team != turn) turn = b.team;
-      phase = Phase.move;
-      idle = 0;
-      shots++;
-      drag = null;
-      lastWho = b.team;
-      _push(EvType.shot).team = b.team;
-      return;
+      _bounceSequenceActive = true;
     }
-    b.tvx = vx * 1.02;
-    b.tvy = vy * 1.02;
-    b.ramp = .06;
-    b.vx = vx * .5;
-    b.vy = vy * .5;
-    b.boost = .22;
+    for (final other in bodies) {
+      other.fly = false;
+      other.gout = null;
+    }
+    b.vx = ux * v;
+    b.vy = uy * v;
+    b.ramp = b.boost = b.tvx = b.tvy = 0;
+    b.spin = 0;
+    if (!godot) cam = _max(cam, .18);
+    if (b.team != turn) turn = b.team;
     phase = Phase.move;
     idle = 0;
     shots++;
     drag = null;
-    cam = _max(cam, .18);
     lastWho = b.team;
     _push(EvType.shot).team = b.team;
   }
 
-  /// v0.7 trajectory prediction (no UI draws it; available to the aim preview / AI / tests). Runs the SAME physics as
-  /// play (_sim at the same fixed step) on an isolated copy of the current bodies: the live state is never touched.
-  /// Fires bodies[[shooter]] along (ux, uy) at speed v and returns [shooter x, y, ball x, y] after every step until
-  /// everything rests or [maxT] seconds pass.
-  List<double> predictShot(int shooter, double ux, double uy, double v, {double maxT = 4}) {
-    final sim = Engine(cfg, rand: () => .5)..slave = true;
+  /// Simulates an isolated copy using the same fixed-step solver and raw
+  /// launch speed as play. Returns shooter/ball coordinates after each step,
+  /// ending at rest, the first goal, or [maxT]. This API does not draw a UI.
+  List<double> predictShot(
+    int shooter,
+    double ux,
+    double uy,
+    double v, {
+    double maxT = 4,
+  }) {
+    final copy = MatchCfg(
+      field: cfg.field,
+      ball: cfg.ball,
+      forms: List<int>.of(cfg.forms),
+      ai: cfg.ai,
+      aiLvl: cfg.aiLvl,
+      limit: cfg.limit,
+      matchTime: cfg.matchTime,
+      turnTime: cfg.turnTime,
+      vip: List<bool>.of(cfg.vip),
+      first: cfg.first,
+      stats: cfg.stats == null ? null : List<DiscStats>.of(cfg.stats!),
+      profile: cfg.profile,
+    );
+    final sim = Engine(copy, rand: () => .5);
     sim.bodies.clear();
     for (final b in bodies) {
       final c = Body(b.x, b.y, b.team, b.r, 1 / b.im, b.id)
+        ..px = b.px
+        ..py = b.py
         ..vx = b.vx
         ..vy = b.vy
-        ..gout = b.gout == null ? null : sim.goals[identical(b.gout, goals[0]) ? 0 : 1];
+        ..spin = b.spin
+        ..ang = b.ang
+        ..sq = b.sq
+        ..tvx = b.tvx
+        ..tvy = b.tvy
+        ..ramp = b.ramp
+        ..boost = b.boost
+        ..vox = b.vox
+        ..voy = b.voy
+        ..fly = b.fly
+        .._bounceBudget = b._bounceBudget
+        ..gout = b.gout == null
+            ? null
+            : sim.goals[identical(b.gout, goals[0]) ? 0 : 1];
+      c.R.setAll(0, b.R);
       sim.bodies.add(c);
       if (identical(b, ball)) sim.ball = c;
     }
     sim.turn = turn;
     sim.phase = phase;
+    sim._bounceSequenceActive = _bounceSequenceActive;
+    sim.shots = shots;
+    sim.score[0] = score[0];
+    sim.score[1] = score[1];
     final s = sim.bodies[shooter];
+    sim.lastV = v;
     sim._launch(s, ux, uy, v);
     final out = <double>[];
     for (var t = 0.0; t < maxT; t += sim.step) {
@@ -728,205 +869,42 @@ class Engine {
         ..add(s.y)
         ..add(sim.ball.x)
         ..add(sim.ball.y);
-      if (!sim.bodies.any((b) => b.vx != 0 || b.vy != 0)) break;
+      if (sim.phase == Phase.goal ||
+          !sim.bodies.any((b) => b.vx != 0 || b.vy != 0)) {
+        break;
+      }
     }
     return out;
   }
 
-  // ---------- simulation ----------
-  double _eN(bool bl, double vn) => bl
-      ? _min(.64 - .24 * _clamp((vn - 270 * K) / (730 * K), 0, 1), WALL_VOUT * K / _max(1, vn))
-      : _min(.72, WALL_VOUT * 1.4 * K / _max(1, vn));
-
-  void _corner(Body b, double cx, double cy, double sx, double sy, bool bl) {
-    if ((b.x - cx) * sx < 0 && (b.y - cy) * sy < 0) {
-      final dx = b.x - cx, dy = b.y - cy, d = hyp(dx, dy), lim = RC - b.r;
-      if (d > lim && d > 0) {
-        final nx = dx / d, ny = dy / d, vn = b.vx * nx + b.vy * ny;
-        b.x = cx + nx * lim;
-        b.y = cy + ny * lim;
-        if (vn > 0) {
-          final ec = _eN(bl, vn);
-          b.vx -= (1 + ec) * vn * nx;
-          b.vy -= (1 + ec) * vn * ny;
-        }
-      }
-    }
-  }
-
-  void _walls(Body b) {
-    if (!identical(b, ball) && b.gout != null) {
-      final g = b.gout!, dq = g.d * (b.y - g.y);
-      if (dq > -b.r * 1.05) {
-        b.vy = -g.d * 270 * K;
-        b.vx *= .6;
-      } else {
-        b.vy = 0;
-        b.vx *= .2;
-        b.gout = null;
-      }
-    }
-    final bl = identical(b, ball), r = b.r, vs = hyp(b.vx, b.vy);
-    if (b.x - r < Fl) {
-      b.x = Fl + r;
-      if (b.vx < 0) {
-        if (bl && vs > 200) _push(EvType.wall).power = vs / 1800;
-        b.vx *= -_eN(bl, -b.vx);
-        b.spin += b.vy / r * .05;
-      }
-    }
-    if (b.x + r > Fr) {
-      b.x = Fr - r;
-      if (b.vx > 0) {
-        if (bl && vs > 200) _push(EvType.wall).power = vs / 1800;
-        b.vx *= -_eN(bl, b.vx);
-        b.spin -= b.vy / r * .05;
-      }
-    }
-    for (var gi = 0; gi < 2; gi++) {
-      final g = goals[gi];
-      final dp = g.d * (b.y - g.y);
-      if (dp <= -r) continue;
-      final lo = g.x1 + (bl ? 0 : r), hi = g.x2 - (bl ? 0 : r);
-      final inside = bl ? (b.x > g.x1 && b.x < g.x2) : (dp > 0 || (b.x >= lo && b.x <= hi));
-      if (inside) {
-        final gl = phase == Phase.goal && bl;
-        final eb = gl ? .2 : _eN(bl, b.vy.abs());
-        final back = g.y + g.d * DEPTH;
-        if (!bl && dp > r * .3 && vs < 150 * K && b.gout == null) b.gout = g;
-        if (dp + r > DEPTH) {
-          b.y = back - g.d * r;
-          b.vy = -g.d * b.vy.abs() * eb;
-          if (gl) b.vx *= .6;
-        }
-        if (dp > (bl ? r * .6 : 0)) {
-          final ee = gl ? .3 : _eN(bl, b.vx.abs());
-          if (b.x < g.x1 + r) {
-            b.x = g.x1 + r;
-            if (b.vx < 0) b.vx *= -ee;
-          }
-          if (b.x > g.x2 - r) {
-            b.x = g.x2 - r;
-            if (b.vx > 0) b.vx *= -ee;
-          }
-        }
-      } else {
-        if (bl && vs > 200 && g.d * b.vy > 0) _push(EvType.wall).power = vs / 1800;
-        b.y = g.y - g.d * r;
-        if (g.d * b.vy > 0) b.vy = -g.d * b.vy.abs() * _eN(bl, b.vy.abs());
-        b.spin += g.d * b.vx / r * .05;
-      }
-    }
-    _corner(b, Fl + RC, Ft + RC, 1, 1, bl);
-    _corner(b, Fr - RC, Ft + RC, -1, 1, bl);
-    _corner(b, Fl + RC, Fb - RC, 1, -1, bl);
-    _corner(b, Fr - RC, Fb - RC, -1, -1, bl);
-  }
-
-  void _post(Body b, double px, double py) {
-    final dx = b.x - px, dy = b.y - py, d = hyp(dx, dy), m = b.r + POST_R;
-    if (d >= m || d == 0) return;
-    final nx = dx / d, ny = dy / d, vn = b.vx * nx + b.vy * ny;
-    b.x = px + nx * m;
-    b.y = py + ny * m;
-    if (vn < 0) {
-      final kp = 1 + _min(.62 - .14 * _min(1, -vn / (2000 * K)), POST_VOUT * K / _max(1, -vn));
-      b.vx -= kp * vn * nx;
-      b.vy -= kp * vn * ny;
-      if (identical(b, ball)) _push(EvType.post).power = -vn / 1800;
-      if (identical(b, ball) && -vn > 900 * K) cam = _max(cam, .25);
-    }
-  }
-
+  // ---------- unified fixed-step simulation ----------
   static const _hitCols = [0xffffffff, 0xff9fe8ff, 0xff5cb6ff];
-  static const _goalCols = [0xffffd23a, 0xffffffff, 0xff3bd0ff, 0xffff4a7a, 0xff7bff5a];
-
-  void _hit(Body a, Body b) {
-    var dx = b.x - a.x, dy = b.y - a.y, d = hyp(dx, dy);
-    final m = a.r + b.r;
-    if (d >= m) return;
-    if (d < 1e-4) {
-      dx = 1;
-      dy = 0;
-      d = 1;
-    }
-    final ball = this.ball, nx = dx / d, ny = dy / d, sm = a.im + b.im;
-    final isB = identical(a, ball) || identical(b, ball);
-    var ka = isB && !identical(a, ball) ? 1 / HV : 1.0, kb = isB && !identical(b, ball) ? 1 / HV : 1.0;
-    if (!isB) {
-      final sa = hyp(a.vx, a.vy), sb = hyp(b.vx, b.vy);
-      if (sa > sb) {
-        kb = .85;
-      } else {
-        ka = .85;
-      }
-    }
-    var wa = a.im / sm * ka, wb = b.im / sm * kb;
-    if (isB) {
-      if (identical(a, ball)) {
-        wa = 1 - wb;
-      } else {
-        wb = 1 - wa;
-      }
-    }
-    final pen = _max(m - d - .3, 0) * .9;
-    a.x -= nx * pen * wa;
-    a.y -= ny * pen * wa;
-    b.x += nx * pen * wb;
-    b.y += ny * pen * wb;
-    a.vox = _clamp(a.vox + nx * pen * wa, -9, 9);
-    a.voy = _clamp(a.voy + ny * pen * wa, -9, 9);
-    b.vox = _clamp(b.vox - nx * pen * wb, -9, 9);
-    b.voy = _clamp(b.voy - ny * pen * wb, -9, 9);
-    final vn = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
-    if (vn >= 0) return;
-    final e = vn < -40 * K ? (isB ? .68 - .12 * _clamp((-vn - 500 * K) / (1200 * K), 0, 1) : EPP) : 0.0;
-    final j = -(1 + e) * vn / sm;
-    final Body? pa = isB ? (identical(a, ball) ? b : a) : null;
-    final pre = pa != null ? hyp(pa.vx, pa.vy) : 0.0;
-    a.vx -= j * nx * a.im * ka;
-    a.vy -= j * ny * a.im * ka;
-    b.vx += j * nx * b.im * kb;
-    b.vy += j * ny * b.im * kb;
-    if (pa != null && pre < 260 * K) {
-      final ps = hyp(pa.vx, pa.vy), cp = PCAP * K;
-      if (ps > cp) {
-        pa.vx *= cp / ps;
-        pa.vy *= cp / ps;
-      }
-    }
-    if (vn < -120 * K) {
-      final ev = _push(EvType.hit);
-      ev.ball = isB;
-      ev.power = -vn / 1900;
-      if (!isB && vn < -420 * K) {
-        final q = _min(1, -vn / (1500 * K));
-        a.sq = _max(a.sq, q);
-        b.sq = _max(b.sq, q);
-      }
-    }
-    if (isB) {
-      ball.spin += (identical(ball, b) ? 1 : -1) * (-ny * (b.vx - a.vx) + nx * (b.vy - a.vy)) / ball.r * .3;
-      ball.spin = _clamp(ball.spin, -34, 34);
-      final pw = _min(1, -vn / (1700 * K));
-      if (pw > .2) {
-        final o = identical(ball, b) ? a : b;
-        ball.sq = _max(ball.sq, pw);
-        o.sq = _max(o.sq, pw * .7);
-        cam = _max(cam, pw * .4);
-        final cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2;
-        burst(cx, cy, jsRound(6 + pw * 10), 260 + pw * 300, _hitCols, .35, 2);
-      }
-    }
-  }
+  static const _goalCols = [
+    0xffffd23a,
+    0xffffffff,
+    0xff3bd0ff,
+    0xffff4a7a,
+    0xff7bff5a,
+  ];
 
   void _rotate(Float64List R, double wx, double wy, double wz, double dt) {
     final w = hyp3(wx, wy, wz), th = w * dt;
     if (th < 1e-7) return;
-    final ax = wx / w, ay = wy / w, az = wz / w, c = fcos(th), s = fsin(th), t = 1 - c;
-    final m0 = t * ax * ax + c, m1 = t * ax * ay - s * az, m2 = t * ax * az + s * ay;
-    final m3 = t * ax * ay + s * az, m4 = t * ay * ay + c, m5 = t * ay * az - s * ax;
-    final m6 = t * ax * az - s * ay, m7 = t * ay * az + s * ax, m8 = t * az * az + c;
+    final ax = wx / w,
+        ay = wy / w,
+        az = wz / w,
+        c = fcos(th),
+        s = fsin(th),
+        t = 1 - c;
+    final m0 = t * ax * ax + c,
+        m1 = t * ax * ay - s * az,
+        m2 = t * ax * az + s * ay;
+    final m3 = t * ax * ay + s * az,
+        m4 = t * ay * ay + c,
+        m5 = t * ay * az - s * ax;
+    final m6 = t * ax * az - s * ay,
+        m7 = t * ay * az + s * ax,
+        m8 = t * az * az + c;
     final r = _rs;
     for (var i = 0; i < 9; i++) {
       r[i] = R[i];
@@ -946,104 +924,12 @@ class Engine {
     R[2] /= l0;
   }
 
-  void _sim(double dt) {
-    if (godot) {
-      _sim8(dt);
-      return;
-    }
-    final ball = this.ball;
-    for (final b in bodies) {
-      if (b.ramp > 0) {
-        final k = _min(1, dt / b.ramp);
-        b.vx += (b.tvx - b.vx) * k;
-        b.vy += (b.tvy - b.vy) * k;
-        b.ramp -= dt;
-        if (b.ramp <= 0) b.ramp = 0;
-      }
-      if (b.vox != 0 || b.voy != 0) {
-        final q = 1 - _min(1, dt * 15);
-        b.vox *= q;
-        b.voy *= q;
-        if (b.vox.abs() < .04) b.vox = 0;
-        if (b.voy.abs() < .04) b.voy = 0;
-      }
-      b.x += b.vx * dt;
-      b.y += b.vy * dt;
-      final sp = hyp(b.vx, b.vy), bl = identical(b, ball);
-      if (sp > 0) {
-        if (bl) {
-          var ns = sp * fexp(-BK * dt) - BF * K * _min(1, sp / (BFV * K)) * dt;
-          if (ns < BSTOP * K) {
-            b.vx = b.vy = 0;
-            b.vox = b.voy = 0;
-          } else {
-            ns = _min(ns, BVMAX * K);
-            final k = ns / sp;
-            b.vx *= k;
-            b.vy *= k;
-          }
-        } else {
-          final fb = b.boost > 0 ? .35 : 1.0;
-          if (b.boost > 0) b.boost -= dt;
-          var ns = sp * fexp(-PK * fb * dt) - PFL * K * _min(1, sp / (PFV * K)) * fb * dt;
-          if (ns < PSTOP * K && b.ramp <= 0) {
-            b.vx = b.vy = 0;
-          } else {
-            ns = _max(0, _min(ns, 2800 * K));
-            final k = ns / sp;
-            b.vx *= k;
-            b.vy *= k;
-          }
-        }
-      }
-      if (bl) {
-        final sp2 = hyp(b.vx, b.vy);
-        b.spin *= 1 - (sp2 > 0 ? 1.05 : 3.2) * dt;
-        if (b.spin.abs() < .02) b.spin = 0;
-        final roll = .95 / b.r;
-        if (sp2 > 0 || b.spin != 0) _rotate(b.R, -b.vy * roll, b.vx * roll, b.spin * .55, dt);
-        b.ang += b.spin * dt;
-      } else {
-        b.spin *= 1 - 2.6 * dt;
-        b.ang += b.spin * dt;
-      }
-      b.sq *= 1 - 9 * dt;
-      _walls(b);
-    }
-    final B = bodies, n = B.length;
-    for (var it = 0; it < 2; it++) {
-      for (var a = 0; a < n; a++) {
-        for (var c = a + 1; c < n; c++) {
-          _hit(B[a], B[c]);
-        }
-      }
-    }
-    for (var gi = 0; gi < 2; gi++) {
-      final g = goals[gi];
-      for (final b in B) {
-        _post(b, g.x1, g.y);
-        _post(b, g.x2, g.y);
-      }
-    }
-    for (final b in B) {
-      _walls(b);
-    }
-    if (phase == Phase.move && !slave) {
-      for (var gi = 0; gi < 2; gi++) {
-        final g = goals[gi];
-        if (ball.x > g.x1 && ball.x < g.x2 && (g.d < 0 ? ball.y < g.y - ball.r * .8 : ball.y > g.y + ball.r * .8)) _scored(g.team);
-      }
-    }
-  }
-
-  // =====================================================================================================
-  // nx8-family profiles ('stars', 'godot'): pool/foosball model, ported from Nexora_godot src/game/engine.gd (_sim8 & co.).
-  // Uses math.sqrt (IEEE, same as GDScript sqrt) so results track the Godot build to rounding.
-  // =====================================================================================================
-
-  void _gcap(Body b) {
+  /// Limit all bodies after a launch/contact. Injected extreme velocities are
+  /// also capped before choosing substeps, so the bound is meaningful.
+  void _cap(Body b) {
+    final t = _physics;
+    final cap = identical(b, ball) ? _min(t.vSafe, t.ballVmax) : t.vSafe;
     final s2 = b.vx * b.vx + b.vy * b.vy;
-    final cap = identical(b, ball) ? _min(tu.vSafe, tu.ballVmax) : tu.vSafe;
     if (s2 > cap * cap) {
       final k = cap / math.sqrt(s2);
       b.vx *= k;
@@ -1051,344 +937,392 @@ class Engine {
     }
   }
 
-  /// time-of-impact contact: rewind the pair to first touch, apply a mass-weighted impulse, advance again.
-  void _hit8(Body a, Body b, double h) {
-    var dx = b.x - a.x, dy = b.y - a.y;
-    var dd = dx * dx + dy * dy;
-    final m = a.r + b.r;
-    if (dd >= m * m) return;
-    final ball = this.ball;
-    final rvx = b.vx - a.vx, rvy = b.vy - a.vy;
-    final dv = dx * rvx + dy * rvy;
-    final sm = a.im + b.im;
-    final isB = identical(a, ball) || identical(b, ball);
-    var vn = 0.0;
-    if (dv < 0) {
-      final vv = rvx * rvx + rvy * rvy;
-      var s = 0.0;
-      if (vv > 1e-9) {
-        s = (dv + math.sqrt(_max(0, dv * dv - vv * (dd - m * m)))) / vv;
-        s = _clamp(s, 0, h);
-      }
-      a.x -= a.vx * s;
-      a.y -= a.vy * s;
-      b.x -= b.vx * s;
-      b.y -= b.vy * s;
-      dx = b.x - a.x;
-      dy = b.y - a.y;
-      var d = math.sqrt(dx * dx + dy * dy);
-      if (d < 1e-4) {
-        dx = 0;
-        dy = -1;
-        d = 1;
-      }
-      final nx = dx / d, ny = dy / d;
-      vn = rvx * nx + rvy * ny;
-      if (vn < 0) {
-        final eFull = isB ? tu.eDiscBall : tu.eDiscDisc;
-        final e0 = _min(tu.eSoft, eFull);
-        final ee = -vn >= tu.vSoft ? eFull : e0 + (eFull - e0) * (-vn / tu.vSoft);
-        var j = -(1 + ee) * vn / sm;
-        if (!isB) j *= tu.discDiscK;
-        // v0.7 striker kick: the puck's own velocity toward the ball (pv) dominates the closing speed
-        final pk = isB && tu.expFric ? (identical(a, ball) ? b : a) : null;
-        final sx = identical(b, ball) ? nx : -nx, sy = identical(b, ball) ? ny : -ny; // unit puck -> ball
-        final pv = pk != null ? pk.vx * sx + pk.vy * sy : 0.0;
-        final bv = pk != null ? ball.vx * sx + ball.vy * sy : 0.0;
-        a.vx -= j * nx * a.im;
-        a.vy -= j * ny * a.im;
-        b.vx += j * nx * b.im;
-        b.vy += j * ny * b.im;
-        if (pk != null && pv > 0 && pv > -bv) {
-          final bn = ball.vx * sx + ball.vy * sy, kn = tu.kickGain * (pv - bv);
-          if (kn > bn) {
-            ball.vx += (kn - bn) * sx;
-            ball.vy += (kn - bn) * sy;
-          }
-        }
-        if (tu.expFric) {
-          a.fly = false;
-          b.fly = false;
-        }
-        _gcap(a);
-        _gcap(b);
-      }
-      a.x += a.vx * s;
-      a.y += a.vy * s;
-      b.x += b.vx * s;
-      b.y += b.vy * s;
+  // Inward normal, including curved corners and circular posts. Only a body
+  // moving into a surface receives an impulse. Boost affects only the normal
+  // component, scales with launch and impact speed, and spends finite budget.
+  void _surface(Body b, double nx, double ny, double boost, EvType type) {
+    final vn = b.vx * nx + b.vy * ny;
+    if (vn >= 0) return;
+    final t = _physics, bl = identical(b, ball), incoming = -vn;
+    final en = bl ? t.eWallBall : t.eWallDisc;
+    final et = bl ? t.tWallBall : t.tWallDisc;
+    final intensity = _clamp(lastV.abs() / t.shotMax, 0, 1);
+    final impact = _clamp(
+      incoming / (PHYSICS_CONFIG.boostImpactSpeed * PHYSICS_CONFIG.wPx),
+      0,
+      1,
+    );
+    final restitutionRoom = _max(0, PHYSICS_CONFIG.maxContactRestitution - en);
+    final extra = _min(
+      b._bounceBudget,
+      incoming * _min(restitutionRoom, boost * intensity * impact),
+    );
+    b._bounceBudget -= extra;
+    final tx = b.vx - vn * nx, ty = b.vy - vn * ny;
+    // Spin affects rendering only; it never changes collision trajectories.
+    if (bl && !godot && type == EvType.wall) {
+      b.spin += (nx * b.vy - ny * b.vx) / b.r * .05;
     }
-    // leftover overlap removed positionally (no velocity change)
-    dx = b.x - a.x;
-    dy = b.y - a.y;
-    dd = dx * dx + dy * dy;
-    if (dd < m * m) {
-      final d2 = math.sqrt(dd);
-      var ux = 0.0, uy = -1.0;
-      if (d2 > 1e-4) {
-        ux = dx / d2;
-        uy = dy / d2;
-      }
-      final pen = m - d2;
-      a.x -= ux * pen * a.im / sm;
-      a.y -= uy * pen * a.im / sm;
-      b.x += ux * pen * b.im / sm;
-      b.y += uy * pen * b.im / sm;
-    }
-    if (vn < -150) {
-      final ev = _push(EvType.hit);
-      ev.ball = isB;
-      ev.power = -vn / 1900;
-      if (!isB && vn < -520) {
-        final q = _min(1, -vn / 1900);
-        a.sq = _max(a.sq, q * .5);
-        b.sq = _max(b.sq, q * .5);
-      }
-      if (isB) {
-        final pw = _min(1, -vn / 2100);
-        if (pw > .2) {
-          final o = identical(ball, b) ? a : b;
-          ball.sq = _max(ball.sq, pw * .6);
-          o.sq = _max(o.sq, pw * .25);
-          if (pw > .45) burst((a.x + b.x) / 2, (a.y + b.y) / 2, jsRound(4 + pw * 8), 200 + pw * 260, _hitCols, .3, 2);
-        }
-      }
+    b.vx = tx * et + (incoming * en + extra) * nx;
+    b.vy = ty * et + (incoming * en + extra) * ny;
+    b.fly = false;
+    _cap(b);
+    if (bl && (type == EvType.post || incoming > 200)) {
+      _push(type).power = incoming / 1800;
     }
   }
 
-  void _post8(Body b, double px, double py) {
-    final dx = b.x - px, dy = b.y - py, d = math.sqrt(dx * dx + dy * dy), m = b.r + tu.postR;
-    if (d >= m || d == 0) return;
-    final nx = dx / d, ny = dy / d, vn = b.vx * nx + b.vy * ny;
-    b.x = px + nx * m;
-    b.y = py + ny * m;
-    if (vn < 0) {
-      // post: normal component reversed x eWall, tangential component x tWall
-      final bl = identical(b, ball), en = bl ? tu.eWallBall : tu.eWallDisc, et = bl ? tu.tWallBall : tu.tWallDisc;
-      final tx = b.vx - vn * nx, ty = b.vy - vn * ny;
-      b.vx = tx * et - en * vn * nx;
-      b.vy = ty * et - en * vn * ny;
-      b.fly = false;
-      if (identical(b, ball)) _push(EvType.post).power = -vn / 1800;
-    }
+  void _wallX(Body b, double wall, double side, double boost) {
+    if ((b.x - wall) * side >= 0) return;
+    b.x = wall;
+    _surface(b, side, 0, boost, EvType.wall);
   }
 
-  void _cushionX(Body b, double wall, double side) {
-    final over = (wall - b.x) * side;
-    if (over <= 0) return;
-    if (b.vx * side < 0) {
-      final vs = math.sqrt(b.vx * b.vx + b.vy * b.vy);
-      final bl = identical(b, ball), en = bl ? tu.eWallBall : tu.eWallDisc, et = bl ? tu.tWallBall : tu.tWallDisc;
-      if (bl && vs > 200) _push(EvType.wall).power = vs / 1800;
-      b.vx = -b.vx * en;
-      b.vy *= et;
-      b.x = wall + side * over * en;
-      b.fly = false;
-    } else {
-      b.x = wall;
-    }
+  void _wallY(Body b, double wall, double side, double boost) {
+    if ((b.y - wall) * side >= 0) return;
+    b.y = wall;
+    _surface(b, 0, side, boost, EvType.wall);
   }
 
-  void _cushionY(Body b, double wall, double side) {
-    final over = (wall - b.y) * side;
-    if (over <= 0) return;
-    if (b.vy * side < 0) {
-      final vs = math.sqrt(b.vx * b.vx + b.vy * b.vy);
-      final bl = identical(b, ball), en = bl ? tu.eWallBall : tu.eWallDisc, et = bl ? tu.tWallBall : tu.tWallDisc;
-      if (bl && vs > 200) _push(EvType.wall).power = vs / 1800;
-      b.vy = -b.vy * en;
-      b.vx *= et;
-      b.y = wall + side * over * en;
-      b.fly = false;
-    } else {
-      b.y = wall;
-    }
+  // Classic has rounded field corners; stars/godot have square corners.
+  void _roundedCorner(Body b, double cx, double cy, double sx, double sy) {
+    if ((b.x - cx) * sx >= 0 || (b.y - cy) * sy >= 0) return;
+    final dx = b.x - cx, dy = b.y - cy;
+    final d = math.sqrt(dx * dx + dy * dy), limit = RC - b.r;
+    if (d <= limit || d == 0) return;
+    final nx = dx / d, ny = dy / d;
+    b.x = cx + nx * limit;
+    b.y = cy + ny * limit;
+    _surface(b, -nx, -ny, PHYSICS_CONFIG.cornerBoost, EvType.wall);
   }
 
-  /// sharp 90 degree corners: a nearly still body jammed against both walls is pushed out diagonally.
-  void _cornerNudge(Body b) {
-    if (tu.cornerNudge == 0) return;
-    final r = b.r;
-    const gap = 1.5;
-    final atL = b.x - r <= Fl + gap, atR = b.x + r >= Fr - gap;
-    if (!(atL || atR)) return;
-    final atT = b.y - r <= Ft + gap && (b.x < goals[0].x1 || b.x > goals[0].x2);
-    final atB = b.y + r >= Fb - gap && (b.x < goals[1].x1 || b.x > goals[1].x2);
-    if (!(atT || atB)) return;
-    if (b.vx * b.vx + b.vy * b.vy > 90.0 * 90.0) return;
-    b.vx = (atL ? 1 : -1) * tu.cornerNudge;
-    b.vy = (atT ? 1 : -1) * tu.cornerNudge;
-  }
-
-  void _walls8(Body b) {
-    final ball = this.ball;
-    if (!identical(b, ball) && b.gout != null) {
-      final g = b.gout!, dq = g.d * (b.y - g.y);
-      if (dq > -b.r * 1.05) {
-        b.vy = -g.d * 270 * K;
-        b.vx *= .6;
-      } else {
-        b.vy = 0;
-        b.vx *= .2;
-        b.gout = null;
-      }
-    }
-    final bl = identical(b, ball), r = b.r;
-    final en = bl ? tu.eWallBall : tu.eWallDisc, et = bl ? tu.tWallBall : tu.tWallDisc;
-    _cushionX(b, Fl + r, 1);
-    _cushionX(b, Fr - r, -1);
-    final vs = math.sqrt(b.vx * b.vx + b.vy * b.vy);
-    for (var gi = 0; gi < 2; gi++) {
-      final g = goals[gi];
+  void _walls(Body b) {
+    final r = b.r, bl = identical(b, ball);
+    // Detect a simultaneous square-corner contact before projecting either
+    // axis; each axis uses its own inward normal, never a resting nudge.
+    final atSide = b.x <= Fl + r || b.x >= Fr - r;
+    final atEnd =
+        (b.y <= Ft + r && (b.x < goals[0].x1 || b.x > goals[0].x2)) ||
+        (b.y >= Fb - r && (b.x < goals[1].x1 || b.x > goals[1].x2));
+    final wallBoost = atSide && atEnd
+        ? PHYSICS_CONFIG.cornerBoost
+        : PHYSICS_CONFIG.railBoost;
+    _wallX(b, Fl + r, 1, wallBoost);
+    _wallX(b, Fr - r, -1, wallBoost);
+    for (final g in goals) {
       final dp = g.d * (b.y - g.y);
       if (dp <= -r) continue;
-      final lo = g.x1 + (bl ? 0 : r), hi = g.x2 - (bl ? 0 : r);
-      final inside = bl ? (b.x > g.x1 && b.x < g.x2) : (dp > 0 || (b.x >= lo && b.x <= hi));
+      // Preserve open goal mouths, net depth, and profile scoring threshold.
+      final inside = bl
+          ? b.x > g.x1 && b.x < g.x2
+          : (dp > 0
+                ? b.x > g.x1 && b.x < g.x2
+                : b.x >= g.x1 + r && b.x <= g.x2 - r);
       if (inside) {
-        final gl = phase == Phase.goal && bl;
-        final back = g.y + g.d * DEPTH;
-        if (!bl && dp > r * .3 && vs < 150 * K && b.gout == null) b.gout = g;
-        if (dp + r > DEPTH) {
-          b.y = back - g.d * r;
-          if (g.d * b.vy > 0) {
-            b.vy = -b.vy * (gl ? .2 : en);
-            b.vx *= gl ? .6 : et;
-          }
-        }
+        final back = g.y + g.d * (DEPTH - r);
+        _wallY(b, back, -g.d.toDouble(), PHYSICS_CONFIG.railBoost);
         if (dp > (bl ? r * .6 : 0)) {
-          final ee = gl ? .3 : en, te = gl ? 1.0 : et;
-          if (b.x < g.x1 + r) {
-            b.x = g.x1 + r;
-            if (b.vx < 0) {
-              b.vx = -b.vx * ee;
-              b.vy *= te;
-            }
-          }
-          if (b.x > g.x2 - r) {
-            b.x = g.x2 - r;
-            if (b.vx > 0) {
-              b.vx = -b.vx * ee;
-              b.vy *= te;
-            }
-          }
+          _wallX(b, g.x1 + r, 1, PHYSICS_CONFIG.railBoost);
+          _wallX(b, g.x2 - r, -1, PHYSICS_CONFIG.railBoost);
         }
       } else {
-        _cushionY(b, g.y - g.d * r, -g.d.toDouble());
+        _wallY(b, g.y - g.d * r, -g.d.toDouble(), wallBoost);
       }
     }
-    _cornerNudge(b);
+    if (!godot) {
+      _roundedCorner(b, Fl + RC, Ft + RC, 1, 1);
+      _roundedCorner(b, Fr - RC, Ft + RC, -1, 1);
+      _roundedCorner(b, Fl + RC, Fb - RC, 1, -1);
+      _roundedCorner(b, Fr - RC, Fb - RC, -1, -1);
+    }
   }
 
-  /// adaptive substeps: no body travels more than tu.subPx per substep (energy bound over all bodies).
-  void _sim8(double dt) {
-    var e2 = 0.0, mmin = 1e9;
-    for (final b in bodies) {
-      final mb = 1 / _max(b.im, 1e-6);
-      e2 += mb * (b.vx * b.vx + b.vy * b.vy);
-      mmin = _min(mmin, mb);
-    }
-    var n = (math.sqrt(e2 / mmin) * dt / tu.subPx).ceil();
-    if (tu.expFric) {
-      // v0.7: no body moves more than subPx, the ball never more than subBallFrac x its radius, per substep
-      var vmax = 0.0;
-      for (final b in bodies) {
-        vmax = _max(vmax, math.sqrt(b.vx * b.vx + b.vy * b.vy));
+  void _post(Body b, double x, double y, {bool sweep = false}) {
+    var dx = b.x - x, dy = b.y - y;
+    final m = b.r + _physics.postR, m2 = m * m;
+    var d2 = dx * dx + dy * dy;
+    var fraction = 1.0;
+    var swept = false;
+    if (sweep) {
+      final sx = b._startX - x, sy = b._startY - y;
+      final mx = dx - sx, my = dy - sy;
+      final c = sx * sx + sy * sy - m2;
+      final av = mx * mx + my * my, bv = sx * mx + sy * my;
+      final disc = bv * bv - av * c;
+      if (c >= 0 && av > 1e-12 && bv < 0 && disc >= 0) {
+        final f = (-bv - math.sqrt(disc)) / av;
+        if (f >= 0 && f <= 1) {
+          fraction = f;
+          dx = sx + mx * f;
+          dy = sy + my * f;
+          d2 = dx * dx + dy * dy;
+          swept = true;
+        }
       }
-      n = (vmax * dt / _min(tu.subPx, tu.subBallFrac * this.ball.r)).ceil();
     }
-    n = n.clamp(1, tu.subMax);
+    if (!swept && d2 >= m2) return;
+    final d = math.sqrt(d2);
+    if (d < 1e-9) {
+      // Deterministic normal even for a malformed centre-on-post placement.
+      final speed = math.sqrt(b.vx * b.vx + b.vy * b.vy);
+      dx = speed > 0 ? -b.vx / speed : 0;
+      dy = speed > 0 ? -b.vy / speed : (y == Ft ? 1 : -1);
+    } else {
+      dx /= d;
+      dy /= d;
+    }
+    if (swept && b.vx * dx + b.vy * dy >= 0) return;
+    b.x = x + dx * m;
+    b.y = y + dy * m;
+    _surface(b, dx, dy, PHYSICS_CONFIG.postBoost, EvType.post);
+    if (swept) {
+      final remaining = (1 - fraction) * _substepDuration;
+      b.x += b.vx * remaining;
+      b.y += b.vy * remaining;
+    }
+  }
+
+  /// Circle collision: detect swept crossings on the first pass and solve the
+  /// mass-weighted normal impulse. The remaining passes resolve any overlap
+  /// from neighbouring contacts; they never replay a sweep or add energy.
+  void _pair(Body a, Body b, bool sweep) {
+    var dx = b.x - a.x, dy = b.y - a.y;
+    final m = a.r + b.r, m2 = m * m;
+    var d2 = dx * dx + dy * dy;
+    var nx = 0.0, ny = 0.0;
+    var hitSweep = false;
+    var fraction = 1.0;
+    if (sweep) {
+      final sx = b._startX - a._startX, sy = b._startY - a._startY;
+      final mx = dx - sx, my = dy - sy;
+      final c = sx * sx + sy * sy - m2;
+      final av = mx * mx + my * my;
+      final bv = sx * mx + sy * my;
+      final disc = bv * bv - av * c;
+      if (c >= 0 && av > 1e-12 && bv < 0 && disc >= 0) {
+        final f = (-bv - math.sqrt(disc)) / av;
+        if (f >= 0 && f <= 1) {
+          fraction = f;
+          nx = (sx + mx * f) / m;
+          ny = (sy + my * f) / m;
+          hitSweep = true;
+        }
+      }
+    }
+    if (!hitSweep && d2 >= m2) return;
+    if (!hitSweep) {
+      final d = math.sqrt(d2);
+      if (d > 1e-9) {
+        nx = dx / d;
+        ny = dy / d;
+      } else {
+        // Stable, deterministic fallback for exactly coincident centres.
+        nx = 1;
+        ny = 0;
+      }
+    }
+    final inv = a.im + b.im;
+    if (inv <= 0) return;
+    final vn = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
+    if (hitSweep && vn < 0) {
+      // Move to the impact point, then integrate the post-impact portion.
+      a.x = a._startX + (a.x - a._startX) * fraction;
+      a.y = a._startY + (a.y - a._startY) * fraction;
+      b.x = b._startX + (b.x - b._startX) * fraction;
+      b.y = b._startY + (b.y - b._startY) * fraction;
+    }
+    if (vn < 0) {
+      final isBall = identical(a, ball) || identical(b, ball);
+      final restitution = isBall ? _physics.eDiscBall : _physics.eDiscDisc;
+      final j = -(1 + restitution) * vn / inv;
+      a.vx -= j * a.im * nx;
+      a.vy -= j * a.im * ny;
+      b.vx += j * b.im * nx;
+      b.vy += j * b.im * ny;
+      a.fly = b.fly = false;
+      _cap(a);
+      _cap(b);
+      if (isBall && !godot) {
+        final tangent = -ny * (b.vx - a.vx) + nx * (b.vy - a.vy);
+        ball.spin = _clamp(
+          ball.spin + (identical(ball, b) ? 1 : -1) * tangent / ball.r * .3,
+          -34,
+          34,
+        );
+      }
+      if (vn < -150) {
+        final ev = _push(EvType.hit);
+        ev.ball = isBall;
+        ev.power = -vn / 1900;
+        final pw = _min(1, -vn / 2100);
+        if (isBall && pw > .2) {
+          final other = identical(a, ball) ? b : a;
+          ball.sq = _max(ball.sq, pw * .6);
+          other.sq = _max(other.sq, pw * .25);
+          if (pw > .45) {
+            burst(
+              (a.x + b.x) / 2,
+              (a.y + b.y) / 2,
+              jsRound(4 + pw * 8),
+              200 + pw * 260,
+              _hitCols,
+              .3,
+              2,
+            );
+          }
+        } else if (!isBall && vn < -520) {
+          a.sq = _max(a.sq, pw * .5);
+          b.sq = _max(b.sq, pw * .5);
+        }
+      }
+      if (hitSweep) {
+        final remaining = (1 - fraction) * _substepDuration;
+        a.x += a.vx * remaining;
+        a.y += a.vy * remaining;
+        b.x += b.vx * remaining;
+        b.y += b.vy * remaining;
+      }
+    }
+    // Mass-weighted positional correction (no velocity injection at rest).
+    dx = b.x - a.x;
+    dy = b.y - a.y;
+    d2 = dx * dx + dy * dy;
+    if (d2 < m2) {
+      final d = math.sqrt(d2);
+      if (d > 1e-9) {
+        nx = dx / d;
+        ny = dy / d;
+      }
+      final pen = m - d;
+      a.x -= nx * pen * a.im / inv;
+      a.y -= ny * pen * a.im / inv;
+      b.x += nx * pen * b.im / inv;
+      b.y += ny * pen * b.im / inv;
+    }
+  }
+
+  double _substepDuration = 0;
+
+  void _sim(double dt) {
+    final t = _physics;
+    var energy = 0.0, minMass = double.infinity;
+    for (final b in bodies) {
+      _cap(b);
+      final mass = 1 / b.im;
+      energy += mass * (b.vx * b.vx + b.vy * b.vy);
+      minMass = _min(minMass, mass);
+    }
+    // The energy bound covers velocity transferred to a lighter body; each
+    // body is also capped. Bounded work is guaranteed even for bad inputs.
+    final possible = energy == 0
+        ? 0.0
+        : _min(
+            t.vSafe,
+            math.sqrt(energy / minMass) * PHYSICS_CONFIG.maxContactRestitution,
+          );
+    final travel = _min(t.subPx, ball.r * PHYSICS_CONFIG.subBallFrac);
+    final n = (possible * dt / travel).ceil().clamp(1, PHYSICS_CONFIG.subMax);
     final h = dt / n;
-    final ball = this.ball;
-    for (var i = 0; i < n; i++) {
-      _sub8(h);
+    _substepDuration = h;
+    for (var sub = 0; sub < n; sub++) {
+      for (final b in bodies) {
+        b._startX = b.x;
+        b._startY = b.y;
+        b.x += b.vx * h;
+        b.y += b.vy * h;
+        final bl = identical(b, ball);
+        final sp = math.sqrt(b.vx * b.vx + b.vy * b.vy);
+        if (sp > 0) {
+          // Exact decay for dv/dt = -friction - drag*v. The exponential
+          // model is the same formula with zero constant friction.
+          final drag = t.expFric
+              ? (bl ? t.ballK : t.discK)
+              : (bl ? t.ballDrag : t.discDrag);
+          final fric = t.expFric ? 0.0 : (bl ? t.ballFric : t.discFric);
+          final decay = drag > 0 ? fexp(-drag * h) : 1.0;
+          final ns = drag > 0
+              ? (sp + fric / drag) * decay - fric / drag
+              : sp - fric * h;
+          if (ns < t.vStop) {
+            b.vx = b.vy = 0;
+            b.fly = false;
+          } else {
+            final k = ns / sp;
+            b.vx *= k;
+            b.vy *= k;
+          }
+        }
+        if (b.vox != 0 || b.voy != 0) {
+          final k = 1 - _min(1, h * 15);
+          b.vox *= k;
+          b.voy *= k;
+          if (b.vox.abs() < .04) b.vox = 0;
+          if (b.voy.abs() < .04) b.voy = 0;
+        }
+        if (bl) {
+          b.spin *= 1 - _min(1, h * 1.05);
+          if (b.spin.abs() < .02) b.spin = 0;
+          b.ang += b.spin * h;
+          if (b.vx != 0 || b.vy != 0 || b.spin != 0) {
+            final roll = t.rollK / b.r;
+            _rotate(b.R, -b.vy * roll, b.vx * roll, b.spin * .55, h);
+          }
+        } else {
+          b.spin *= 1 - _min(1, h * 2.6);
+          b.ang += b.spin * h;
+        }
+        b.sq *= 1 - _min(1, 9 * h);
+        // Posts first, then walls, so a grazing post cannot project a body
+        // through the goal line. All bodies collide with posts.
+        for (final g in goals) {
+          _post(b, g.x1, g.y, sweep: true);
+          _post(b, g.x2, g.y, sweep: true);
+        }
+        _walls(b);
+      }
+      final count = bodies.length;
+      for (var it = 0; it < 4; it++) {
+        for (var i = 0; i < count; i++) {
+          final a = bodies[i];
+          for (var j = i + 1; j < count; j++) {
+            final b = bodies[j], m = a.r + b.r;
+            if (it > 0 && ((b.x - a.x).abs() >= m || (b.y - a.y).abs() >= m)) {
+              continue;
+            }
+            _pair(a, b, it == 0);
+          }
+        }
+        // Reapply static constraints during positional solving for clusters.
+        for (final b in bodies) {
+          for (final g in goals) {
+            _post(b, g.x1, g.y);
+            _post(b, g.x2, g.y);
+          }
+          _walls(b);
+        }
+      }
+      // Pair correction and wall projection can move a body onto/through a
+      // post after the initial swept pass. Reproject posts from the resulting
+      // point and reapply walls; repeat in a fixed order for deterministic
+      // corner/post intersections.
+      for (var pass = 0; pass < 2; pass++) {
+        for (final b in bodies) {
+          for (final g in goals) {
+            _post(b, g.x1, g.y);
+            _post(b, g.x2, g.y);
+          }
+          _walls(b);
+        }
+      }
       if (phase == Phase.move && !slave) {
-        for (var gi = 0; gi < 2; gi++) {
-          final g = goals[gi];
-          // v0.7 (stars): a goal is the WHOLE ball over the goal line (centre a full radius past it)
-          final gr = ball.r * (tu.expFric ? 1.0 : .8);
-          if (ball.x > g.x1 && ball.x < g.x2 && (g.d < 0 ? ball.y < g.y - gr : ball.y > g.y + gr)) {
+        for (final g in goals) {
+          final gr = ball.r * (stars ? 1.0 : .8);
+          if (ball.x > g.x1 && ball.x < g.x2 && g.d * (ball.y - g.y) > gr) {
             _scored(g.team);
             break;
           }
         }
       }
-    }
-  }
-
-  void _sub8(double h) {
-    final ball = this.ball, B = bodies;
-    for (final b in B) {
-      if (b.vox != 0 || b.voy != 0) {
-        final q = 1 - _min(1, h * 15);
-        b.vox *= q;
-        b.voy *= q;
-        if (b.vox.abs() < .04) b.vox = 0;
-        if (b.voy.abs() < .04) b.voy = 0;
-      }
-      b.x += b.vx * h;
-      b.y += b.vy * h;
-      final sp = math.sqrt(b.vx * b.vx + b.vy * b.vy);
-      if (sp > 0 && tu.expFric) {
-        // v0.7: exponential friction v *= exp(-k h) (frame-rate independent), dead stop below vStop
-        final bl = identical(b, ball);
-        if (b.fly && sp < tu.discFlightMin) b.fly = false;
-        final k = bl ? tu.ballK : (b.fly ? tu.discFlightK : tu.discK);
-        final ns = sp * fexp(-k * h);
-        if (ns < tu.vStop) {
-          b.vx = 0;
-          b.vy = 0;
-          b.fly = false;
-        } else {
-          final k2 = _min(ns, bl ? _min(tu.vSafe, tu.ballVmax) : tu.vSafe) / sp;
-          b.vx *= k2;
-          b.vy *= k2;
-        }
-      } else if (sp > 0) {
-        // rolling friction along the current direction (straight lines): constant decel + small linear drag
-        final bl = identical(b, ball);
-        final fr = bl ? tu.ballFric : tu.discFric, kd = bl ? tu.ballDrag : tu.discDrag;
-        final ns = sp - (fr * (sp < tu.vSettle ? tu.settleK : 1) + kd * sp) * h;
-        if (ns < tu.vStop) {
-          b.vx = 0;
-          b.vy = 0;
-        } else {
-          final k2 = _min(ns, tu.vSafe) / sp;
-          b.vx *= k2;
-          b.vy *= k2;
-        }
-      }
-      b.spin = 0;
-      if (identical(b, ball)) {
-        b.sq *= 1 - 9 * h;
-        if (b.vx != 0 || b.vy != 0) {
-          final roll = tu.rollK / b.r;
-          _rotate(b.R, -b.vy * roll, b.vx * roll, 0, h);
-        }
-      }
-      _walls8(b);
-    }
-    final n = B.length;
-    for (var it = 0; it < 2; it++) {
-      for (var a = 0; a < n; a++) {
-        final ba = B[a];
-        for (var c = a + 1; c < n; c++) {
-          final bc = B[c];
-          final mm = ba.r + bc.r;
-          final ddx = bc.x - ba.x;
-          if (ddx >= mm || ddx <= -mm) continue;
-          final ddy = bc.y - ba.y;
-          if (ddy >= mm || ddy <= -mm) continue;
-          _hit8(ba, bc, it == 0 ? h : 0);
-        }
-      }
-    }
-    for (var gi = 0; gi < 2; gi++) {
-      final g = goals[gi];
-      _post8(ball, g.x1, g.y);
-      _post8(ball, g.x2, g.y);
-    }
-    for (final b in B) {
-      _walls8(b);
     }
   }
 
@@ -1418,7 +1352,15 @@ class Engine {
     burst(ball.x, g.y, 50, 520, _goalCols, 1.8, 3);
   }
 
-  void burst(double x, double y, int n, double sp, List<int> cols, double life, [int k = 0]) {
+  void burst(
+    double x,
+    double y,
+    int n,
+    double sp,
+    List<int> cols,
+    double life, [
+    int k = 0,
+  ]) {
     if (nParts > 420) return;
     for (var i = 0; i < n; i++) {
       final a = rand() * math.pi * 2, v = sp * (.3 + rand());
@@ -1440,6 +1382,7 @@ class Engine {
   }
 
   void _finishTurn() {
+    _bounceSequenceActive = false;
     turn = 1 - turn;
     phase = Phase.aim;
     tleft = cfg.turnTime;
@@ -1463,62 +1406,37 @@ class Engine {
       tickFx(dt);
       return;
     }
-    if (cfg.matchTime > 0 && !sudden && mleft > 0 && !slave) mleft = _max(0, mleft - dt);
+    if (cfg.matchTime > 0 && !sudden && mleft > 0 && !slave) {
+      mleft = _max(0, mleft - dt);
+    }
     var ts = 1.0;
     if (slow > 0) {
       slow -= dt;
-      ts = godot ? .32 + .68 * fpow(1 - _max(0, slow) / 1.1, 2) : .3 + .7 * fpow(1 - _max(0, slow) / 1.1, 2);
+      ts = godot
+          ? .32 + .68 * fpow(1 - _max(0, slow) / 1.1, 2)
+          : .3 + .7 * fpow(1 - _max(0, slow) / 1.1, 2);
     }
     acc += dt * ts * (stars ? PHYSICS_CONFIG.playbackSpeed : 1.0);
     var n = 0;
-    if (godot) {
-      // Godot loop: at most tu.stepCap physics steps per frame, the backlog is dropped beyond that
-      while (acc >= step) {
-        if (n >= tu.stepCap) {
-          n++;
-          break;
-        }
-        n++;
-        for (final b in bodies) {
-          b.px = b.x;
-          b.py = b.y;
-        }
-        _sim(step);
-        acc -= step;
+    final stepCap = _physics.stepCap;
+    while (acc >= step && n < stepCap) {
+      n++;
+      for (final b in bodies) {
+        b.px = b.x;
+        b.py = b.y;
       }
-      if (n > tu.stepCap) acc = 0;
-      if (slave) {
-        tickFx(dt);
-        return;
-      }
-    } else if (slave) {
-      while (acc >= STEP && n++ < 16) {
-        for (final b in bodies) {
-          b.px = b.x;
-          b.py = b.y;
-        }
-        _sim(STEP);
-        acc -= STEP;
-      }
-      if (n > 16) acc = 0;
+      _sim(step);
+      acc -= step;
+    }
+    if (acc >= step && n >= stepCap) acc = 0;
+    if (slave) {
       tickFx(dt);
       return;
-    }
-    if (!godot) {
-      while (acc >= STEP && n++ < 16) {
-        for (final b in bodies) {
-          b.px = b.x;
-          b.py = b.y;
-        }
-        _sim(STEP);
-        acc -= STEP;
-      }
-      if (n > 16) acc = 0;
     }
     if (phase == Phase.move) {
       var moving = false;
       for (final b in bodies) {
-        if (b.vx != 0 || b.vy != 0 || (!godot && b.ramp > 0)) {
+        if (b.vx != 0 || b.vy != 0) {
           moving = true;
           break;
         }
@@ -1684,7 +1602,14 @@ class Engine {
     }
   }
 
-  static double _segDist(double px, double py, double ax, double ay, double bx, double by) {
+  static double _segDist(
+    double px,
+    double py,
+    double ax,
+    double ay,
+    double bx,
+    double by,
+  ) {
     final vx = bx - ax, vy = by - ay;
     var l2 = vx * vx + vy * vy;
     if (l2 == 0) l2 = 1;
@@ -1705,7 +1630,10 @@ class Engine {
 
   AiPlan? _aiDecide() {
     final me = turn, ball = this.ball, B = bodies;
-    final mine = <Body>[for (final b in B) if (b.team == me && !identical(b, ball)) b];
+    final mine = <Body>[
+      for (final b in B)
+        if (b.team == me && !identical(b, ball)) b,
+    ];
     final og = goals[1 - me];
     final target = goals[me == 1 ? 1 : 0];
     final lvl = cfg.aiLvl;
@@ -1720,7 +1648,8 @@ class Engine {
         if (ul == 0) ul = 1;
         ux /= ul;
         uy /= ul;
-        final cx = ball.x - ux * (p.r + ball.r + 1), cy = ball.y - uy * (p.r + ball.r + 1);
+        final cx = ball.x - ux * (p.r + ball.r + 1),
+            cy = ball.y - uy * (p.r + ball.r + 1);
         var vx = cx - p.x, vy = cy - p.y;
         final dist = hyp(vx, vy);
         if (dist < 8) continue;
@@ -1731,9 +1660,23 @@ class Engine {
         var blk = 0;
         for (final o in B) {
           if (o.team == me || identical(o, ball)) continue;
-          if (_segDist(o.x, o.y, ball.x, ball.y, tx, ty) < ball.r + o.r + 6) blk++;
+          if (_segDist(o.x, o.y, ball.x, ball.y, tx, ty) < ball.r + o.r + 6) {
+            blk++;
+          }
         }
-        cands.add(_Cand(p, vx, vy, 100 * al - dist * .03 - blk * 28 + ((ball.y - ty).abs() < 420 ? 25 : 0), dist, 1));
+        cands.add(
+          _Cand(
+            p,
+            vx,
+            vy,
+            100 * al -
+                dist * .03 -
+                blk * 28 +
+                ((ball.y - ty).abs() < 420 ? 25 : 0),
+            dist,
+            1,
+          ),
+        );
       }
       var vx = ball.x - p.x, vy = ball.y - p.y;
       final dist = hyp(vx, vy);
@@ -1748,7 +1691,11 @@ class Engine {
     }
     if (cands.isEmpty) {
       final sorted = List<Body>.of(mine);
-      _stableSort<Body>(sorted, (a, b) => hyp(a.x - ball.x, a.y - ball.y) - hyp(b.x - ball.x, b.y - ball.y));
+      _stableSort<Body>(
+        sorted,
+        (a, b) =>
+            hyp(a.x - ball.x, a.y - ball.y) - hyp(b.x - ball.x, b.y - ball.y),
+      );
       if (sorted.isEmpty) return null;
       final p = sorted[0];
       final vx = ball.x - p.x, vy = ball.y - p.y;
@@ -1762,7 +1709,9 @@ class Engine {
     final c = cands[(rand() * poolN).floor()];
     double gauss() => (rand() + rand() + rand() - 1.5) * 1.15;
     final ang = fatan2(c.dy, c.dx) + gauss() * sg;
-    var pw = lvl == 2 ? _min(1, .66 + c.dist / 1000) : _min(1, .5 + c.dist / 1100);
+    var pw = lvl == 2
+        ? _min(1, .66 + c.dist / 1000)
+        : _min(1, .5 + c.dist / 1100);
     if (lvl == 0) pw *= .7 + rand() * .3;
     if (c.atk != 0 && lvl > 0) pw = _max(pw, .78);
     return AiPlan(c.p, fcos(ang), fsin(ang), _max(.3, pw) * LMAX, 0);
