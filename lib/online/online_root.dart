@@ -10,6 +10,7 @@ import '../oracle/oracle.dart';
 import '../ui/chrome.dart';
 import '../ui/kit.dart';
 import 'competitive.dart';
+import 'cups.dart';
 import 'link.dart';
 import 'lobby.dart';
 import 'online_match.dart';
@@ -37,7 +38,9 @@ class OnlineRoot extends StatefulWidget {
 }
 
 class _OnlineRootState extends State<OnlineRoot> {
-  late List<_R> stack = [widget.entry == 'leagues' ? const _R('ranks', tab: 'leagues') : _R(widget.entry)];
+  late List<_R> stack = widget.entry.startsWith('cup:')
+      ? [const _R('tours'), _R('cup', id: widget.entry.substring(4))]
+      : [widget.entry == 'leagues' ? const _R('ranks', tab: 'leagues') : _R(widget.entry)];
   RoomLink? link;
   String? connErr, skip;
   bool firstLoad = true, quickDone = false, _directDone = false;
@@ -208,6 +211,7 @@ class _OnlineRootState extends State<OnlineRoot> {
     }
     final t = top, l = link;
     final Widget page = switch (t.k) {
+      'lobby' when l != null && isCupRoom(l.room) => CupLobby(link: l, onLeave: leaveRoom),
       'lobby' when l != null => RoomScreen(link: l, onLeave: back, settings: (_, lk) => RoomSettingsSheet(link: lk), onWatch: () {
           final m = l.room?.str('current_match');
           if (m != null) push(_R('match', id: m));
@@ -221,8 +225,10 @@ class _OnlineRootState extends State<OnlineRoot> {
             skip = t.id;
             _set([...stack.sublist(0, stack.length - 1), const _R('lobby')]);
           }),
+      'result' when isCupRoom(l?.room) => OnlineResultScreen(o: t.o!, before: t.before, onLobby: () => _set([...stack.sublist(0, stack.length - 1), const _R('lobby')]), onLeave: leaveRoom),
       'result' => _withRematch(l, OnlineResultScreen(o: t.o!, before: t.before, onLobby: () => _set([...stack.sublist(0, stack.length - 1), const _R('lobby')]), onLeave: leaveRoom)),
-      'tours' => ToursScreen(onBack: back, onOpen: (id) => push(_R('tour', id: id))),
+      'tours' => CupsScreen(onBack: back, onOpen: (id) => push(_R('cup', id: id))),
+      'cup' => CupScreen(key: ValueKey('c${t.id}'), id: t.id!, onBack: back, onRoom: enterRoom),
       'tour' => TourScreen(key: ValueKey('t${t.id}'), id: t.id!, onBack: back, onRoom: enterRoom),
       'ranks' => RanksScreen(onBack: back, tab: t.tab ?? 'top'),
       'arena' => ArenaScreen(onBack: back, onRoom: enterRoom),

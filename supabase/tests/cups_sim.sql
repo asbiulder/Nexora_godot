@@ -32,6 +32,13 @@ declare u uuid[]; c cups; g0 int; gc int; r jsonb := '{}'; m cup_matches; mt mat
   perform cup_enter(m.id);
   perform set_config('request.jwt.claims', json_build_object('sub', m.p2, 'role', 'authenticated')::text, true);
   perform cup_enter(m.id);
+  -- the room host cannot start a game himself (no lineup window / bots)
+  perform set_config('request.jwt.claims', json_build_object('sub', (select host from rooms where id = (select room_id from cup_matches where id = m.id)), 'role', 'authenticated')::text, true);
+  begin
+    perform start_match((select room_id from cup_matches where id = m.id));
+    r := r || '{"host_start_blocked": false}';
+  exception when others then r := r || jsonb_build_object('host_start_blocked', sqlerrm);
+  end;
   for k in 1..2 loop
     update cup_matches set lineup_until = now() - interval '1 second' where id = m.id;
     perform cup_kick(m.id);

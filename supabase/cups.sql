@@ -411,8 +411,12 @@ declare m cup_matches; r rooms; begin
   end if;
   if now() < m.lineup_until then return; end if;
   begin
+    perform set_config('nexora.cup_start', '1', true);
     perform _start_match(r.id, false);
-  exception when others then return;   -- seats not complete yet; the next call / tick retries
+    perform set_config('nexora.cup_start', '', true);
+  exception when others then
+    perform set_config('nexora.cup_start', '', true);
+    return;   -- seats not complete yet; the next call / tick retries
   end;
   update cup_matches set status = 'live', lineup_until = null, wait_from = now() where id = p_m;
 end $$;
@@ -462,6 +466,7 @@ declare mid uuid; m cup_matches; c cups; flip boolean; g1 int; g2 int; w int; be
   if new.status = old.status or new.status = 'live' then return new; end if;
   select cup_match_id into mid from rooms where id = new.room_id;
   if mid is null then return new; end if;
+  if new.bots then return new; end if;   -- never count a bot game (the insert guard below blocks them anyway)
   if new.status = 'abandoned' then   -- a dropped game is replayed; the no-show clock restarts now
     update cup_matches set wait_from = now(), lineup_until = null where id = mid and status in ('ready','live');
     return new;
@@ -483,6 +488,18 @@ declare mid uuid; m cup_matches; c cups; flip boolean; g1 int; g2 int; w int; be
   elsif w = 2 then perform _cup_advance(mid, m.p2, m.p1, false); end if;
   return new;
 end $$;
+-- games in a cup room start only through _cup_try_start (lineup window, both players seated): a host pressing
+-- start / rematch in the room cannot start one early or against bots.
+create or replace function public._cup_guard_match_insert() returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.room_id is not null and exists (select 1 from rooms where id = new.room_id and cup_match_id is not null)
+     and coalesce(current_setting('nexora.cup_start', true), '') <> '1' then
+    raise exception 'match not ready';
+  end if;
+  return new; end $$;
+drop trigger if exists trg_cup_guard_match_insert on public.matches;
+create trigger trg_cup_guard_match_insert before insert on public.matches for each row execute function public._cup_guard_match_insert();
+
 drop trigger if exists trg_cup_match on public.matches;
 create trigger trg_cup_match after update of status on public.matches for each row execute function public._cup_on_match();
 

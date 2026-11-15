@@ -10,6 +10,7 @@ import 'core/store.dart';
 import 'net/auth.dart';
 import 'net/discs.dart';
 import 'net/supabase.dart';
+import 'online/cup_alerts.dart';
 import 'oracle/oracle.dart';
 
 Future<void> main() async {
@@ -32,5 +33,8 @@ Future<void> main() async {
   Discs.i.init();
   Sound.init();
   Oracle.i.init();
+  CupAlerts.i
+    ..open = AppNav.openOnline
+    ..init();
   runApp(const NexoraApp());
 }
