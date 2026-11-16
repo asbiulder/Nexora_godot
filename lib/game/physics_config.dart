@@ -65,17 +65,8 @@ class PhysicsConfig {
   final double powerMulAt1, accDevAt1Deg;
   final int subMax, stepCap;
 
-  /// Extra restitution applied only to the incoming normal component of a
-  /// moving contact. It scales with actual launch speed and impact speed.
-  /// These parameters are dimensionless except [boostImpactSpeed] (W/s).
-  /// Zero disables the corresponding boost. The total restitution is capped
-  /// by [maxContactRestitution], and body speed remains subject to its cap.
-  /// Each body gets a finite per-shot budget of extra normal speed equal to
-  /// [boostBudgetFraction] times the launch speed capped at full shot speed.
-  /// The defaults allow a full-power puck to rebound faster than it arrived:
-  /// its .35 wall restitution can reach 1.25, and a square corner needs
-  /// enough budget for both normal impulses and their tangential damping.
-  /// Weak shots and slow impacts receive proportionally less extra impulse.
+  /// Legacy contact-boost settings retained for saved-config compatibility.
+  /// Defaults are zero: live impacts use ordinary dissipative restitution.
   final double railBoost, postBoost, cornerBoost;
   final double boostImpactSpeed, maxContactRestitution, boostBudgetFraction;
 
@@ -86,12 +77,12 @@ class PhysicsConfig {
     this.powerMulAt1 = .55,
     this.accDevAt1Deg = 8,
     this.ballSpinMultiplier = 1.35,
-    this.railBoost = .90,
-    this.postBoost = .95,
-    this.cornerBoost = 1.00,
+    this.railBoost = 0,
+    this.postBoost = 0,
+    this.cornerBoost = 0,
     this.boostImpactSpeed = 2,
-    this.maxContactRestitution = 1.25,
-    this.boostBudgetFraction = 1.20,
+    this.maxContactRestitution = 1.0,
+    this.boostBudgetFraction = 0,
     required this.puckDiameter,
     required this.ballDiameter,
     required this.ballK,
@@ -128,9 +119,9 @@ const PHYSICS_CONFIG = PhysicsConfig(
   wPx: 825,
   puckDiameter: .134, // [measured] was .117 (98 px)
   ballDiameter: .0638, // +10% from .058 W per owner request
-  ballK: 2.6, // owner 11-15 heavier; was 2.1
+  ballK: 1.8, // physical roll stays responsive; visual calm belongs in rendering
   // [measured, medium] tau .48 s; was 270 px/s^2 + 1.45/s (owner fit ~3.5/s)
-  puckK: 3.6, // owner 11-15 heavier; was 2.9
+  puckK: 2.4, // useful travel without endless gliding
   // [measured, low] tau .34 s; was 300 px/s^2 + 2.0/s (owner fit ~3.9/s)
   puckFlightK: 1.2, // owner 11-15 heavier; was .5
   // [guess] "almost constant speed until the first hit"; new
@@ -138,13 +129,13 @@ const PHYSICS_CONFIG = PhysicsConfig(
   stopSpeed: .02, // [measured] was 2 px/s = .0024 W/s
   massPuck: 1, // [guess] ball 3x puck; was ball 1 : puck 4
   massBall: 3,
-  eBallPuck: .4, // owner 11-15; was .5
+  eBallPuck: .70, // clean, readable transfer while keeping impacts dissipative
   // [guess] was .84
-  ePuckPuck: .55, // owner 11-15 less scatter; was .8
+  ePuckPuck: .78, // responsive contact without artificially boosted rebounds
   // [guess] was .84
-  eBallWall: .5, // owner 11-15 wall absorbs more; was .8
+  eBallWall: .80,
   // [guess] was .85
-  ePuckWall: .35, // owner 11-15; was .6
+  ePuckWall: .80,
   // [guess] was .90
   tBallWall: .765, // +10% wall friction: 10% less tangential speed kept
   // [kept]
@@ -154,11 +145,11 @@ const PHYSICS_CONFIG = PhysicsConfig(
   ballKickSpeed: 3.8, // owner 11-15 heavier ball; was 5
   // [guess, low] owner: reference ~6.5, start at 5
   puckShotRef: 2, // [measured] reference flick ~2 W/s
-  ballMaxSpeed: 5, // owner 11-15; was 6.5
+  ballMaxSpeed: 6.5,
   // [measured, low] reference peak ball speed
   maxSpeed: 7.2, // safety clamp above 1.25 × full puck shot speed; still within the substep budget
   postR: 5 / 825, // [kept]
-  playbackSpeed: .6, // calm presentation pace; does not reduce the actual shot-power curve
+  playbackSpeed: 1.0, // real-time simulation; visual calm must never slow gameplay
   useDiscStats: true, // owner: real 1..10 power/accuracy on every disc
   powerMulAt1: .55, // was .62 (statMul)
   accDevAt1Deg: 8, // was 4 (aimDevDeg)

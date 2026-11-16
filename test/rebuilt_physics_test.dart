@@ -75,7 +75,7 @@ void main() {
       expect(PHYSICS_CONFIG.tBallWall, closeTo(.85 * .9, 1e-12));
       expect(PHYSICS_CONFIG.tPuckWall, closeTo(.85 * .9, 1e-12));
       expect(PHYSICS_CONFIG.ballDiameter, closeTo(.058 * 1.1, 1e-12));
-      expect(PHYSICS_CONFIG.playbackSpeed, .6);
+      expect(PHYSICS_CONFIG.playbackSpeed, 1.0);
       expect(kTuneStars.ballR, closeTo(.0638 / 2 * PHYSICS_CONFIG.wPx, 1e-9));
       expect(kTuneStars.rollK, .75);
       expect(shotCurve(.05), greaterThan(.03), reason: 'a short flick should not be reduced to a nearly imperceptible nudge');
